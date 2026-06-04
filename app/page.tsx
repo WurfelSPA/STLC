@@ -145,7 +145,7 @@ export default function Home() {
           <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0 cursor-pointer" />
         </a>
         <div className="flex gap-6 font-semibold flex-1">
-          <button onClick={() => router.push("/")} className="hover:text-yellow-300">Home</button>
+          <button onClick={() => { setBuscar(""); setSeleccionada(null); setResultados([]); setBdOrigen(""); }} className="hover:text-yellow-300">Home</button>
           <button onClick={() => router.push("/renovaciones")} className="hover:text-yellow-300">Renovaciones</button>
           <button className="hover:text-yellow-300">Instalaciones</button>
           <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
@@ -172,7 +172,7 @@ export default function Home() {
         {/* FONDO DECORATIVO */}
         {!seleccionada && (
           <div className="flex items-center justify-center mt-8 pointer-events-none select-none">
-            <svg width="80%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
+            <svg width="60%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
               <style>{`
                 .grid  { fill:none; stroke:#1e3a8a; stroke-width:0.5; opacity:0.07; }
                 .ring  { fill:none; stroke:#1d4ed8; stroke-width:0.8; }
