@@ -95,7 +95,7 @@ export default function Home() {
     setSeleccionada(null);
     setBdOrigen("");
 
-    const campos = ["IMEI", "Placa", "Cliente/Empresa", "Usuario", "Cust ID"];
+    const campos = ["IMEI", "Placa", "Cliente/Empresa", "Usuario", "Cust ID", "Serie SIM"];
     let encontrados: Unidad[] = [];
     let origen = "";
 
@@ -304,7 +304,7 @@ export default function Home() {
                   <Campo label="Modelo" value={seleccionada["Modelo AVL"]} highlight={seleccionada["Modelo AVL"] === "GV300W"} />
                   <Campo label="Protocolo" value={seleccionada.Protocolo} />
                   <div className="mt-2 text-blue-700 font-bold border-b border-blue-300 mb-2 pb-1">SIM</div>
-                  <Campo label="Serie SIM" value={seleccionada["Serie SIM"]} />
+                  <Campo label="Serie SIM" value={seleccionada["Serie SIM"]} highlight />
                   <Campo label="Teléfono SIM" value={seleccionada["Teléfono SIM"]} />
                 </div>
               </div>
