@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -59,6 +60,9 @@ type Unidad = {
 };
 
 export default function Home() {
+  const router = useRouter();
+  const router = useRouter();
+  const router = useRouter();
   const [buscar, setBuscar] = useState("");
   const [resultados, setResultados] = useState<Unidad[]>([]);
   const [seleccionada, setSeleccionada] = useState<Unidad | null>(null);
@@ -158,7 +162,7 @@ export default function Home() {
         <div className="flex gap-6 font-semibold">
           <button className="hover:text-yellow-300">Renovaciones</button>
           <button className="hover:text-yellow-300">Instalaciones</button>
-          <button className="hover:text-yellow-300">HealthCheck</button>
+          <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">HealthCheck</button>
           <button className="hover:text-yellow-300">HealthCheck Mazda</button>
           <button className="hover:text-yellow-300">Salir</button>
         </div>
