@@ -70,12 +70,14 @@ export default function Home() {
 
   const servicioVencido = (hasta: string) => {
     if (!hasta) return false;
-    return new Date(hasta) < new Date();
+    return new Date(hasta.split("T")[0]) < new Date(new Date().toISOString().split("T")[0]);
   };
 
   const servicioPorVencer = (hasta: string) => {
     if (!hasta) return false;
-    const diff = (new Date(hasta).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
+    const hoy = new Date(new Date().toISOString().split("T")[0]);
+    const fechaHasta = new Date(hasta.split("T")[0]);
+    const diff = (fechaHasta.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
     return diff >= 0 && diff <= 60;
   };
 
@@ -145,12 +147,6 @@ export default function Home() {
     setTimeout(() => setMensajeGuardado(""), 3000);
   };
 
-  const colorServicio = (hasta: string) => {
-    if (servicioVencido(hasta)) return "bg-red-500 text-white px-2 py-0.5 rounded text-xs";
-    if (servicioPorVencer(hasta)) return "bg-yellow-400 text-black px-2 py-0.5 rounded text-xs";
-    return "";
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
       {/* NAVBAR */}
@@ -163,9 +159,9 @@ export default function Home() {
           <button className="hover:text-yellow-300">Salir</button>
         </div>
         <div className="flex items-center gap-4">
-  <img src="/logo.png" alt="Tracklink" className="h-8" />
-  <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white">API actualizar</button>
-</div>
+          <img src="/logo.png" alt="Tracklink" className="h-8" />
+          <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white">API actualizar</button>
+        </div>
       </nav>
 
       <div className="p-4">
@@ -260,19 +256,21 @@ export default function Home() {
                   <Campo label="Servicio" value={seleccionada.Servicio} />
                   <Campo label="Servicio Comercial" value={seleccionada["Servicio Comercial"]} />
                   <Campo label="Desde" value={seleccionada["Serv. Desde"]} />
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-gray-500 text-xs w-20 shrink-0">Hasta:</span>
-                    <span className="border border-gray-300 bg-gray-50 px-1 py-0.5 text-xs flex-1">
+                  <div className="flex items-center mb-1 gap-1">
+                    <span className="text-gray-500 text-xs w-24 shrink-0">Hasta:</span>
+                    <span className="border border-gray-300 bg-gray-50 px-1 py-0.5 text-xs flex-1 truncate">
                       {seleccionada["Serv. Hasta"]}
                     </span>
-                    {servicioVencido(seleccionada["Serv. Hasta"]) && (
-                      <span className="bg-red-500 text-white text-xs px-1 rounded">Vencido</span>
-                    )}
-                    {servicioPorVencer(seleccionada["Serv. Hasta"]) && (
-                      <span className="bg-yellow-400 text-black text-xs px-1 rounded">Por vencer</span>
-                    )}
+                    <div className="flex gap-1 shrink-0">
+                      {servicioVencido(seleccionada["Serv. Hasta"]) && (
+                        <span className="bg-red-500 text-white text-xs px-1 rounded">Vencido</span>
+                      )}
+                      {servicioPorVencer(seleccionada["Serv. Hasta"]) && (
+                        <span className="bg-yellow-400 text-black text-xs px-1 rounded">Por vencer</span>
+                      )}
+                    </div>
                   </div>
-                  <Campo label="Tipo de instalación" value={seleccionada.TipoInstalacion} />
+                  <Campo label="Tipo instalación" value={seleccionada.TipoInstalacion} />
                 </div>
               </div>
             </div>
@@ -295,7 +293,7 @@ export default function Home() {
                     <tr
                       key={i}
                       onClick={() => seleccionar(u)}
-                      className={`cursor-pointer hover:bg-blue-50 ${seleccionada?.IMEI === u.IMEI ? "bg-blue-100" : ""} ${servicioVencido(u["Serv. Hasta"]) ? "bg-red-100" : servicioPorVencer(u["Serv. Hasta"]) ? "bg-yellow-100" : ""}`}
+                      className={`cursor-pointer hover:bg-blue-50 ${seleccionada?.IMEI === u.IMEI ? "bg-blue-100" : ""} ${servicioVencido(u["Serv. Hasta"]) ? "!bg-red-100" : servicioPorVencer(u["Serv. Hasta"]) ? "!bg-yellow-100" : ""}`}
                     >
                       <td className="border border-gray-300 px-2 py-0.5">{u.IMEI}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Odómetro"]}</td>
