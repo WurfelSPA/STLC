@@ -203,7 +203,12 @@ export default function HealthCheckTracklink() {
     <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">HealthCheck Mazda</button>
   </div>
 </nav>
-
+<div className="px-4 pt-2">
+  <a href="https://tlchile.trackgts.com/admin/" target="_blank" rel="noopener noreferrer"
+     className="bg-blue-700 text-white text-xs px-3 py-1 rounded hover:bg-blue-600 inline-block">
+    🔗 Abrir Portal Tracklink
+  </a>
+</div>
       <div className="p-4">
         {/* ENCABEZADO */}
         <div className="flex items-center justify-between mb-3">
