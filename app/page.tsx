@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import Navbar from "../components/Navbar";
 
 const supabase = createClient(
   "https://lomkolhgmkvshucqjuhf.supabase.co",
@@ -140,32 +141,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
       {/* NAVBAR */}
-      <nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
-        <a href="https://www.tracklink.cl/" target="_blank" rel="noopener noreferrer">
-          <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0 cursor-pointer" />
-        </a>
-        <div className="flex gap-6 font-semibold flex-1">
-          <button onClick={() => { setBuscar(""); setSeleccionada(null); setResultados([]); setBdOrigen(""); }} className="hover:text-yellow-300">Home</button>
-          <button onClick={() => router.push("/renovaciones")} className="hover:text-yellow-300">Renovaciones</button>
-          <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
-          <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">Mazda Healthcheck</button>
-          <div className="relative group">
-  <button className="hover:text-yellow-300">Reportes ▾</button>
-  <div className="absolute hidden group-hover:block top-full left-0 bg-white text-blue-900 shadow-lg rounded min-w-[150px] z-50">
-    
-      href="https://wurfelspa.github.io/tracklink-santamarta/"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
-    >
-      Santa Marta
-    </a>
-  </div>
-</div>
-        </div>
-        <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white shrink-0">API actualizar</button>
-      </nav>
-
+      <Navbar paginaActiva="home" onHome={() => { setBuscar(""); setSeleccionada(null); setResultados([]); setBdOrigen(""); }} />
       <div className="p-4 relative">
         {/* BÚSQUEDA */}
         <div className="flex items-center gap-3 mb-1">
