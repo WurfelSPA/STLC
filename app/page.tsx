@@ -203,7 +203,130 @@ export default function Home() {
   {!seleccionada && (
     <div className="flex items-center justify-center mt-8 pointer-events-none select-none">
       <svg width="80%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
-        {/* PEGA AQUÍ EL CONTENIDO INTERNO DEL SVG */}
+        <style>
+  .grid  { fill:none; stroke:#1e3a8a; stroke-width:0.5; opacity:0.07; }
+  .ring  { fill:none; stroke:#1d4ed8; stroke-width:0.8; }
+  .conn  { fill:none; stroke:#1d4ed8; stroke-width:0.6; opacity:0.10; }
+  .node  { fill:#1d4ed8; }
+  .pin-c { fill:#1e40af; }
+  .pin-s { fill:none; stroke:#1e40af; stroke-width:1; }
+  .lbl   { font-family:sans-serif; font-size:10px; fill:#1e3a8a; font-weight:500; letter-spacing:0.05em; }
+  .sublbl{ font-family:sans-serif; font-size:9px; fill:#1e3a8a; opacity:0.5; }
+  .beam  { fill:none; stroke:#1d4ed8; stroke-width:0.5; stroke-dasharray:3,4; opacity:0.12; }
+</style>
+
+<defs>
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M40 0 L0 0 L0 40" class="grid"/>
+  </pattern>
+</defs>
+<rect width="680" height="460" fill="url(#grid)" opacity="0.6"/>
+
+<circle cx="100" cy="100" r="4" class="node" opacity="0.15"/>
+<circle cx="200" cy="60"  r="4" class="node" opacity="0.15"/>
+<circle cx="320" cy="90"  r="4" class="node" opacity="0.15"/>
+<circle cx="460" cy="70"  r="4" class="node" opacity="0.15"/>
+<circle cx="560" cy="110" r="4" class="node" opacity="0.15"/>
+<circle cx="620" cy="200" r="4" class="node" opacity="0.15"/>
+<circle cx="580" cy="340" r="4" class="node" opacity="0.15"/>
+<circle cx="480" cy="400" r="4" class="node" opacity="0.15"/>
+<circle cx="360" cy="380" r="4" class="node" opacity="0.15"/>
+<circle cx="200" cy="360" r="4" class="node" opacity="0.15"/>
+<circle cx="80"  cy="300" r="4" class="node" opacity="0.15"/>
+<circle cx="60"  cy="180" r="4" class="node" opacity="0.15"/>
+<circle cx="160" cy="220" r="4" class="node" opacity="0.12"/>
+<circle cx="420" cy="270" r="4" class="node" opacity="0.12"/>
+<circle cx="500" cy="180" r="4" class="node" opacity="0.12"/>
+<circle cx="260" cy="300" r="4" class="node" opacity="0.12"/>
+
+<g class="conn">
+  <line x1="100" y1="100" x2="200" y2="60"/>
+  <line x1="200" y1="60"  x2="320" y2="90"/>
+  <line x1="320" y1="90"  x2="460" y2="70"/>
+  <line x1="460" y1="70"  x2="560" y2="110"/>
+  <line x1="560" y1="110" x2="620" y2="200"/>
+  <line x1="620" y1="200" x2="580" y2="340"/>
+  <line x1="580" y1="340" x2="480" y2="400"/>
+  <line x1="480" y1="400" x2="360" y2="380"/>
+  <line x1="360" y1="380" x2="200" y2="360"/>
+  <line x1="200" y1="360" x2="80"  y2="300"/>
+  <line x1="80"  y1="300" x2="60"  y2="180"/>
+  <line x1="60"  y1="180" x2="100" y2="100"/>
+  <line x1="160" y1="220" x2="100" y2="100"/>
+  <line x1="160" y1="220" x2="200" y2="360"/>
+  <line x1="160" y1="220" x2="260" y2="300"/>
+  <line x1="260" y1="300" x2="200" y2="360"/>
+  <line x1="260" y1="300" x2="360" y2="380"/>
+  <line x1="420" y1="270" x2="500" y2="180"/>
+  <line x1="420" y1="270" x2="480" y2="400"/>
+  <line x1="500" y1="180" x2="560" y2="110"/>
+  <line x1="500" y1="180" x2="620" y2="200"/>
+  <line x1="320" y1="90"  x2="160" y2="220"/>
+  <line x1="460" y1="70"  x2="420" y2="270"/>
+</g>
+
+<circle cx="340" cy="230" r="45"  class="ring" opacity="0.08"/>
+<circle cx="340" cy="230" r="90"  class="ring" opacity="0.06"/>
+<circle cx="340" cy="230" r="135" class="ring" opacity="0.04"/>
+<circle cx="340" cy="230" r="180" class="ring" opacity="0.03"/>
+<line x1="295" y1="230" x2="385" y2="230" stroke="#1d4ed8" stroke-width="0.5" opacity="0.06"/>
+<line x1="340" y1="185" x2="340" y2="275" stroke="#1d4ed8" stroke-width="0.5" opacity="0.06"/>
+
+<circle cx="340" cy="222" r="12" class="pin-c" opacity="0.18"/>
+<circle cx="340" cy="222" r="5"  fill="#fff" opacity="0.25"/>
+<path d="M340 234 L333 250 L340 246 L347 250 Z" class="pin-c" opacity="0.18"/>
+<circle cx="340" cy="222" r="20" class="pin-s" opacity="0.08"/>
+<circle cx="340" cy="222" r="28" class="pin-s" opacity="0.05"/>
+
+<g opacity="0.14">
+  <circle cx="160" cy="220" r="7" class="pin-c"/>
+  <path d="M160 227 L156 236 L160 234 L164 236 Z" class="pin-c"/>
+  <circle cx="160" cy="220" r="13" class="pin-s" opacity="0.6"/>
+</g>
+<g opacity="0.14">
+  <circle cx="500" cy="180" r="7" class="pin-c"/>
+  <path d="M500 187 L496 196 L500 194 L504 196 Z" class="pin-c"/>
+  <circle cx="500" cy="180" r="13" class="pin-s" opacity="0.6"/>
+</g>
+<g opacity="0.10">
+  <circle cx="260" cy="300" r="6" class="pin-c"/>
+  <path d="M260 306 L257 313 L260 311 L263 313 Z" class="pin-c"/>
+</g>
+<g opacity="0.10">
+  <circle cx="420" cy="270" r="6" class="pin-c"/>
+  <path d="M420 276 L417 283 L420 281 L423 283 Z" class="pin-c"/>
+</g>
+
+<g transform="translate(590,50) rotate(-30)" opacity="0.10">
+  <rect x="-18" y="-4" width="36" height="8" rx="2" fill="#1d4ed8"/>
+  <rect x="-30" y="-2" width="10" height="4" rx="1" fill="#1d4ed8"/>
+  <rect x="20"  y="-2" width="10" height="4" rx="1" fill="#1d4ed8"/>
+  <circle cx="0" cy="0" r="3" fill="#fff" opacity="0.3"/>
+</g>
+<line x1="590" y1="50" x2="340" y2="222" class="beam"/>
+<line x1="590" y1="50" x2="160" y2="220" class="beam"/>
+<line x1="590" y1="50" x2="500" y2="180" class="beam"/>
+
+<g transform="translate(75,290)" opacity="0.10">
+  <rect x="0" y="6" width="32" height="14" rx="3" fill="#1e40af"/>
+  <rect x="5" y="0" width="22" height="10" rx="2" fill="#1e40af"/>
+  <circle cx="7"  cy="21" r="4" fill="#1e40af"/>
+  <circle cx="25" cy="21" r="4" fill="#1e40af"/>
+</g>
+<g transform="translate(530,370)" opacity="0.10">
+  <rect x="0" y="6" width="32" height="14" rx="3" fill="#1e40af"/>
+  <rect x="5" y="0" width="22" height="10" rx="2" fill="#1e40af"/>
+  <circle cx="7"  cy="21" r="4" fill="#1e40af"/>
+  <circle cx="25" cy="21" r="4" fill="#1e40af"/>
+</g>
+
+<g transform="translate(595,195)" opacity="0.10">
+  <path d="M0,0 Q5,-8 10,0 Q15,8 20,0" stroke="#1d4ed8" stroke-width="1.5" fill="none"/>
+  <path d="M-5,0 Q5,-16 15,0 Q25,16 25,0" stroke="#1d4ed8" stroke-width="1" fill="none"/>
+</g>
+
+<text x="340" y="440" class="lbl" text-anchor="middle" opacity="0.18">SISTEMA CENTRALIZADO TRACKLINK CHILE</text>
+<text x="340" y="454" class="sublbl" text-anchor="middle" opacity="0.15">Rastreo · Conectividad · Telemetría</text>
       </svg>
     </div>
   )}
