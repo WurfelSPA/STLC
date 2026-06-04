@@ -184,7 +184,29 @@ export default function Home() {
           {buscando && <span className="text-gray-500">Consultando...</span>}
         </div>
         <p className="text-gray-500 text-xs mb-3 ml-16">Presione ENTER para continuar...</p>
+  <div className="p-4 relative">
+  {/* BÚSQUEDA */}
+  <div className="flex items-center gap-3 mb-1">
+    <span className="text-blue-900 font-bold text-lg">Buscar</span>
+    <input
+      className="border border-gray-400 px-2 py-1 w-72 focus:outline-none focus:border-blue-600"
+      value={buscar}
+      onChange={e => setBuscar(e.target.value)}
+      onKeyDown={e => e.key === "Enter" && buscarAsync()}
+      placeholder="IMEI, Placa, Cliente o Usuario"
+    />
+    {buscando && <span className="text-gray-500">Consultando...</span>}
+  </div>
+  <p className="text-gray-500 text-xs mb-3 ml-16">Presione ENTER para continuar...</p>
 
+  {/* FONDO DECORATIVO */}
+  {!seleccionada && (
+    <div className="flex items-center justify-center mt-8 pointer-events-none select-none">
+      <svg width="80%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
+        {/* PEGA AQUÍ EL CONTENIDO INTERNO DEL SVG */}
+      </svg>
+    </div>
+  )}
         {seleccionada && (
           <>
             {/* PANELES */}
