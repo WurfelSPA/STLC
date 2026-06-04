@@ -157,19 +157,16 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
       {/* NAVBAR */}
-      <nav className="bg-blue-900 text-white px-4 py-2 flex items-center justify-between">
-        <div className="flex gap-6 font-semibold">
-          <button className="hover:text-yellow-300">Renovaciones</button>
-          <button className="hover:text-yellow-300">Instalaciones</button>
-          <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">HealthCheck</button>
-          <button className="hover:text-yellow-300">HealthCheck Mazda</button>
-          <button className="hover:text-yellow-300">Salir</button>
-        </div>
-        <div className="flex items-center gap-4">
-          <img src="/logo.png" alt="Tracklink" className="h-8" />
-          <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white">API actualizar</button>
-        </div>
-      </nav>
+<nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
+  <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0" />
+  <div className="flex gap-6 font-semibold flex-1">
+    <button className="hover:text-yellow-300">Renovaciones</button>
+    <button className="hover:text-yellow-300">Instalaciones</button>
+    <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">HealthCheck</button>
+    <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">HealthCheck Mazda</button>
+  </div>
+  <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white shrink-0">API actualizar</button>
+</nav>
 
       <div className="p-4">
         {/* BÚSQUEDA */}
