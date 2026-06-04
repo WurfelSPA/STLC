@@ -6,7 +6,8 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
 );
 
-const BASE_URL = "https://tlchile.trackgts.com:8081";
+const BASE_URL_TRACKLINK = "https://tlchile.trackgts.com:8081";
+const BASE_URL_MCONNECT  = "https://mconnect.trackgts.com:8081";
 const API_USER = "tu_usuario";
 const API_PASS = "tu_password";
 
@@ -17,7 +18,7 @@ type SyncResult = {
   message: string;
 };
 
-async function sincronizar(customer: string, tabla: string): Promise<SyncResult> {
+async function sincronizar(customer: string, tabla: string, baseUrl: string): Promise<SyncResult> {
   // Autenticar
   const authRes = await fetch(`${BASE_URL}/api/Authenticate/Auth`, {
     method: "POST",
@@ -124,8 +125,8 @@ async function sincronizar(customer: string, tabla: string): Promise<SyncResult>
 export async function POST() {
   try {
     const [tracklink, mzd] = await Promise.allSettled([
-      sincronizar("tlchile",  "Tracklink"),
-      sincronizar("mconnect", "MZDConnect"),
+      sincronizar("tlchile",  "Tracklink",  BASE_URL_TRACKLINK),
+      sincronizar("mconnect", "MZDConnect", BASE_URL_MCONNECT),
     ]);
 
     const resultTracklink = tracklink.status === "fulfilled" ? tracklink.value : { success: false, message: `Error inesperado en Tracklink.` };
