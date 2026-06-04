@@ -61,8 +61,6 @@ type Unidad = {
 
 export default function Home() {
   const router = useRouter();
-  const router = useRouter();
-  const router = useRouter();
   const [buscar, setBuscar] = useState("");
   const [resultados, setResultados] = useState<Unidad[]>([]);
   const [seleccionada, setSeleccionada] = useState<Unidad | null>(null);
@@ -71,6 +69,11 @@ export default function Home() {
   const [buscando, setBuscando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensajeGuardado, setMensajeGuardado] = useState("");
+
+  const formatFecha = (fecha: string) => {
+    if (!fecha) return "";
+    return fecha.split("T")[0];
+  };
 
   const servicioVencido = (hasta: string) => {
     if (!hasta) return false;
@@ -259,11 +262,11 @@ export default function Home() {
                   <div className="text-blue-700 font-bold border-b border-blue-300 mb-2 pb-1">SERVICIO</div>
                   <Campo label="Servicio" value={seleccionada.Servicio} />
                   <Campo label="Servicio Comercial" value={seleccionada["Servicio Comercial"]} />
-                  <Campo label="Desde" value={seleccionada["Serv. Desde"]} />
+                  <CampoFecha label="Desde" value={formatFecha(seleccionada["Serv. Desde"])} />
                   <div className="flex items-center mb-1 gap-1">
                     <span className="text-gray-500 text-xs w-24 shrink-0">Hasta:</span>
-                    <span className="border border-gray-300 bg-gray-50 px-1 py-0.5 text-xs flex-1 truncate">
-                      {seleccionada["Serv. Hasta"]}
+                    <span className="border border-gray-300 bg-gray-50 px-1 py-0.5 text-xs w-24">
+                      {formatFecha(seleccionada["Serv. Hasta"])}
                     </span>
                     <div className="flex gap-1 shrink-0">
                       {servicioVencido(seleccionada["Serv. Hasta"]) && (
@@ -308,8 +311,8 @@ export default function Home() {
                       <td className="border border-gray-300 px-2 py-0.5">{u["Serie SIM"]}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.Servicio}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Servicio Comercial"]}</td>
-                      <td className="border border-gray-300 px-2 py-0.5">{u["Serv. Desde"]}</td>
-                      <td className="border border-gray-300 px-2 py-0.5">{u["Serv. Hasta"]}</td>
+                      <td className="border border-gray-300 px-2 py-0.5">{formatFecha(u["Serv. Desde"])}</td>
+                      <td className="border border-gray-300 px-2 py-0.5">{formatFecha(u["Serv. Hasta"])}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.TipoInstalacion}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.Alias}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.Tipo}</td>
@@ -335,6 +338,17 @@ function Campo({ label, value, highlight }: { label: string; value: string; high
     <div className="flex items-center mb-1 gap-1">
       <span className="text-gray-500 text-xs w-24 shrink-0">{label}:</span>
       <span className={`border px-1 py-0.5 text-xs flex-1 truncate ${highlight ? "bg-yellow-50 border-gray-400 font-semibold" : "border-gray-300 bg-gray-50"}`}>
+        {value || ""}
+      </span>
+    </div>
+  );
+}
+
+function CampoFecha({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center mb-1 gap-1">
+      <span className="text-gray-500 text-xs w-24 shrink-0">{label}:</span>
+      <span className="border border-gray-300 bg-gray-50 px-1 py-0.5 text-xs w-24">
         {value || ""}
       </span>
     </div>
