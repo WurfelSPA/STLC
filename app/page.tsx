@@ -156,14 +156,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
-      {/* NAVBAR */}
-<nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
-  <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0" />
+      <nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
+  <a href="https://www.tracklink.cl/" target="_blank" rel="noopener noreferrer">
+    <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0 cursor-pointer" />
+  </a>
   <div className="flex gap-6 font-semibold flex-1">
+    <button onClick={() => router.push("/")} className="hover:text-yellow-300">Home</button>
     <button className="hover:text-yellow-300">Renovaciones</button>
     <button className="hover:text-yellow-300">Instalaciones</button>
-    <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">HealthCheck</button>
-    <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">HealthCheck Mazda</button>
+    <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
+    <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">Mazda Healthcheck</button>
   </div>
   <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white shrink-0">API actualizar</button>
 </nav>
