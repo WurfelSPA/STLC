@@ -160,7 +160,6 @@ export default function Renovaciones() {
         <div className="flex gap-6 font-semibold flex-1">
           <button onClick={() => router.push("/")} className="hover:text-yellow-300">Home</button>
           <button className="text-yellow-300 underline">Renovaciones</button>
-          <button onClick={() => router.push("/")} className="hover:text-yellow-300">Instalaciones</button>
           <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
           <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">Mazda Healthcheck</button>
         </div>
