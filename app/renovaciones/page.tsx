@@ -10,8 +10,8 @@ const supabase = createClient(
 );
 
 const USUARIOS_EXCLUIDOS = ["bodega", "emiliano", "INSTALACIONES", "mautobahn", "PERDIDOS", "REVISION", "RECICLADAS", "sparejam", "sparejam-MDB"];
-
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const ANIOS = [2030,2029,2028,2027,2026,2025,2024];
 
 const COLORES_SERVICIO: Record<string, string> = {
   "":                    "bg-blue-100 text-blue-800",
@@ -52,7 +52,8 @@ export default function Renovaciones() {
   const [cargando, setCargando] = useState(true);
   const [filtroUsuario, setFiltroUsuario] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroMes, setFiltroMes] = useState("");
+  const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString());
+  const [filtroMes, setFiltroMes] = useState(MESES[new Date().getMonth()]);
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
   const [orden, setOrden] = useState<OrdenKey>("Serv. Hasta");
   const [soloVencidos, setSoloVencidos] = useState(false);
@@ -73,7 +74,6 @@ export default function Renovaciones() {
       if (data.length < 1000) break;
       desde += 1000;
     }
-    // Filtrar excluidos y solo los que vencen en los próximos 60 días o ya vencidos
     const hoy = new Date();
     const filtrados = todos.filter(r => {
       if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
@@ -108,6 +108,10 @@ export default function Renovaciones() {
       if (filtroUsuario && r.Usuario !== filtroUsuario) return false;
       const tipo = r["Servicio Comercial"] || "TRACKLINK";
       if (filtroTipo && tipo !== filtroTipo) return false;
+      if (filtroAnio) {
+        const anio = new Date(r["Serv. Hasta"].split("T")[0]).getFullYear();
+        if (anio.toString() !== filtroAnio) return false;
+      }
       if (filtroMes) {
         const mes = new Date(r["Serv. Hasta"].split("T")[0]).getMonth();
         if (mes !== MESES.indexOf(filtroMes)) return false;
@@ -139,7 +143,8 @@ export default function Renovaciones() {
   const limpiarFiltros = () => {
     setFiltroUsuario("");
     setFiltroTipo("");
-    setFiltroMes("");
+    setFiltroAnio(new Date().getFullYear().toString());
+    setFiltroMes(MESES[new Date().getMonth()]);
     setFiltroBusqueda("");
     setSoloVencidos(false);
     setSoloPorVencer(false);
@@ -213,6 +218,17 @@ export default function Renovaciones() {
             >
               <option value="">Todos</option>
               {tiposUnicos.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Año de vencimiento</label>
+            <select
+              className="border border-gray-300 px-2 py-1 text-xs w-28 focus:outline-none focus:border-blue-500"
+              value={filtroAnio}
+              onChange={e => setFiltroAnio(e.target.value)}
+            >
+              <option value="">Todos</option>
+              {ANIOS.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div>
