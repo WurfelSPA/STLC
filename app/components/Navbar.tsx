@@ -8,11 +8,18 @@ type NavbarProps = {
   onHome?: () => void;
 };
 
+type SyncResultado = {
+  success: boolean;
+  rateLimited?: boolean;
+  message: string;
+};
+
 export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
   const router = useRouter();
   const [reportesAbierto, setReportesAbierto] = useState(false);
-  const [sincState, setSincState] = useState<"idle" | "loading" | "ok" | "warning" | "error">("idle");
-  const [sincMsg, setSincMsg] = useState("");
+  const [sincState, setSincState] = useState<"idle" | "loading" | "done">("idle");
+  const [msgTracklink, setMsgTracklink] = useState("");
+  const [msgMZD, setMsgMZD] = useState("");
 
   const btnClass = (pagina: string) =>
     paginaActiva === pagina
@@ -28,45 +35,34 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
   const handleSync = async () => {
     if (sincState === "loading") return;
     setSincState("loading");
-    setSincMsg("Conectando con la API...");
+    setMsgTracklink("Sincronizando Tracklink...");
+    setMsgMZD("Sincronizando MZDConnect...");
 
     try {
       const res = await fetch("/api/sync", { method: "POST" });
       const data = await res.json();
 
-      if (res.status === 429 || data.rateLimited) {
-        setSincState("warning");
-        setSincMsg(data.message);
-      } else if (data.success) {
-        setSincState("ok");
-        setSincMsg(data.message);
-      } else {
-        setSincState("error");
-        setSincMsg(data.message || "Error desconocido.");
-      }
+      setMsgTracklink(data.tracklink?.message ?? "Sin respuesta de Tracklink.");
+      setMsgMZD(data.mzd?.message ?? "Sin respuesta de MZDConnect.");
+      setSincState("done");
     } catch {
-      setSincState("error");
-      setSincMsg("No se pudo conectar con el servidor.");
+      setMsgTracklink("❌ Error de conexión con el servidor.");
+      setMsgMZD("❌ Error de conexión con el servidor.");
+      setSincState("done");
     }
 
-    setTimeout(() => { setSincState("idle"); setSincMsg(""); }, 6000);
+    setTimeout(() => {
+      setSincState("idle");
+      setMsgTracklink("");
+      setMsgMZD("");
+    }, 8000);
   };
 
-  const btnSincColor = {
-    idle:    "bg-gray-200 text-blue-900 hover:bg-white",
-    loading: "bg-yellow-200 text-yellow-900 cursor-wait",
-    ok:      "bg-green-200 text-green-900",
-    warning: "bg-yellow-300 text-yellow-900",
-    error:   "bg-red-200 text-red-900",
-  }[sincState];
-
-  const btnSincLabel = {
-    idle:    "API actualizar",
-    loading: "Sincronizando...",
-    ok:      "✅ Actualizado",
-    warning: "⚠️ Rate limit",
-    error:   "❌ Error",
-  }[sincState];
+  const msgColor = (msg: string) => {
+    if (msg.includes("✅")) return "bg-green-100 text-green-800";
+    if (msg.includes("Rate limit") || msg.includes("~20")) return "bg-yellow-100 text-yellow-800";
+    return "bg-red-100 text-red-800";
+  };
 
   return (
     <div>
@@ -105,20 +101,29 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
         <button
           onClick={handleSync}
           disabled={sincState === "loading"}
-          className={`text-xs px-3 py-1 rounded shrink-0 transition-colors ${btnSincColor}`}
+          className={`text-xs px-3 py-1 rounded shrink-0 transition-colors ${
+            sincState === "loading"
+              ? "bg-yellow-200 text-yellow-900 cursor-wait"
+              : "bg-gray-200 text-blue-900 hover:bg-white"
+          }`}
         >
-          {btnSincLabel}
+          {sincState === "loading" ? "Sincronizando..." : "API actualizar"}
         </button>
       </nav>
 
-      {/* MENSAJE DE ESTADO */}
-      {sincMsg && sincState !== "idle" && sincState !== "loading" && (
-        <div className={`text-xs px-4 py-2 text-center font-medium ${
-          sincState === "ok"      ? "bg-green-100 text-green-800" :
-          sincState === "warning" ? "bg-yellow-100 text-yellow-800" :
-                                    "bg-red-100 text-red-800"
-        }`}>
-          {sincMsg}
+      {/* MENSAJES DE ESTADO */}
+      {sincState === "done" && (msgTracklink || msgMZD) && (
+        <div className="flex gap-2 px-4 py-1">
+          {msgTracklink && (
+            <div className={`text-xs px-3 py-1.5 rounded flex-1 text-center font-medium ${msgColor(msgTracklink)}`}>
+              <span className="font-bold">Tracklink:</span> {msgTracklink}
+            </div>
+          )}
+          {msgMZD && (
+            <div className={`text-xs px-3 py-1.5 rounded flex-1 text-center font-medium ${msgColor(msgMZD)}`}>
+              <span className="font-bold">MZDConnect:</span> {msgMZD}
+            </div>
+          )}
         </div>
       )}
     </div>
