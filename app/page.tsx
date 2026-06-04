@@ -163,7 +163,7 @@ export default function Home() {
             value={buscar}
             onChange={e => setBuscar(e.target.value)}
             onKeyDown={e => e.key === "Enter" && buscarAsync()}
-            placeholder="IMEI, Placa, Cliente, Usuario o RUT"
+            placeholder="IMEI, Placa, Cliente, Usuario, RUT o SIM"
           />
           {buscando && <span className="text-gray-500">Consultando...</span>}
         </div>
