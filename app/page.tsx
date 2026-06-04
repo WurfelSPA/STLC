@@ -147,7 +147,6 @@ export default function Home() {
         <div className="flex gap-6 font-semibold flex-1">
           <button onClick={() => { setBuscar(""); setSeleccionada(null); setResultados([]); setBdOrigen(""); }} className="hover:text-yellow-300">Home</button>
           <button onClick={() => router.push("/renovaciones")} className="hover:text-yellow-300">Renovaciones</button>
-          <button className="hover:text-yellow-300">Instalaciones</button>
           <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
           <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">Mazda Healthcheck</button>
         </div>
