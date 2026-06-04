@@ -19,18 +19,18 @@ type SyncResult = {
 };
 
 async function sincronizar(customer: string, tabla: string, baseUrl: string): Promise<SyncResult> {
-  // Autenticar
-  const authRes = await fetch(`${BASE_URL}/api/Authenticate/Auth`, {
+  // PASO 1: Autenticar
+  const authRes = await fetch(`${baseUrl}/api/Authenticate/Auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user: API_USER, password: API_PASS, customer }),
   });
 
   if (authRes.status === 429)
-    return { success: false, rateLimited: true, message: `Rate limit alcanzado para ${tabla}. Espera ~20 minutos.` };
+    return { success: false, rateLimited: true, message: `⚠️ Rate limit para ${tabla}. Espera ~20 minutos.` };
 
   if (!authRes.ok)
-    return { success: false, message: `Error de autenticación para ${tabla}.` };
+    return { success: false, message: `❌ Error de autenticación para ${tabla}.` };
 
   const authData = await authRes.json();
   const accessToken = authData.data?.accessToken;
@@ -38,10 +38,10 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
   const retailId = (authData.data?.parentCustomerId ?? user?.parentCustomerId)?.toString();
 
   if (!accessToken || !retailId)
-    return { success: false, message: `No se obtuvo token o retailId para ${tabla}.` };
+    return { success: false, message: `❌ No se obtuvo token o retailId para ${tabla}.` };
 
-  // Obtener reporte
-  const reportRes = await fetch(`${BASE_URL}/api/HealthCheck/GetReportHealthCheck`, {
+  // PASO 2: Obtener reporte
+  const reportRes = await fetch(`${baseUrl}/api/HealthCheck/GetReportHealthCheck`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -51,18 +51,18 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
   });
 
   if (reportRes.status === 429)
-    return { success: false, rateLimited: true, message: `Rate limit alcanzado para ${tabla}. Espera ~20 minutos.` };
+    return { success: false, rateLimited: true, message: `⚠️ Rate limit para ${tabla}. Espera ~20 minutos.` };
 
   if (!reportRes.ok)
-    return { success: false, message: `Error al obtener reporte para ${tabla}.` };
+    return { success: false, message: `❌ Error al obtener reporte para ${tabla}.` };
 
   const reportData = await reportRes.json();
   const unidades = reportData.data ?? [];
 
   if (!unidades.length)
-    return { success: false, message: `La API no devolvió unidades para ${tabla}.` };
+    return { success: false, message: `❌ La API no devolvió unidades para ${tabla}.` };
 
-  // Mapear registros
+  // PASO 3: Upsert a Supabase
   const registros = unidades.map((u: Record<string, unknown>) => ({
     "IMEI":                 u.imei,
     "Unit ID":              u.unitId,
@@ -117,9 +117,9 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
   const { error } = await supabase.from(tabla).upsert(registros, { onConflict: "IMEI" });
 
   if (error)
-    return { success: false, message: `Error al guardar en ${tabla}: ${error.message}` };
+    return { success: false, message: `❌ Error al guardar en ${tabla}: ${error.message}` };
 
-  return { success: true, total: unidades.length, message: `✅ ${tabla}: ${unidades.length} unidades sincronizadas.` };
+  return { success: true, total: unidades.length, message: `✅ ${unidades.length} unidades sincronizadas.` };
 }
 
 export async function POST() {
@@ -129,22 +129,23 @@ export async function POST() {
       sincronizar("mconnect", "MZDConnect", BASE_URL_MCONNECT),
     ]);
 
-    const resultTracklink = tracklink.status === "fulfilled" ? tracklink.value : { success: false, message: `Error inesperado en Tracklink.` };
-    const resultMZD       = mzd.status === "fulfilled"       ? mzd.value       : { success: false, message: `Error inesperado en MZDConnect.` };
+    const resultTracklink = tracklink.status === "fulfilled"
+      ? tracklink.value
+      : { success: false, message: "❌ Error inesperado en Tracklink." };
 
-    const ambosOk       = resultTracklink.success && resultMZD.success;
-    const algunRateLimit = resultTracklink.rateLimited || resultMZD.rateLimited;
+    const resultMZD = mzd.status === "fulfilled"
+      ? mzd.value
+      : { success: false, message: "❌ Error inesperado en MZDConnect." };
 
     return NextResponse.json({
-      success:    ambosOk,
-      rateLimited: algunRateLimit,
+      success:    resultTracklink.success && resultMZD.success,
+      rateLimited: resultTracklink.rateLimited || resultMZD.rateLimited,
       tracklink:  resultTracklink,
       mzd:        resultMZD,
-      message:    `${resultTracklink.message} | ${resultMZD.message}`,
     });
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error desconocido";
-    return NextResponse.json({ success: false, message: `Error: ${message}` }, { status: 500 });
+    return NextResponse.json({ success: false, message: `❌ Error: ${message}` }, { status: 500 });
   }
 }
