@@ -149,6 +149,19 @@ export default function Home() {
           <button onClick={() => router.push("/renovaciones")} className="hover:text-yellow-300">Renovaciones</button>
           <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
           <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">Mazda Healthcheck</button>
+          <div className="relative group">
+  <button className="hover:text-yellow-300">Reportes ▾</button>
+  <div className="absolute hidden group-hover:block top-full left-0 bg-white text-blue-900 shadow-lg rounded min-w-[150px] z-50">
+    
+      href="https://wurfelspa.github.io/tracklink-santamarta/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
+    >
+      Santa Marta
+    </a>
+  </div>
+</div>
         </div>
         <button className="bg-gray-200 text-blue-900 text-xs px-3 py-1 rounded hover:bg-white shrink-0">API actualizar</button>
       </nav>
