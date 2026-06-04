@@ -172,7 +172,7 @@ export default function Home() {
         {/* FONDO DECORATIVO */}
         {!seleccionada && (
           <div className="flex items-center justify-center mt-8 pointer-events-none select-none">
-            <svg width="60%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
+            <svg width="40%" viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
               <style>{`
                 .grid  { fill:none; stroke:#1e3a8a; stroke-width:0.5; opacity:0.07; }
                 .ring  { fill:none; stroke:#1d4ed8; stroke-width:0.8; }
