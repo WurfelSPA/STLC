@@ -194,14 +194,19 @@ export default function HealthCheckMazda() {
 
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
-      <nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
-  <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0" />
+     <nav className="bg-blue-900 text-white px-4 py-2 flex items-center gap-6">
+  <a href="https://www.tracklink.cl/" target="_blank" rel="noopener noreferrer">
+    <img src="/logo.png" alt="Tracklink" className="h-8 shrink-0 cursor-pointer" />
+  </a>
   <div className="flex gap-6 font-semibold flex-1">
+    <button onClick={() => router.push("/")} className="hover:text-yellow-300">Home</button>
     <button onClick={() => router.push("/")} className="hover:text-yellow-300">Renovaciones</button>
     <button onClick={() => router.push("/")} className="hover:text-yellow-300">Instalaciones</button>
-    <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">HealthCheck</button>
-    <button onClick={() => router.push("/healthcheckmazda")} className="hover:text-yellow-300">HealthCheck Mazda</button>
+    <button onClick={() => router.push("/healthchecktracklink")} className="hover:text-yellow-300">Tracklink Healthcheck</button>
+    <button className="text-yellow-300 underline">Mazda Healthcheck</button>
   </div>
+</nav>
+        
 </nav>
 <div className="px-4 pt-2">
   <a href="https://mconnect.trackgts.com/Admin/login.html" target="_blank" rel="noopener noreferrer"
