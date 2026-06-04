@@ -333,7 +333,7 @@ export default function Home() {
                   <div className="text-blue-700 font-bold border-b border-blue-300 mb-2 pb-1">CLIENTE / EMPRESA</div>
                   <Campo label="Nombre Cliente / Empresa" value={seleccionada["Cliente/Empresa"]} highlight />
                   <Campo label="Usuario" value={seleccionada.Usuario} highlight />
-                  <Campo label="RUT / Identificación" value={seleccionada["Cust ID"]} />
+                  <Campo label="RUT / Identificación" value={seleccionada["Cust ID"]} highlight />
                   <Campo label="Nombres" value={seleccionada.Nombre} />
                   <Campo label="Apellidos" value={seleccionada.Apellido} />
                   <Campo label="Teléfono" value={seleccionada.Telefono} />
