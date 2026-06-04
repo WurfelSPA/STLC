@@ -95,7 +95,7 @@ export default function Home() {
     setSeleccionada(null);
     setBdOrigen("");
 
-    const campos = ["IMEI", "Placa", "Cliente/Empresa", "Usuario"];
+    const campos = ["IMEI", "Placa", "Cliente/Empresa", "Usuario", "Cust ID"];
     let encontrados: Unidad[] = [];
     let origen = "";
 
@@ -163,7 +163,7 @@ export default function Home() {
             value={buscar}
             onChange={e => setBuscar(e.target.value)}
             onKeyDown={e => e.key === "Enter" && buscarAsync()}
-            placeholder="IMEI, Placa, Cliente o Usuario"
+            placeholder="IMEI, Placa, Cliente, Usuario o RUT"
           />
           {buscando && <span className="text-gray-500">Consultando...</span>}
         </div>
