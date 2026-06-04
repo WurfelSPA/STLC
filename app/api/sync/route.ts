@@ -8,8 +8,8 @@ const supabase = createClient(
 
 const BASE_URL_TRACKLINK = "https://tlchile.trackgts.com:8081";
 const BASE_URL_MCONNECT  = "https://mconnect.trackgts.com:8081";
-const API_USER = "tu_usuario";
-const API_PASS = "tu_password";
+const API_USER = "amelendez";
+const API_PASS = "alex2026";
 
 type SyncResult = {
   success: boolean;
