@@ -6,8 +6,7 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
 );
 
-const BASE_URL_TRACKLINK = "https://tlchile.trackgts.com:8081";
-const BASE_URL_MCONNECT  = "https://mconnect.trackgts.com:8081";
+const BASE_URL = "https://tlchile.trackgts.com:8081";
 const API_USER = "amelendez";
 const API_PASS = "alex2026";
 
@@ -18,9 +17,9 @@ type SyncResult = {
   message: string;
 };
 
-async function sincronizar(customer: string, tabla: string, baseUrl: string): Promise<SyncResult> {
+async function sincronizar(customer: string, tabla: string): Promise<SyncResult> {
   // PASO 1: Autenticar
-  const authRes = await fetch(`${baseUrl}/api/Authenticate/Auth`, {
+  const authRes = await fetch(`${BASE_URL}/api/Authenticate/Auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user: API_USER, password: API_PASS, customer }),
@@ -28,20 +27,19 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
 
   if (authRes.status === 429)
     return { success: false, rateLimited: true, message: `⚠️ Rate limit para ${tabla}. Espera ~20 minutos.` };
-
   if (!authRes.ok)
     return { success: false, message: `❌ Error de autenticación para ${tabla}.` };
 
   const authData = await authRes.json();
   const accessToken = authData.data?.accessToken;
   const user = authData.data?.user;
-  const retailId = (authData.data?.parentCustomerId ?? user?.parentCustomerId)?.toString();
+  const retailId = user?.parentCustomerId?.toString();
 
   if (!accessToken || !retailId)
     return { success: false, message: `❌ No se obtuvo token o retailId para ${tabla}.` };
 
   // PASO 2: Obtener reporte
-  const reportRes = await fetch(`${baseUrl}/api/HealthCheck/GetReportHealthCheck`, {
+  const reportRes = await fetch(`${BASE_URL}/api/HealthCheck/GetReportHealthCheck`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -52,7 +50,6 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
 
   if (reportRes.status === 429)
     return { success: false, rateLimited: true, message: `⚠️ Rate limit para ${tabla}. Espera ~20 minutos.` };
-
   if (!reportRes.ok)
     return { success: false, message: `❌ Error al obtener reporte para ${tabla}.` };
 
@@ -125,8 +122,8 @@ async function sincronizar(customer: string, tabla: string, baseUrl: string): Pr
 export async function POST() {
   try {
     const [tracklink, mzd] = await Promise.allSettled([
-      sincronizar("tlchile",  "Tracklink",  BASE_URL_TRACKLINK),
-      sincronizar("mconnect", "MZDConnect", BASE_URL_MCONNECT),
+      sincronizar("tlchile",  "Tracklink"),
+      sincronizar("mconnect", "MZDConnect"),
     ]);
 
     const resultTracklink = tracklink.status === "fulfilled"
@@ -138,12 +135,11 @@ export async function POST() {
       : { success: false, message: "❌ Error inesperado en MZDConnect." };
 
     return NextResponse.json({
-      success:    resultTracklink.success && resultMZD.success,
+      success:     resultTracklink.success && resultMZD.success,
       rateLimited: resultTracklink.rateLimited || resultMZD.rateLimited,
-      tracklink:  resultTracklink,
-      mzd:        resultMZD,
+      tracklink:   resultTracklink,
+      mzd:         resultMZD,
     });
-
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error desconocido";
     return NextResponse.json({ success: false, message: `❌ Error: ${message}` }, { status: 500 });
