@@ -92,6 +92,15 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
                 >
                   Santa Marta
                 </a>
+                <a
+                  href="https://wurfelspa.github.io/tracklink-visibility/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
+                  onClick={() => setReportesAbierto(false)}
+                >
+                  Visibility
+                </a>
               </div>
             )}
           </div>
