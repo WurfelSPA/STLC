@@ -395,7 +395,7 @@ export default function Home() {
               <table className="text-xs border-collapse w-full bg-white">
                 <thead>
                   <tr className="bg-gray-200">
-                    {["IMEI","ODÓMETRO","FABRICANTE GPS","MODELO GPS","PROTOCOLO","SIM TELÉFONO","SIM SERIE","SERVICIO","SERVICIO CORPORATIVO","SERVICIO DESDE","SERVICIO HASTA","TIPO INSTALACIÓN","ALIAS","TIPO","MARCA","MODELO","AÑO","PLACA","COLOR"].map(h => (
+                    {["IMEI","CLIENTE/EMPRESA","USUARIO","ODÓMETRO","FABRICANTE GPS","MODELO GPS","PROTOCOLO","SIM TELÉFONO","SIM SERIE","SERVICIO","SERVICIO CORPORATIVO","SERVICIO DESDE","SERVICIO HASTA","TIPO INSTALACIÓN","ALIAS","TIPO","MARCA","MODELO","AÑO","PLACA","COLOR"].map(h => (
                       <th key={h} className="border border-gray-300 px-2 py-1 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -408,6 +408,8 @@ export default function Home() {
                       className={`cursor-pointer hover:bg-blue-50 ${seleccionada?.IMEI === u.IMEI ? "bg-blue-100" : ""} ${servicioVencido(u["Serv. Hasta"]) ? "!bg-red-100" : servicioPorVencer(u["Serv. Hasta"]) ? "!bg-yellow-100" : ""}`}
                     >
                       <td className="border border-gray-300 px-2 py-0.5">{u.IMEI}</td>
+                      <td className="border border-gray-300 px-2 py-0.5">{u["Cliente/Empresa"]}</td>
+                      <td className="border border-gray-300 px-2 py-0.5">{u.Usuario}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Odómetro"]}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Fabricante AVL"]}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Modelo AVL"]}</td>
