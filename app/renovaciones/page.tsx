@@ -93,6 +93,8 @@ export default function Renovaciones() {
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString());
   const [filtroMes, setFiltroMes] = useState(MESES[new Date().getMonth()]);
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
+  const [filtroNombre, setFiltroNombre] = useState("");
+  const [filtroApellido, setFiltroApellido] = useState("");
   const [orden, setOrden] = useState<OrdenKey>("Serv. Hasta");
   const [soloVencidos, setSoloVencidos] = useState(false);
   const [soloPorVencer, setSoloPorVencer] = useState(false);
@@ -151,6 +153,8 @@ export default function Renovaciones() {
       if (filtroMes && fecha.getMonth() !== MESES.indexOf(filtroMes)) return false;
       if (soloVencidos && !vencido(r["Serv. Hasta"])) return false;
       if (soloPorVencer && !porVencer(r["Serv. Hasta"])) return false;
+      if (filtroNombre && !(r.Nombre || "").toLowerCase().includes(filtroNombre.toLowerCase())) return false;
+      if (filtroApellido && !(r.Apellido || "").toLowerCase().includes(filtroApellido.toLowerCase())) return false;
       if (filtroBusqueda) {
         const q = filtroBusqueda.toLowerCase();
         return [r.Nombre, r.Apellido, r["Cust ID"], r["Cliente/Empresa"], r.Alias, r.Placa, r.Correo, r.Telefono]
@@ -179,6 +183,8 @@ export default function Renovaciones() {
     setFiltroAnio(new Date().getFullYear().toString());
     setFiltroMes(MESES[new Date().getMonth()]);
     setFiltroBusqueda("");
+    setFiltroNombre("");
+    setFiltroApellido("");
     setSoloVencidos(false);
     setSoloPorVencer(false);
   };
@@ -213,9 +219,27 @@ export default function Renovaciones() {
             <label className="text-xs text-gray-500 block mb-1">Búsqueda libre</label>
             <input
               className="border border-gray-300 px-2 py-1 text-xs w-48 focus:outline-none focus:border-blue-500"
-              placeholder="Nombre, RUT, placa, correo..."
+              placeholder="RUT, placa, correo..."
               value={filtroBusqueda}
               onChange={e => setFiltroBusqueda(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Nombre</label>
+            <input
+              className="border border-gray-300 px-2 py-1 text-xs w-32 focus:outline-none focus:border-blue-500"
+              placeholder="Nombre..."
+              value={filtroNombre}
+              onChange={e => setFiltroNombre(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Apellido</label>
+            <input
+              className="border border-gray-300 px-2 py-1 text-xs w-32 focus:outline-none focus:border-blue-500"
+              placeholder="Apellido..."
+              value={filtroApellido}
+              onChange={e => setFiltroApellido(e.target.value)}
             />
           </div>
           <div>
