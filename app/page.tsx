@@ -108,11 +108,16 @@ export default function Home() {
       // Placa: convertir a mayúsculas
       const { data: dataPlaca } = await supabase.from(tabla).select("*").eq("Placa", qUpper);
       if (dataPlaca && dataPlaca.length > 0) return dataPlaca as Unidad[];
-      // Cliente/Empresa y Usuario: búsqueda parcial case-insensitive
-      const { data: dataCliente } = await supabase.from(tabla).select("*").ilike("Cliente/Empresa", `%${q}%`);
-      if (dataCliente && dataCliente.length > 0) return dataCliente as Unidad[];
-      const { data: dataUsuario } = await supabase.from(tabla).select("*").ilike("Usuario", `%${q}%`);
-      if (dataUsuario && dataUsuario.length > 0) return dataUsuario as Unidad[];
+      // Cliente/Empresa (comillas dobles por el "/" en el nombre de columna) y Usuario: búsqueda parcial en paralelo
+      const [resCliente, resUsuario] = await Promise.all([
+        supabase.from(tabla).select("*").filter('"Cliente/Empresa"', 'ilike', `%${q}%`),
+        supabase.from(tabla).select("*").ilike("Usuario", `%${q}%`),
+      ]);
+      const combinados = [...(resCliente.data || []), ...(resUsuario.data || [])];
+      if (combinados.length > 0) {
+        // Deduplicar por IMEI por si aparece en ambos campos
+        return Array.from(new Map(combinados.map(u => [(u as Unidad).IMEI, u])).values()) as Unidad[];
+      }
       return [];
     };
 
