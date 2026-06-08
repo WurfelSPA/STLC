@@ -14,16 +14,37 @@ const USUARIOS_EXCLUIDOS = ["bodega", "emiliano", "INSTALACIONES", "mautobahn", 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const ANIOS = [2030,2029,2028,2027,2026,2025,2024];
 
+const TIPOS_SERVICIO = [
+  "TRACKLINK",
+  "MIGRACION AUTOBAHN",
+  "AUTOBAHN NUEVOS",
+  "COORP MENSUALIZADO",
+  "SANTANDER CONSUMER",
+  "G. MORALES-CONTADO",
+  "CANTAGALLO-CONTADO",
+  "REFERIDO",
+];
+
 const COLORES_SERVICIO: Record<string, string> = {
-  "":                    "bg-blue-100 text-blue-800",
-  "TRACKLINK":           "bg-blue-100 text-blue-800",
-  "MIGRACION AUTOBAHN":  "bg-red-100 text-red-800",
-  "AUTOBAHN NUEVOS":     "bg-orange-100 text-orange-800",
-  "COORP MENSUALIZADO":  "bg-green-100 text-green-800",
-  "SANTANDER CONSUMER":  "bg-pink-100 text-pink-800",
-  "G. MORALES-CONTADO":  "bg-teal-100 text-teal-800",
-  "CANTAGALLO-CONTADO":  "bg-slate-100 text-slate-800",
-  "REFERIDO":            "bg-yellow-100 text-yellow-800",
+  "TRACKLINK":           "bg-blue-100 text-blue-800 border-blue-300",
+  "MIGRACION AUTOBAHN":  "bg-red-100 text-red-800 border-red-300",
+  "AUTOBAHN NUEVOS":     "bg-orange-100 text-orange-800 border-orange-300",
+  "COORP MENSUALIZADO":  "bg-green-100 text-green-800 border-green-300",
+  "SANTANDER CONSUMER":  "bg-pink-100 text-pink-800 border-pink-300",
+  "G. MORALES-CONTADO":  "bg-teal-100 text-teal-800 border-teal-300",
+  "CANTAGALLO-CONTADO":  "bg-slate-100 text-slate-800 border-slate-300",
+  "REFERIDO":            "bg-yellow-100 text-yellow-800 border-yellow-300",
+};
+
+const COLORES_ACTIVO: Record<string, string> = {
+  "TRACKLINK":           "bg-blue-600 text-white border-blue-700",
+  "MIGRACION AUTOBAHN":  "bg-red-600 text-white border-red-700",
+  "AUTOBAHN NUEVOS":     "bg-orange-500 text-white border-orange-600",
+  "COORP MENSUALIZADO":  "bg-green-600 text-white border-green-700",
+  "SANTANDER CONSUMER":  "bg-pink-600 text-white border-pink-700",
+  "G. MORALES-CONTADO":  "bg-teal-600 text-white border-teal-700",
+  "CANTAGALLO-CONTADO":  "bg-slate-600 text-white border-slate-700",
+  "REFERIDO":            "bg-yellow-500 text-white border-yellow-600",
 };
 
 type Registro = {
@@ -47,7 +68,6 @@ type Registro = {
 
 type OrdenKey = "Usuario" | "Serv. Hasta" | "Nombre";
 
-// Parsea fechas en formato YYYY-MM-DD o DD-MM-YYYY o con hora T
 const parseFecha = (f: string): Date | null => {
   if (!f) return null;
   const s = f.split("T")[0].trim();
@@ -59,12 +79,17 @@ const parseFecha = (f: string): Date | null => {
   return null;
 };
 
+const getTipo = (r: Registro) => {
+  const sc = (r["Servicio Comercial"] ?? "").trim();
+  return sc === "" ? "TRACKLINK" : sc;
+};
+
 export default function Renovaciones() {
   const router = useRouter();
   const [datos, setDatos] = useState<Registro[]>([]);
   const [cargando, setCargando] = useState(true);
   const [filtroUsuario, setFiltroUsuario] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtrosTipo, setFiltrosTipo] = useState<string[]>([]);
   const [filtroAnio, setFiltroAnio] = useState(new Date().getFullYear().toString());
   const [filtroMes, setFiltroMes] = useState(MESES[new Date().getMonth()]);
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
@@ -72,9 +97,7 @@ export default function Renovaciones() {
   const [soloVencidos, setSoloVencidos] = useState(false);
   const [soloPorVencer, setSoloPorVencer] = useState(false);
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+  useEffect(() => { cargarDatos(); }, []);
 
   const cargarDatos = async () => {
     setCargando(true);
@@ -87,12 +110,7 @@ export default function Renovaciones() {
       if (data.length < 1000) break;
       desde += 1000;
     }
-    const filtrados = todos.filter(r => {
-      if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
-      if (!r["Serv. Hasta"]) return false;
-      return true;
-    });
-    setDatos(filtrados);
+    setDatos(todos.filter(r => !USUARIOS_EXCLUIDOS.includes(r.Usuario) && !!r["Serv. Hasta"]));
     setCargando(false);
   };
 
@@ -104,8 +122,7 @@ export default function Renovaciones() {
   const vencido = (hasta: string) => {
     const d = parseFecha(hasta);
     if (!d) return false;
-    const hoy = new Date(new Date().toISOString().split("T")[0]);
-    return d < hoy;
+    return d < new Date(new Date().toISOString().split("T")[0]);
   };
 
   const porVencer = (hasta: string) => {
@@ -116,14 +133,18 @@ export default function Renovaciones() {
     return diff >= 0 && diff <= 60;
   };
 
-  const tiposUnicos = Array.from(new Set(datos.map(r => r["Servicio Comercial"] || "TRACKLINK"))).sort();
+  const toggleTipo = (tipo: string) => {
+    setFiltrosTipo(prev =>
+      prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]
+    );
+  };
+
   const usuariosUnicos = Array.from(new Set(datos.map(r => r.Usuario))).sort();
 
   const datosFiltrados = datos
     .filter(r => {
       if (filtroUsuario && r.Usuario !== filtroUsuario) return false;
-      const tipo = r["Servicio Comercial"] || "TRACKLINK";
-      if (filtroTipo && tipo !== filtroTipo) return false;
+      if (filtrosTipo.length > 0 && !filtrosTipo.includes(getTipo(r))) return false;
       const fecha = parseFecha(r["Serv. Hasta"]);
       if (!fecha) return false;
       if (filtroAnio && fecha.getFullYear().toString() !== filtroAnio) return false;
@@ -154,7 +175,7 @@ export default function Renovaciones() {
 
   const limpiarFiltros = () => {
     setFiltroUsuario("");
-    setFiltroTipo("");
+    setFiltrosTipo([]);
     setFiltroAnio(new Date().getFullYear().toString());
     setFiltroMes(MESES[new Date().getMonth()]);
     setFiltroBusqueda("");
@@ -209,17 +230,6 @@ export default function Renovaciones() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Tipo de servicio</label>
-            <select
-              className="border border-gray-300 px-2 py-1 text-xs w-48 focus:outline-none focus:border-blue-500"
-              value={filtroTipo}
-              onChange={e => setFiltroTipo(e.target.value)}
-            >
-              <option value="">Todos</option>
-              {tiposUnicos.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
             <label className="text-xs text-gray-500 block mb-1">Año de vencimiento</label>
             <select
               className="border border-gray-300 px-2 py-1 text-xs w-28 focus:outline-none focus:border-blue-500"
@@ -267,20 +277,48 @@ export default function Renovaciones() {
           </button>
         </div>
 
-        {/* LEYENDA */}
+        {/* BOTONES TIPO SERVICIO */}
+        <div className="bg-white border border-gray-200 rounded p-3 mb-3 flex flex-wrap gap-2 items-center">
+          <span className="text-xs text-gray-500 mr-1">Tipo de servicio:</span>
+          <button
+            onClick={() => setFiltrosTipo([])}
+            className={`text-xs px-3 py-1 rounded border font-medium transition-colors ${
+              filtrosTipo.length === 0
+                ? "bg-gray-700 text-white border-gray-800"
+                : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200"
+            }`}
+          >
+            TODOS
+          </button>
+          {TIPOS_SERVICIO.map(tipo => {
+            const activo = filtrosTipo.includes(tipo);
+            return (
+              <button
+                key={tipo}
+                onClick={() => toggleTipo(tipo)}
+                className={`text-xs px-3 py-1 rounded border font-medium transition-colors ${
+                  activo
+                    ? COLORES_ACTIVO[tipo] || "bg-gray-600 text-white border-gray-700"
+                    : (COLORES_SERVICIO[tipo] || "bg-gray-100 text-gray-800 border-gray-300") + " hover:opacity-80"
+                }`}
+              >
+                {tipo}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* LEYENDA COLORES FILA */}
         <div className="flex gap-3 mb-2 flex-wrap">
           <span className="text-xs flex items-center gap-1"><span className="w-3 h-3 bg-red-200 inline-block rounded"></span> Vencido</span>
           <span className="text-xs flex items-center gap-1"><span className="w-3 h-3 bg-yellow-200 inline-block rounded"></span> Por vencer (≤60 días)</span>
-          {Object.entries(COLORES_SERVICIO).filter(([k]) => k && k !== "TRACKLINK").map(([tipo, cls]) => (
-            <span key={tipo} className={`text-xs px-2 py-0.5 rounded ${cls}`}>{tipo}</span>
-          ))}
         </div>
 
         {/* TABLA */}
         {cargando ? (
           <div className="text-center py-10 text-gray-500">Cargando renovaciones...</div>
         ) : (
-          <div className="overflow-auto max-h-[calc(100vh-320px)] border border-gray-300 rounded">
+          <div className="overflow-auto max-h-[calc(100vh-360px)] border border-gray-300 rounded">
             <table className="text-xs border-collapse bg-white min-w-full">
               <thead className="sticky top-0 z-10 bg-blue-900 text-white">
                 <tr>
@@ -294,8 +332,8 @@ export default function Renovaciones() {
                   <tr><td colSpan={15} className="text-center py-8 text-gray-500">No hay registros con los filtros aplicados.</td></tr>
                 ) : (
                   datosFiltrados.map((r, i) => {
-                    const tipo = r["Servicio Comercial"] || "TRACKLINK";
-                    const colorServicio = COLORES_SERVICIO[tipo] || "bg-gray-100 text-gray-800";
+                    const tipo = getTipo(r);
+                    const colorServicio = COLORES_SERVICIO[tipo] || "bg-gray-100 text-gray-800 border-gray-300";
                     return (
                       <tr key={i} className={`hover:bg-blue-50 ${rowColor(r)}`}>
                         <td className="border border-gray-200 px-2 py-0.5 whitespace-nowrap">{r.Nombre}</td>
