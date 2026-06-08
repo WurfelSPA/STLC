@@ -105,9 +105,16 @@ export default function Home() {
         const { data } = await supabase.from(tabla).select("*").eq(campo, q);
         if (data && data.length > 0) return data as Unidad[];
       }
-      // Placa: convertir a mayúsculas
-      const { data: dataPlaca } = await supabase.from(tabla).select("*").eq("Placa", qUpper);
-      if (dataPlaca && dataPlaca.length > 0) return dataPlaca as Unidad[];
+      // Placa: convertir a mayúsculas, y si no tiene guión intentar inserirlo entre letras y números
+      const placas = [qUpper];
+      if (!qUpper.includes("-")) {
+        const conGuion = qUpper.replace(/^([A-Z]+)(\d+)$/, "$1-$2");
+        if (conGuion !== qUpper) placas.push(conGuion);
+      }
+      for (const placa of placas) {
+        const { data } = await supabase.from(tabla).select("*").eq("Placa", placa);
+        if (data && data.length > 0) return data as Unidad[];
+      }
       // Cliente/Empresa (comillas dobles por el "/" en el nombre de columna) y Usuario: búsqueda parcial en paralelo
       const [resCliente, resUsuario] = await Promise.all([
         supabase.from(tabla).select("*").filter('"Cliente/Empresa"', 'ilike', `%${q}%`),
