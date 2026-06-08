@@ -96,20 +96,32 @@ export default function Home() {
     setSeleccionada(null);
     setBdOrigen("");
 
-    const campos = ["IMEI", "Placa", "Cliente/Empresa", "Usuario", "Cust ID", "Serie SIM"];
-    let encontrados: Unidad[] = [];
-    let origen = "";
+    const q = buscar.trim();
+    const qUpper = q.toUpperCase();
 
-    for (const campo of campos) {
-      const { data } = await supabase.from("Tracklink").select("*").eq(campo, buscar.trim());
-      if (data && data.length > 0) { encontrados = data as Unidad[]; origen = "BD: Tracklink"; break; }
-    }
+    const buscarEnTabla = async (tabla: string): Promise<Unidad[]> => {
+      // Exact match: IMEI, Cust ID, Serie SIM
+      for (const campo of ["IMEI", "Cust ID", "Serie SIM"]) {
+        const { data } = await supabase.from(tabla).select("*").eq(campo, q);
+        if (data && data.length > 0) return data as Unidad[];
+      }
+      // Placa: convertir a mayúsculas
+      const { data: dataPlaca } = await supabase.from(tabla).select("*").eq("Placa", qUpper);
+      if (dataPlaca && dataPlaca.length > 0) return dataPlaca as Unidad[];
+      // Cliente/Empresa y Usuario: búsqueda parcial case-insensitive
+      const { data: dataCliente } = await supabase.from(tabla).select("*").ilike("Cliente/Empresa", `%${q}%`);
+      if (dataCliente && dataCliente.length > 0) return dataCliente as Unidad[];
+      const { data: dataUsuario } = await supabase.from(tabla).select("*").ilike("Usuario", `%${q}%`);
+      if (dataUsuario && dataUsuario.length > 0) return dataUsuario as Unidad[];
+      return [];
+    };
+
+    let encontrados = await buscarEnTabla("Tracklink");
+    let origen = encontrados.length > 0 ? "BD: Tracklink" : "";
 
     if (encontrados.length === 0) {
-      for (const campo of campos) {
-        const { data } = await supabase.from("MZDConnect").select("*").eq(campo, buscar.trim());
-        if (data && data.length > 0) { encontrados = data as Unidad[]; origen = "BD: MZDConnect"; break; }
-      }
+      encontrados = await buscarEnTabla("MZDConnect");
+      if (encontrados.length > 0) origen = "BD: MZDConnect";
     }
 
     if (encontrados.length === 0) {
