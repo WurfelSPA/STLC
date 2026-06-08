@@ -47,6 +47,18 @@ type Registro = {
 
 type OrdenKey = "Usuario" | "Serv. Hasta" | "Nombre";
 
+// Parsea fechas en formato YYYY-MM-DD o DD-MM-YYYY o con hora T
+const parseFecha = (f: string): Date | null => {
+  if (!f) return null;
+  const s = f.split("T")[0].trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s);
+  if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+    const [d, m, y] = s.split("-");
+    return new Date(`${y}-${m}-${d}`);
+  }
+  return null;
+};
+
 export default function Renovaciones() {
   const router = useRouter();
   const [datos, setDatos] = useState<Registro[]>([]);
@@ -65,37 +77,42 @@ export default function Renovaciones() {
   }, []);
 
   const cargarDatos = async () => {
-  setCargando(true);
-  let todos: Registro[] = [];
-  let desde = 0;
-  while (true) {
-    const { data } = await supabase.from("Tracklink").select("*").range(desde, desde + 999);
-    if (!data || data.length === 0) break;
-    todos = [...todos, ...data as Registro[]];
-    if (data.length < 1000) break;
-    desde += 1000;
-  }
-  const filtrados = todos.filter(r => {
-    if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
-    if (!r["Serv. Hasta"]) return false;
-    return true;
-  });
-  setDatos(filtrados);
-  setCargando(false);
-};
+    setCargando(true);
+    let todos: Registro[] = [];
+    let desde = 0;
+    while (true) {
+      const { data } = await supabase.from("Tracklink").select("*").range(desde, desde + 999);
+      if (!data || data.length === 0) break;
+      todos = [...todos, ...data as Registro[]];
+      if (data.length < 1000) break;
+      desde += 1000;
+    }
+    const filtrados = todos.filter(r => {
+      if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
+      if (!r["Serv. Hasta"]) return false;
+      return true;
+    });
+    setDatos(filtrados);
+    setCargando(false);
+  };
 
-  const formatFecha = (f: string) => f ? f.split("T")[0] : "";
+  const formatFecha = (f: string) => {
+    const d = parseFecha(f);
+    return d ? d.toISOString().split("T")[0] : "";
+  };
 
   const vencido = (hasta: string) => {
-    if (!hasta) return false;
-    return new Date(hasta.split("T")[0]) < new Date(new Date().toISOString().split("T")[0]);
+    const d = parseFecha(hasta);
+    if (!d) return false;
+    const hoy = new Date(new Date().toISOString().split("T")[0]);
+    return d < hoy;
   };
 
   const porVencer = (hasta: string) => {
-    if (!hasta) return false;
+    const d = parseFecha(hasta);
+    if (!d) return false;
     const hoy = new Date(new Date().toISOString().split("T")[0]);
-    const h = new Date(hasta.split("T")[0]);
-    const diff = (h.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
+    const diff = (d.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
     return diff >= 0 && diff <= 60;
   };
 
@@ -107,14 +124,10 @@ export default function Renovaciones() {
       if (filtroUsuario && r.Usuario !== filtroUsuario) return false;
       const tipo = r["Servicio Comercial"] || "TRACKLINK";
       if (filtroTipo && tipo !== filtroTipo) return false;
-      if (filtroAnio) {
-        const anio = new Date(r["Serv. Hasta"].split("T")[0]).getFullYear();
-        if (anio.toString() !== filtroAnio) return false;
-      }
-      if (filtroMes) {
-        const mes = new Date(r["Serv. Hasta"].split("T")[0]).getMonth();
-        if (mes !== MESES.indexOf(filtroMes)) return false;
-      }
+      const fecha = parseFecha(r["Serv. Hasta"]);
+      if (!fecha) return false;
+      if (filtroAnio && fecha.getFullYear().toString() !== filtroAnio) return false;
+      if (filtroMes && fecha.getMonth() !== MESES.indexOf(filtroMes)) return false;
       if (soloVencidos && !vencido(r["Serv. Hasta"])) return false;
       if (soloPorVencer && !porVencer(r["Serv. Hasta"])) return false;
       if (filtroBusqueda) {
@@ -151,7 +164,6 @@ export default function Renovaciones() {
 
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
-      {/* NAVBAR */}
       <Navbar paginaActiva="renovaciones" />
       <div className="p-4">
         {/* ESTADÍSTICAS */}
