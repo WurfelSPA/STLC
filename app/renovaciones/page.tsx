@@ -65,26 +65,24 @@ export default function Renovaciones() {
   }, []);
 
   const cargarDatos = async () => {
-    setCargando(true);
-    let todos: Registro[] = [];
-    let desde = 0;
-    while (true) {
-      const { data } = await supabase.from("Tracklink").select("*").range(desde, desde + 999);
-      if (!data || data.length === 0) break;
-      todos = [...todos, ...data as Registro[]];
-      if (data.length < 1000) break;
-      desde += 1000;
-    }
-    const hoy = new Date();
-    const filtrados = todos.filter(r => {
-      if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
-      if (!r["Serv. Hasta"]) return false;
-      const hasta = new Date(r["Serv. Hasta"].split("T")[0]);
-      return hasta <= new Date(hoy.getTime() + 60 * 24 * 60 * 60 * 1000);
-    });
-    setDatos(filtrados);
-    setCargando(false);
-  };
+  setCargando(true);
+  let todos: Registro[] = [];
+  let desde = 0;
+  while (true) {
+    const { data } = await supabase.from("Tracklink").select("*").range(desde, desde + 999);
+    if (!data || data.length === 0) break;
+    todos = [...todos, ...data as Registro[]];
+    if (data.length < 1000) break;
+    desde += 1000;
+  }
+  const filtrados = todos.filter(r => {
+    if (USUARIOS_EXCLUIDOS.includes(r.Usuario)) return false;
+    if (!r["Serv. Hasta"]) return false;
+    return true;
+  });
+  setDatos(filtrados);
+  setCargando(false);
+};
 
   const formatFecha = (f: string) => f ? f.split("T")[0] : "";
 
