@@ -145,3 +145,12 @@ export async function POST() {
     return NextResponse.json({ success: false, message: `❌ Error: ${message}` }, { status: 500 });
   }
 }
+
+// Vercel Cron Job — llamado automáticamente según vercel.json
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("authorization");
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return POST();
+}
