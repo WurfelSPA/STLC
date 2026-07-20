@@ -454,9 +454,9 @@ export default function Home() {
 
 function Campo({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className="flex items-center mb-1 gap-1">
+    <div className="flex items-start mb-1 gap-1">
       <span className="text-gray-500 text-xs w-24 shrink-0">{label}:</span>
-      <span className={`border px-1 py-0.5 text-xs flex-1 truncate ${highlight ? "bg-yellow-50 border-gray-400 font-semibold" : "border-gray-300 bg-gray-50"}`}>
+      <span className={`border px-1 py-0.5 text-xs flex-1 break-words ${highlight ? "bg-yellow-50 border-gray-400 font-semibold" : "border-gray-300 bg-gray-50"}`}>
         {value || ""}
       </span>
     </div>
