@@ -101,6 +101,24 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
                 >
                   Visibility
                 </a>
+                <a
+                  href="https://wurfelspa.github.io/tracklink-kadel/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
+                  onClick={() => setReportesAbierto(false)}
+                >
+                  Kadel
+                </a>
+                <a
+                  href="https://wurfelspa.github.io/tracklink-enerfrost/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
+                  onClick={() => setReportesAbierto(false)}
+                >
+                  Enerfrost
+                </a>
               </div>
             )}
           </div>
