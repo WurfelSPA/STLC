@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 type NavbarProps = {
@@ -14,12 +14,69 @@ type SyncResultado = {
   message: string;
 };
 
+type ReportePdf = { label: string; url: string };
+
+type ClienteReporte = {
+  nombre: string;
+  webApp: string;
+  pdfs: ReportePdf[];
+};
+
+const REPORTES: ClienteReporte[] = [
+  {
+    nombre: "Santa Marta",
+    webApp: "https://wurfelspa.github.io/tracklink-santamarta/",
+    pdfs: [
+      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-santamarta/main/reporte-semanal.pdf" },
+    ],
+  },
+  {
+    nombre: "Visibility",
+    webApp: "https://wurfelspa.github.io/tracklink-visibility/",
+    pdfs: [],
+  },
+  {
+    nombre: "Kadel",
+    webApp: "https://wurfelspa.github.io/tracklink-kadel/",
+    pdfs: [
+      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/reporte-semanal.pdf" },
+      { label: "Ranking Fuera de Horario", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/ranking-fuera-horario.pdf" },
+    ],
+  },
+  {
+    nombre: "Enerfrost",
+    webApp: "https://wurfelspa.github.io/tracklink-enerfrost/",
+    pdfs: [
+      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-semanal.pdf" },
+      { label: "Informe Ralentí Excesivo", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-ralenti.pdf" },
+    ],
+  },
+];
+
 export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
   const router = useRouter();
   const [reportesAbierto, setReportesAbierto] = useState(false);
+  const [clienteAbierto, setClienteAbierto] = useState<string | null>(null);
   const [sincState, setSincState] = useState<"idle" | "loading" | "done">("idle");
   const [msgTracklink, setMsgTracklink] = useState("");
   const [msgMZD, setMsgMZD] = useState("");
+  const reportesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) {
+        setReportesAbierto(false);
+        setClienteAbierto(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const cerrarReportes = () => {
+    setReportesAbierto(false);
+    setClienteAbierto(null);
+  };
 
   const btnClass = (pagina: string) =>
     paginaActiva === pagina
@@ -77,48 +134,56 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
           <button onClick={() => { setReportesAbierto(false); router.push("/healthcheckmazda"); }} className={btnClass("healthcheckmazda")}>Mazda Healthcheck</button>
 
           {/* MENÚ REPORTES */}
-          <div className="relative">
+          <div className="relative" ref={reportesRef}>
             <button onClick={() => setReportesAbierto(!reportesAbierto)} className="hover:text-yellow-300">
               Reportes ▾
             </button>
             {reportesAbierto && (
               <div className="absolute top-full left-0 bg-white text-blue-900 shadow-lg rounded min-w-[160px] z-50 mt-1">
-                <a
-                  href="https://wurfelspa.github.io/tracklink-santamarta/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
-                  onClick={() => setReportesAbierto(false)}
-                >
-                  Santa Marta
-                </a>
-                <a
-                  href="https://wurfelspa.github.io/tracklink-visibility/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
-                  onClick={() => setReportesAbierto(false)}
-                >
-                  Visibility
-                </a>
-                <a
-                  href="https://wurfelspa.github.io/tracklink-kadel/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
-                  onClick={() => setReportesAbierto(false)}
-                >
-                  Kadel
-                </a>
-                <a
-                  href="https://wurfelspa.github.io/tracklink-enerfrost/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold"
-                  onClick={() => setReportesAbierto(false)}
-                >
-                  Enerfrost
-                </a>
+                {REPORTES.map(cliente => (
+                  <div
+                    key={cliente.nombre}
+                    className="relative"
+                    onMouseEnter={() => setClienteAbierto(cliente.nombre)}
+                  >
+                    <button
+                      onClick={() => setClienteAbierto(clienteAbierto === cliente.nombre ? null : cliente.nombre)}
+                      className={`w-full flex items-center justify-between gap-4 px-4 py-2 text-xs hover:bg-blue-50 font-semibold ${clienteAbierto === cliente.nombre ? "bg-blue-50" : ""}`}
+                    >
+                      {cliente.nombre}
+                      <span className="text-[9px] text-gray-400">▸</span>
+                    </button>
+                    {clienteAbierto === cliente.nombre && (
+                      <div className="absolute top-0 left-full bg-white text-blue-900 shadow-lg rounded min-w-[240px] z-50">
+                        <a
+                          href={cliente.webApp}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block px-4 py-2 text-xs hover:bg-blue-50 font-semibold border-b border-gray-100"
+                          onClick={cerrarReportes}
+                        >
+                          🌐 Abrir Web App
+                        </a>
+                        {cliente.pdfs.length === 0 && (
+                          <div className="px-4 py-2 text-xs text-gray-400 italic">Sin reporte PDF disponible</div>
+                        )}
+                        {cliente.pdfs.map(pdf => (
+                          <a
+                            key={pdf.url}
+                            href={pdf.url}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block px-4 py-2 text-xs hover:bg-blue-50"
+                            onClick={cerrarReportes}
+                          >
+                            📄 {pdf.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
