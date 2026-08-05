@@ -16,11 +16,14 @@ const IMEIS_SANTAMARTA = [
 ];
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const key = searchParams.get("key");
+  const authHeader = request.headers.get("authorization");
+  const key = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-  if (key !== API_KEY) {
-    return NextResponse.json({ error: "No autorizado. Falta o es inválido el parámetro 'key'." }, { status: 401 });
+  if (!key || key !== API_KEY) {
+    return NextResponse.json(
+      { error: "No autorizado. Envíe el header 'Authorization: Bearer <key>'." },
+      { status: 401 }
+    );
   }
 
   const { data, error } = await supabase
