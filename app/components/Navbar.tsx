@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { logoutAction } from "@/app/lib/actions";
 
 type NavbarProps = {
   paginaActiva?: "home" | "renovaciones" | "healthchecktracklink" | "healthcheckmazda";
@@ -60,6 +61,7 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
   const [sincState, setSincState] = useState<"idle" | "loading" | "done">("idle");
   const [msgTracklink, setMsgTracklink] = useState("");
   const [msgMZD, setMsgMZD] = useState("");
+  const [usuario, setUsuario] = useState<string | null>(null);
   const reportesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -71,6 +73,13 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/whoami")
+      .then((res) => (res.ok ? res.json() : { usuario: null }))
+      .then((data) => setUsuario(data.usuario))
+      .catch(() => setUsuario(null));
   }, []);
 
   const cerrarReportes = () => {
@@ -201,6 +210,21 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
         >
           {sincState === "loading" ? "Sincronizando..." : "API actualizar"}
         </button>
+
+        {/* USUARIO / SESIÓN */}
+        {usuario && (
+          <div className="flex items-center gap-3 text-xs shrink-0">
+            {usuario === "amelendez" && (
+              <button onClick={() => router.push("/admin/usuarios")} className="hover:text-yellow-300">
+                Usuarios
+              </button>
+            )}
+            <span className="text-blue-200">👤 {usuario}</span>
+            <button onClick={() => logoutAction()} className="bg-gray-200 text-blue-900 px-3 py-1 rounded hover:bg-white">
+              Cerrar sesión
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* MENSAJES DE ESTADO */}
