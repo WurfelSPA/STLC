@@ -27,5 +27,10 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|icon.png).*)"],
+  // Excluye /api/*, assets internos de Next y cualquier archivo estático
+  // servido desde /public (logo.png, favicon.ico, icon.png, *.svg, etc.)
+  // — si no, esos archivos también quedan atrás del login y se rompen en
+  // páginas públicas como /login (el logo salía roto: la petición a
+  // /logo.png se redirigía a /login por falta de sesión).
+  matcher: ["/((?!api|_next/static|_next/image|.*\\.(?:png|jpg|jpeg|svg|ico|webp|gif)$).*)"],
 };
