@@ -27,7 +27,7 @@ const REPORTES: ClienteReporte[] = [
     nombre: "Santa Marta",
     webApp: "https://wurfelspa.github.io/tracklink-santamarta/",
     pdfs: [
-      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-santamarta/main/reporte-semanal.pdf" },
+      { label: "Informe Ejecutivo — Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-santamarta/main/reporte-semanal.pdf" },
     ],
   },
   {
@@ -39,16 +39,16 @@ const REPORTES: ClienteReporte[] = [
     nombre: "Kadel",
     webApp: "https://wurfelspa.github.io/tracklink-kadel/",
     pdfs: [
-      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/reporte-semanal.pdf" },
-      { label: "Ranking Fuera de Horario", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/ranking-fuera-horario.pdf" },
+      { label: "Informe Ejecutivo — Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/reporte-semanal.pdf" },
+      { label: "Informe Ejecutivo — Ranking Fuera de Horario", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-kadel/main/ranking-fuera-horario.pdf" },
     ],
   },
   {
     nombre: "Enerfrost",
     webApp: "https://wurfelspa.github.io/tracklink-enerfrost/",
     pdfs: [
-      { label: "Reporte Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-semanal.pdf" },
-      { label: "Informe Ralentí Excesivo", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-ralenti.pdf" },
+      { label: "Informe Ejecutivo — Excesos de Velocidad", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-semanal.pdf" },
+      { label: "Informe Ejecutivo — Ralentí Excesivo", url: "https://raw.githubusercontent.com/wurfelspa/tracklink-enerfrost/main/reporte-ralenti.pdf" },
     ],
   },
 ];
