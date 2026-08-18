@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: Horómetro + Odómetro decimal para Santa Marta
+#
+# Complementa /api/sync (que corre en Vercel cada 25 min vía cron nativo)
+# con dos campos que HealthCheck no expone: horómetro y odómetro sin
+# redondear. No puede correr en Vercel porque necesita un navegador
+# (Puppeteer) real para loguearse — TrackGTS exige una sesión de login
+# real para el endpoint que trae estos datos, no el token simple que usa
+# /api/sync.
+#
+# Programado 5 minutos después de cada corrida de /api/sync (que cae en
+# :00/:25/:50 UTC) para no loguearse en TrackGTS al mismo tiempo con la
+# misma cuenta — la cuenta tiene un límite de solicitudes real (confirmado
+# 2026-08-18: bloqueo de ~12 min tras un par de logins seguidos).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sync Horómetro Santa Marta
+
+on:
+  schedule:
+    - cron: '5,30,55 * * * *'
+
+  workflow_dispatch:
+
+jobs:
+  sync-horometro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependencias
+        run: npm install puppeteer @supabase/supabase-js
+        timeout-minutes: 5
+
+      - name: Sync horómetro y odómetro decimal
+        env:
+          TL_USER: ${{ secrets.TL_USER }}
+          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
+          TL_DOMAIN: ${{ secrets.TL_DOMAIN }}
+        run: node scripts/sync-horometro-santamarta.js
