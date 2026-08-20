@@ -73,6 +73,7 @@ async function sincronizar(customer: string, tabla: string): Promise<SyncResult>
     "EstadoMotor":          u.estadoMotor,
     "Velocidad":            String(u.velocidad ?? ""),
     "Odómetro":             String(u.odometro ?? ""),
+    "Horómetro":            u.horometro ?? null, // agregado por GTS al HealthCheck el 2026-08-19
     "VBatExterna":          String(u.vBatExterna ?? ""),
     "%BatExterna":          u.porcentBatInterna,
     "Fabricante AVL":       u.fabricanteAVL,

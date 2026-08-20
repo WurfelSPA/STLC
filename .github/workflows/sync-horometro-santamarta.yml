@@ -1,24 +1,28 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Action: Horómetro + Odómetro decimal para Santa Marta
+# GitHub Action: Odómetro decimal para Santa Marta
 #
 # Complementa /api/sync (que corre en Vercel cada 25 min vía cron nativo)
-# con dos campos que HealthCheck no expone: horómetro y odómetro sin
-# redondear. No puede correr en Vercel porque necesita un navegador
-# (Puppeteer) real para loguearse — TrackGTS exige una sesión de login
-# real para el endpoint que trae estos datos, no el token simple que usa
-# /api/sync.
+# con el odómetro sin redondear, que HealthCheck no expone. No puede
+# correr en Vercel porque necesita un navegador (Puppeteer) real para
+# loguearse — TrackGTS exige una sesión de login real para el endpoint
+# que trae este dato, no el token simple que usa /api/sync.
+#
+# NOTA 2026-08-20: el horómetro se sacó de este script — GTS lo agregó
+# directo al HealthCheck, así que ahora /api/sync lo trae para toda la
+# flota sin necesitar Puppeteer (ver comentario en app/api/sync/route.ts).
 #
 # Programado 5 minutos después de cada corrida de /api/sync (que cae en
-# :00/:25/:50 UTC) para no loguearse en TrackGTS al mismo tiempo con la
+# :00/:20/:40 UTC) para no loguearse en TrackGTS al mismo tiempo con la
 # misma cuenta — la cuenta tiene un límite de solicitudes real (confirmado
-# 2026-08-18: bloqueo de ~12 min tras un par de logins seguidos).
+# 2026-08-18: bloqueo de ~12 min tras un par de logins seguidos; confirmado
+# 2026-08-20: ya solo ~4 min, GTS parece haber acortado el enfriamiento).
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Sync Horómetro Santa Marta
+name: Sync Odómetro Decimal Santa Marta
 
 on:
   schedule:
-    - cron: '5,30,55 * * * *'
+    - cron: '5,25,45 * * * *'
 
   workflow_dispatch:
 
@@ -40,7 +44,7 @@ jobs:
         run: npm install puppeteer @supabase/supabase-js
         timeout-minutes: 5
 
-      - name: Sync horómetro y odómetro decimal
+      - name: Sync odómetro decimal
         env:
           TL_USER: ${{ secrets.TL_USER }}
           TL_PASSWORD: ${{ secrets.TL_PASSWORD }}

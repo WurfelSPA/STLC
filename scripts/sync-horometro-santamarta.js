@@ -3,24 +3,31 @@
 /**
  * sync-horometro-santamarta.js
  *
- * Complementa /api/sync (HealthCheck) con dos campos que Santa Marta pidió
- * con urgencia (2026-08-18) y que TrackGTS NO expone por HealthCheck:
- *   - Horómetro (horas de motor) — HealthCheck no lo trae en absoluto.
- *   - Odómetro con decimales — HealthCheck lo devuelve redondeado a entero
- *     (confirmado en vivo: 344 en vez de 344.x).
+ * Trae el ODÓMETRO CON DECIMALES para las 5 unidades de Santa Marta —
+ * pedido urgente del cliente (2026-08-18). HealthCheck (usado por
+ * /api/sync) lo devuelve redondeado a entero (confirmado en vivo: 344 en
+ * vez de 344.x) y así sigue, sin cambios de GTS a la fecha.
  *
- * Ambos SÍ están disponibles vía el endpoint interno que usa la pantalla
- * "Mapa" de TrackGTS: POST /api/reportUnitsAndLastPosition/{userId}/16/{hash}
- * — pero ese endpoint exige un hash de sesión de login real (cookie-based),
- * no el accessToken Bearer que usa /api/Authenticate/Auth (confirmado en
- * vivo: el Bearer token devuelve {"idResult":-3,"message":"error"} en este
- * endpoint específico). Por eso este script hace login real con Puppeteer,
- * igual que los pipelines de Kadel/Enerfrost, en vez de reusar la
- * autenticación simple de /api/sync.
+ * NOTA 2026-08-20: el HORÓMETRO ya NO se escribe desde este script — GTS
+ * agregó el campo "horometro" directo al HealthCheck (avisado por su
+ * desarrollador Raúl Campaña), así que /api/sync ahora lo trae para TODA
+ * la flota (no solo Santa Marta) usando la autenticación simple, sin
+ * necesidad de Puppeteer. Este script quedó acotado solo al odómetro
+ * decimal, que HealthCheck todavía no expone.
+ *
+ * El odómetro decimal SÍ está disponible vía el endpoint interno que usa
+ * la pantalla "Mapa" de TrackGTS: POST
+ * /api/reportUnitsAndLastPosition/{userId}/16/{hash} — pero ese endpoint
+ * exige un hash de sesión de login real (cookie-based), no el accessToken
+ * Bearer que usa /api/Authenticate/Auth (confirmado en vivo: el Bearer
+ * token devuelve {"idResult":-3,"message":"error"} en este endpoint
+ * específico). Por eso este script hace login real con Puppeteer, igual
+ * que los pipelines de Kadel/Enerfrost, en vez de reusar la autenticación
+ * simple de /api/sync.
  *
  * Corre en GitHub Actions (no en Vercel — Puppeteer no cabe bien en una
  * función serverless) y escribe directo a Supabase; el endpoint
- * /api/clientes/santamarta ya expone estas columnas nuevas automáticamente
+ * /api/clientes/santamarta ya expone la columna nueva automáticamente
  * porque hace select("*").
  *
  * Variables de entorno esperadas (GitHub Secrets):
@@ -143,7 +150,7 @@ async function main() {
   }
 
   const unitIds = UNIDADES_SANTAMARTA.map((u) => u.unitId);
-  console.log(`=== Sync Horómetro/Odómetro Santa Marta: unidades ${unitIds.join(', ')} ===`);
+  console.log(`=== Sync Odómetro Decimal Santa Marta: unidades ${unitIds.join(', ')} ===`);
 
   const rows = await loginYConsultar({ TL_USER, TL_PASSWORD, TL_DOMAIN, unitIds });
   console.log(`[4] Filas recibidas: ${rows.length}`);
@@ -159,10 +166,9 @@ async function main() {
     }
     registros.push({
       IMEI: u.imei,
-      'Horómetro': r.hourmeterC15 ?? null,
       'Odómetro Decimal': r.odometerC14 ?? null,
     });
-    console.log(`  ${u.alias}: Horómetro=${r.hourmeterC15} | Odómetro=${r.odometerC14}`);
+    console.log(`  ${u.alias}: Odómetro=${r.odometerC14}`);
   }
 
   if (!registros.length) {
