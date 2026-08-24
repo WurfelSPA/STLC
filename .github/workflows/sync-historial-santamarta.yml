@@ -1,15 +1,18 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Action: Odómetro decimal para Santa Marta
+# GitHub Action: Historial completo (odómetro + horómetro por punto) para
+# Santa Marta
 #
-# Complementa /api/sync (que corre en Vercel cada 25 min vía cron nativo)
-# con el odómetro sin redondear, que HealthCheck no expone. No puede
-# correr en Vercel porque necesita un navegador (Puppeteer) real para
-# loguearse — TrackGTS exige una sesión de login real para el endpoint
-# que trae este dato, no el token simple que usa /api/sync.
+# Pedido explícito del cliente (2026-08-24): con el sync anterior
+# (reportUnitsAndLastPosition, "último estado conocido") solo recibían
+# <3% de los ~1.400 registros/día que la plataforma realmente guarda.
+# Este script pide, vía reportTravel, TODO lo ocurrido desde la última
+# corrida exitosa (no solo el último dato) y lo acumula en la tabla
+# SantaMartaHistorial — así no hace falta subir la frecuencia de sync
+# para dejar de perder información entre una corrida y la siguiente.
 #
-# NOTA 2026-08-20: el horómetro se sacó de este script — GTS lo agregó
-# directo al HealthCheck, así que ahora /api/sync lo trae para toda la
-# flota sin necesitar Puppeteer (ver comentario en app/api/sync/route.ts).
+# No puede correr en Vercel porque necesita un navegador (Puppeteer) real
+# para loguearse — TrackGTS exige una sesión de login real para este
+# endpoint, no el token simple que usa /api/sync.
 #
 # Programado 5 minutos después de cada corrida de /api/sync (que cae en
 # :00/:20/:40 UTC) para no loguearse en TrackGTS al mismo tiempo con la
@@ -18,7 +21,7 @@
 # 2026-08-20: ya solo ~4 min, GTS parece haber acortado el enfriamiento).
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Sync Odómetro Decimal Santa Marta
+name: Sync Historial Santa Marta
 
 on:
   schedule:
@@ -27,7 +30,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  sync-horometro:
+  sync-historial:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -44,9 +47,9 @@ jobs:
         run: npm install puppeteer @supabase/supabase-js
         timeout-minutes: 5
 
-      - name: Sync odómetro decimal
+      - name: Sync historial de Santa Marta
         env:
           TL_USER: ${{ secrets.TL_USER }}
           TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
           TL_DOMAIN: ${{ secrets.TL_DOMAIN }}
-        run: node scripts/sync-horometro-santamarta.js
+        run: node scripts/sync-historial-santamarta.js
