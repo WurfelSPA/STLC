@@ -26,7 +26,7 @@ type ClienteReporte = {
 const REPORTES: ClienteReporte[] = [
   {
     nombre: "AGP - Pórticos",
-    webApp: "/porticos-agp.html",
+    webApp: "https://tracklink-porticos.vercel.app/",
     pdfs: [],
   },
   {
