@@ -25,6 +25,11 @@ type ClienteReporte = {
 
 const REPORTES: ClienteReporte[] = [
   {
+    nombre: "AGP - Pórticos",
+    webApp: "/porticos-agp.html",
+    pdfs: [],
+  },
+  {
     nombre: "Santa Marta",
     webApp: "https://wurfelspa.github.io/tracklink-santamarta/",
     pdfs: [
