@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Prueba interna · Pórticos con datos reales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #1d3042; --accent-fg: #0f7fac; --accent-pop: #2fb2ec; --accent-soft: #e7edf2;
+    --bg: #f2f3f5; --surface: #ffffff; --border: #dbdfe6;
+    --text: #171b23; --text-muted: #5b6472; --text-faint: #8992a1;
+    --warn-bg: #fdf1e0; --warn-text: #8a4a06; --warn-border: #f0d9ad;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "IBM Plex Sans", Arial, sans-serif; }
+  h1, h2 { font-family: "Archivo", Arial, sans-serif; }
+  .topbar { background: #7a1f1f; color: #fff; padding: 14px 28px; border-bottom: 3px solid #d94b4b; }
+  .topbar .eyebrow { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; opacity: .85; }
+  .topbar h1 { margin: 4px 0 0; font-size: 1.15rem; }
+  .contenedor { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; display: flex; flex-direction: column; gap: 18px; }
+  .callout { border: 1px solid var(--warn-border); background: var(--warn-bg); border-radius: 10px; padding: 14px 18px; font-size: .85rem; line-height: 1.55; }
+  .kpi-fila { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; border-top: 4px solid var(--accent); }
+  .kpi-label { font-size: .68rem; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
+  .kpi-value { font-size: 1.4rem; font-weight: 700; font-family: "Archivo"; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .tabla-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  th, td { padding: 8px 12px; font-size: .82rem; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { background: var(--accent-soft); color: var(--text-muted); font-size: .7rem; text-transform: uppercase; }
+  td.num { text-align: right; font-family: "IBM Plex Mono", monospace; }
+  td.mono { font-family: "IBM Plex Mono", monospace; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+  .chip-tbfp { background: #e7edf2; color: #1d3042; }
+  .chip-tbp { background: #fdf1e0; color: #8a4a06; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="eyebrow">🔒 PRUEBA INTERNA DE TRACKLINK — NO MOSTRAR A CLIENTES</div>
+  <h1>Motor de geocercas validado con datos reales — Suzuki Nomade DFFD-69 (cliente KCERDA)</h1>
+</header>
+
+<main class="contenedor">
+
+  <div class="callout">
+    <strong>Qué es esto:</strong> validación real del motor de pórticos usando el track GPS real de un vehículo
+    de la flota Tracklink (KCERDA, unitId TrackGTS 3571, IMEI 866314062187156), registrado en la tabla
+    <code>porticos_vehiculos</code> de Supabase como <code>es_prueba_interna = true</code>. Las 58 pasadas
+    detectadas también están guardadas en <code>porticos_pasadas_reales</code>.<br><br>
+    <strong>Ojo:</strong> la banda horaria (TBFP/TBP) de cada pasada se calculó con una <strong>heurística</strong>
+    (L-V 07:00-09:00 y 18:00-21:00 = punta, resto fuera de punta) — no es la tabla horaria oficial exacta de cada
+    concesionaria, así que el monto total es solo orientativo, no un número para citar en ninguna reunión.
+  </div>
+
+  <div class="kpi-fila">
+    <div class="kpi"><div class="kpi-label">Pasadas detectadas</div><div class="kpi-value">58</div></div>
+    <div class="kpi"><div class="kpi-label">Rango del track</div><div class="kpi-value" style="font-size:1rem;">11–23 ago 2026</div></div>
+    <div class="kpi"><div class="kpi-label">Pórticos distintos</div><div class="kpi-value">7</div></div>
+    <div class="kpi"><div class="kpi-label">Total estimado (heurística)</div><div class="kpi-value" id="totalEstimado">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="tabla-wrap">
+      <table>
+        <thead><tr><th>Fecha y hora</th><th>Pórtico</th><th>Concesionaria</th><th>Distancia geocerca</th><th>Velocidad</th><th>Banda (heurística)</th><th>Monto</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const DATA = {"total":38389,"cantidad":58,"pasadas":[{"timestamp":"2026-08-11T15:15:42","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":84,"velocidad_kmh":0,"banda":"TBFP","monto":631},{"timestamp":"2026-08-11T15:19:42","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":106,"velocidad_kmh":80.4,"banda":"TBFP","monto":291},{"timestamp":"2026-08-11T15:22:03","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":106,"velocidad_kmh":63.9,"banda":"TBFP","monto":398},{"timestamp":"2026-08-11T15:41:04","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":93,"velocidad_kmh":29.3,"banda":"TBFP","monto":398},{"timestamp":"2026-08-11T19:12:02","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":91,"velocidad_kmh":26.4,"banda":"TBP","monto":797},{"timestamp":"2026-08-11T19:29:09","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":120,"velocidad_kmh":40.3,"banda":"TBP","monto":1337},{"timestamp":"2026-08-11T19:47:27","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":30,"velocidad_kmh":56.6,"banda":"TBP","monto":1337},{"timestamp":"2026-08-12T19:35:20","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":149,"velocidad_kmh":52.5,"banda":"TBP","monto":1337},{"timestamp":"2026-08-12T19:47:07","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":87,"velocidad_kmh":53.6,"banda":"TBP","monto":1337},{"timestamp":"2026-08-12T19:58:57","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":81,"velocidad_kmh":98.8,"banda":"TBP","monto":797},{"timestamp":"2026-08-12T20:01:01","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":42,"velocidad_kmh":86.8,"banda":"TBP","monto":583},{"timestamp":"2026-08-12T20:02:21","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":35,"velocidad_kmh":72.2,"banda":"TBP","monto":1263},{"timestamp":"2026-08-13T12:07:51","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":113,"velocidad_kmh":52.7,"banda":"TBFP","monto":631},{"timestamp":"2026-08-13T12:15:51","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":93,"velocidad_kmh":17.1,"banda":"TBFP","monto":398},{"timestamp":"2026-08-13T17:09:02","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":108,"velocidad_kmh":0,"banda":"TBFP","monto":692},{"timestamp":"2026-08-13T17:21:24","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":99,"velocidad_kmh":58.6,"banda":"TBFP","monto":692},{"timestamp":"2026-08-13T18:47:04","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":78,"velocidad_kmh":61.7,"banda":"TBP","monto":1263},{"timestamp":"2026-08-13T18:48:34","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":42,"velocidad_kmh":76.1,"banda":"TBP","monto":583},{"timestamp":"2026-08-13T18:50:46","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":61,"velocidad_kmh":90.6,"banda":"TBP","monto":797},{"timestamp":"2026-08-13T20:33:57","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":99,"velocidad_kmh":31.5,"banda":"TBP","monto":797},{"timestamp":"2026-08-13T21:13:38","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":99,"velocidad_kmh":21.1,"banda":"TBFP","monto":398},{"timestamp":"2026-08-13T21:20:12","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":34,"velocidad_kmh":36.6,"banda":"TBFP","monto":291},{"timestamp":"2026-08-13T23:27:36","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":132,"velocidad_kmh":52.9,"banda":"TBFP","monto":631},{"timestamp":"2026-08-14T13:39:03","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":127,"velocidad_kmh":46.6,"banda":"TBFP","monto":692},{"timestamp":"2026-08-14T14:24:04","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":42,"velocidad_kmh":57.8,"banda":"TBFP","monto":692},{"timestamp":"2026-08-14T14:36:16","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":145,"velocidad_kmh":108.3,"banda":"TBFP","monto":398},{"timestamp":"2026-08-18T14:23:48","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":112,"velocidad_kmh":26.9,"banda":"TBFP","monto":631},{"timestamp":"2026-08-18T14:46:12","portico":"PA19","concesionaria":"Autopista Central","tramo":"Eje Gral. Velásquez: Ruta 5 Sur – Am. Vespucio","distancia_m":23,"velocidad_kmh":68.3,"banda":"TBFP","monto":365},{"timestamp":"2026-08-18T20:06:43","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":70,"velocidad_kmh":55,"banda":"TBP","monto":1337},{"timestamp":"2026-08-18T22:29:37","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":45,"velocidad_kmh":56.5,"banda":"TBFP","monto":398},{"timestamp":"2026-08-18T22:32:04","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":94,"velocidad_kmh":65,"banda":"TBFP","monto":291},{"timestamp":"2026-08-18T22:33:34","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":71,"velocidad_kmh":72.5,"banda":"TBFP","monto":631},{"timestamp":"2026-08-19T00:05:14","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":59,"velocidad_kmh":48.5,"banda":"TBFP","monto":631},{"timestamp":"2026-08-19T00:09:44","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":87,"velocidad_kmh":74.9,"banda":"TBFP","monto":631},{"timestamp":"2026-08-20T12:05:33","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":124,"velocidad_kmh":14.3,"banda":"TBFP","monto":631},{"timestamp":"2026-08-20T12:08:33","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":146,"velocidad_kmh":48.9,"banda":"TBFP","monto":291},{"timestamp":"2026-08-20T12:16:33","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":86,"velocidad_kmh":44.2,"banda":"TBFP","monto":398},{"timestamp":"2026-08-20T17:01:06","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":102,"velocidad_kmh":22.9,"banda":"TBFP","monto":692},{"timestamp":"2026-08-20T17:23:07","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":18,"velocidad_kmh":56.5,"banda":"TBFP","monto":692},{"timestamp":"2026-08-20T17:42:20","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":149,"velocidad_kmh":78.6,"banda":"TBFP","monto":631},{"timestamp":"2026-08-20T19:06:20","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":27,"velocidad_kmh":58.8,"banda":"TBP","monto":1263},{"timestamp":"2026-08-20T19:07:46","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":44,"velocidad_kmh":68.2,"banda":"TBP","monto":583},{"timestamp":"2026-08-20T19:09:50","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":16,"velocidad_kmh":103.2,"banda":"TBP","monto":797},{"timestamp":"2026-08-20T20:43:22","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":31,"velocidad_kmh":88.2,"banda":"TBP","monto":797},{"timestamp":"2026-08-20T20:47:07","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":84,"velocidad_kmh":24.8,"banda":"TBP","monto":583},{"timestamp":"2026-08-21T14:21:02","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":122,"velocidad_kmh":80.6,"banda":"TBFP","monto":631},{"timestamp":"2026-08-21T14:41:16","portico":"2.2","concesionaria":"Vespucio Sur","tramo":"Gral. Velásquez – Ruta 5","distancia_m":93,"velocidad_kmh":72.3,"banda":"TBFP","monto":243},{"timestamp":"2026-08-21T19:43:43","portico":"5.2","concesionaria":"Vespucio Sur","tramo":"Quilín – Grecia","distancia_m":111,"velocidad_kmh":61.9,"banda":"TBP","monto":562},{"timestamp":"2026-08-21T20:18:54","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":141,"velocidad_kmh":17.4,"banda":"TBP","monto":797},{"timestamp":"2026-08-21T21:30:43","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":98,"velocidad_kmh":23.8,"banda":"TBFP","monto":398},{"timestamp":"2026-08-21T21:41:25","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":111,"velocidad_kmh":53.7,"banda":"TBFP","monto":291},{"timestamp":"2026-08-21T21:42:55","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":62,"velocidad_kmh":77.1,"banda":"TBFP","monto":631},{"timestamp":"2026-08-23T19:42:49","portico":"P8","concesionaria":"Vespucio Norte","tramo":"Ruta 5 Norte – Condell","distancia_m":93,"velocidad_kmh":73.9,"banda":"TBFP","monto":631},{"timestamp":"2026-08-23T19:44:03","portico":"P11","concesionaria":"Vespucio Norte","tramo":"Pedro Fontova – Ruta 5 Norte","distancia_m":29,"velocidad_kmh":97.9,"banda":"TBFP","monto":291},{"timestamp":"2026-08-23T19:45:46","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":85,"velocidad_kmh":110.1,"banda":"TBFP","monto":398},{"timestamp":"2026-08-23T19:53:13","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":77,"velocidad_kmh":60.4,"banda":"TBFP","monto":692},{"timestamp":"2026-08-23T23:15:43","portico":"P3","concesionaria":"Costanera Norte","tramo":"Puente Lo Saldes – Vivaceta","distancia_m":96,"velocidad_kmh":61.9,"banda":"TBFP","monto":692},{"timestamp":"2026-08-23T23:26:07","portico":"P13","concesionaria":"Vespucio Norte","tramo":"Recoleta – Pedro Fontova","distancia_m":109,"velocidad_kmh":84.8,"banda":"TBFP","monto":398}]};
+
+  document.getElementById('totalEstimado').textContent = '$' + DATA.total.toLocaleString('es-CL');
+  document.getElementById('tbody').innerHTML = DATA.pasadas.map(p => `
+    <tr>
+      <td class="mono">${p.timestamp.replace('T',' ')}</td>
+      <td>${p.portico}</td>
+      <td>${p.concesionaria}</td>
+      <td class="num">${p.distancia_m} m</td>
+      <td class="num">${p.velocidad_kmh} km/h</td>
+      <td><span class="chip ${p.banda === 'TBP' ? 'chip-tbp' : 'chip-tbfp'}">${p.banda}</span></td>
+      <td class="num">$${p.monto.toLocaleString('es-CL')}</td>
+    </tr>
+  `).join('');
+</script>
+</body>
+</html>
