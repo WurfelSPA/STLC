@@ -22,9 +22,15 @@
 const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
 
+// Las tablas porticos_vehiculos / porticos_pasadas_reales tienen RLS sin
+// policies para anon — a diferencia de SantaMartaHistorial/SyncCheckpoints,
+// este script necesita la service_role key (misma que usa el portal en Vercel).
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY');
+}
 const supabase = createClient(
   'https://lomkolhgmkvshucqjuhf.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo'
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const PATENTE = 'DFFD-69';
