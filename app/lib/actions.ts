@@ -18,6 +18,18 @@ export async function loginAction(_state: LoginState, formData: FormData): Promi
     return { error: "Ingresa usuario y contraseña." };
   }
 
+  // El usuario "admin" (acceso a /porticos-admin) es un caso especial: su
+  // contraseña vive en la variable de entorno PORTICOS_ADMIN_PASSWORD, no en
+  // la tabla "usuarios" — así no hay que generar/guardar un hash para él.
+  if (usuario === "admin") {
+    const claveAdmin = process.env.PORTICOS_ADMIN_PASSWORD;
+    if (!claveAdmin || password !== claveAdmin) {
+      return { error: "Usuario o contraseña incorrectos." };
+    }
+    await createSession("admin");
+    redirect("/");
+  }
+
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("usuarios")

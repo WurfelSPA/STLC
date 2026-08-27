@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { logoutAction } from "@/app/lib/actions";
 
 type NavbarProps = {
-  paginaActiva?: "home" | "renovaciones" | "healthchecktracklink" | "healthcheckmazda";
+  paginaActiva?: "home" | "renovaciones" | "healthchecktracklink" | "healthcheckmazda" | "porticos";
   onHome?: () => void;
 };
 
@@ -146,6 +146,9 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
           <button onClick={() => { setReportesAbierto(false); router.push("/renovaciones"); }} className={btnClass("renovaciones")}>Renovaciones</button>
           <button onClick={() => { setReportesAbierto(false); router.push("/healthchecktracklink"); }} className={btnClass("healthchecktracklink")}>Tracklink Healthcheck</button>
           <button onClick={() => { setReportesAbierto(false); router.push("/healthcheckmazda"); }} className={btnClass("healthcheckmazda")}>Mazda Healthcheck</button>
+          {usuario === "admin" && (
+            <button onClick={() => { setReportesAbierto(false); router.push("/porticos-admin"); }} className={btnClass("porticos")}>Pórticos</button>
+          )}
 
           {/* MENÚ REPORTES */}
           <div className="relative" ref={reportesRef}>
