@@ -196,7 +196,7 @@ function UsuariosSeccion({ clientes, vehiculos }: { clientes: Cliente[]; vehicul
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Contraseña</label>
-          <input name="password" type="text" required placeholder="misma clave que usa en Tracklink" className="border border-gray-300 px-2 py-1 rounded text-sm w-56 focus:outline-none focus:border-blue-500" />
+          <input name="password" type="text" required defaultValue="1234" placeholder="clave inicial, ej: 1234" className="border border-gray-300 px-2 py-1 rounded text-sm w-56 focus:outline-none focus:border-blue-500" />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Asignar vehículo</label>
@@ -211,15 +211,16 @@ function UsuariosSeccion({ clientes, vehiculos }: { clientes: Cliente[]; vehicul
           <input type="checkbox" name="esAdmin" /> Ve todas las unidades
         </label>
         <label className="flex items-center gap-1.5 text-xs">
-          <input type="checkbox" name="verificar" defaultChecked /> Verificar contra TrackGTS
+          <input type="checkbox" name="verificar" /> Verificar contra TrackGTS
         </label>
         <button disabled={pending} className="bg-blue-800 text-white text-sm px-4 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
           {pending ? "Guardando..." : "Agregar"}
         </button>
       </form>
       <p className="text-xs text-gray-400 mb-3">
-        "Verificar contra TrackGTS" hace UNA sola llamada al confirmar (no en cada login del cliente). Si el cliente no
-        tiene login propio en TrackGTS, desmárcalo y créalo directo.
+        Clave inicial sugerida: 1234 (el cliente debería cambiarla). "Verificar contra TrackGTS" hace UNA sola llamada
+        al confirmar (no en cada login del cliente) — solo tiene sentido si ya pusiste la clave real del cliente en vez
+        de la inicial.
       </p>
       {state?.error && <p className="text-red-600 text-xs mb-3">{state.error}</p>}
       {state?.success && (

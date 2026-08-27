@@ -161,8 +161,8 @@ export async function agregarUsuarioPorticosAction(_state: UsuarioPorticosAction
   if (!/^[A-Z0-9._-]{2,32}$/.test(usuario)) {
     return { error: "El usuario debe tener 2-32 caracteres (letras, números, punto, guión)." };
   }
-  if (password.length < 6) {
-    return { error: "La contraseña debe tener al menos 6 caracteres." };
+  if (password.length < 4) {
+    return { error: "La contraseña debe tener al menos 4 caracteres." };
   }
   if (!empresa) {
     return { error: "Falta el nombre para mostrar (empresa/cliente)." };
@@ -208,7 +208,7 @@ export async function actualizarPasswordUsuarioAction(_state: UsuarioPorticosAct
   const verificar = formData.get("verificar") === "on";
 
   if (!usuario) return { error: "Selecciona un usuario." };
-  if (password.length < 6) return { error: "La contraseña debe tener al menos 6 caracteres." };
+  if (password.length < 4) return { error: "La contraseña debe tener al menos 4 caracteres." };
 
   let avisoVerificacion: string | undefined;
   if (verificar) {
