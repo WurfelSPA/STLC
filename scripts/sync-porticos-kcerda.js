@@ -37,6 +37,8 @@ const supabase = createClient(
 );
 
 const CHECKPOINT_KEY = 'porticos_pull';
+// Solo se notifica por Telegram el vehículo propio de Alex, no las pruebas de otros clientes.
+const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
 const OVERLAP_MS = 5 * 60_000;
 const LOOKBACK_DEFAULT_MS = 2 * 60 * 60_000;
 const RADIO_GEOCERCA_M = 150;
@@ -263,6 +265,9 @@ async function main() {
 
       // Notificación a Telegram por cada pasada nueva (estado/facturado/correcto:
       // todo "OK" por ahora porque no hay factura oficial con la que comparar).
+      // Solo para las patentes en PATENTES_NOTIFICAR_TELEGRAM (el vehículo propio
+      // de Alex) — no se notifica por vehículos de prueba de otros clientes.
+      if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
       for (const d of detecciones) {
         const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
         const monto = TARIFAS[d.portico_codigo][banda];
