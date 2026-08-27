@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * sync-porticos-kcerda.js
+ * sync-porticos.js
  *
  * Sync periódico de pasadas por pórtico para TODOS los vehículos registrados
- * en porticos_vehiculos (hoy: pruebas internas de Tracklink — KCERDA/DFFD-69
- * y el vehículo propio de Alex). Una sola sesión de login + una sola llamada
- * a reportTravel con todos los unitIds juntos (mismo patrón que usa el sync
- * de Santa Marta con sus 5 unidades), luego se separan las filas por unitIdA0.
+ * en porticos_vehiculos, de cualquier cliente/cuenta (hoy: KCERDA/DFFD-69 y el
+ * vehículo propio de Alex/VVJG-14 — pensado para seguir creciendo a más
+ * cuentas). Una sola sesión de login + una sola llamada a reportTravel con
+ * todos los unitIds juntos (mismo patrón que usa el sync de Santa Marta con
+ * sus 5 unidades), luego se separan las filas por unitIdA0.
  *
  * Igual patrón que sync-historial-santamarta.js: pide a reportTravel "todo
  * desde la última corrida exitosa" (con solape de 5 min), corre el motor de
