@@ -3,8 +3,11 @@
 /**
  * sync-porticos-kcerda.js
  *
- * Sync periódico de pasadas por pórtico para el vehículo de PRUEBA INTERNA
- * KCERDA / Suzuki Nomade DFFD-69 (unitId TrackGTS 3571).
+ * Sync periódico de pasadas por pórtico para TODOS los vehículos registrados
+ * en porticos_vehiculos (hoy: pruebas internas de Tracklink — KCERDA/DFFD-69
+ * y el vehículo propio de Alex). Una sola sesión de login + una sola llamada
+ * a reportTravel con todos los unitIds juntos (mismo patrón que usa el sync
+ * de Santa Marta con sus 5 unidades), luego se separan las filas por unitIdA0.
  *
  * Igual patrón que sync-historial-santamarta.js: pide a reportTravel "todo
  * desde la última corrida exitosa" (con solape de 5 min), corre el motor de
@@ -33,8 +36,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const PATENTE = 'DFFD-69';
-const CHECKPOINT_KEY = 'porticos_dffd69_pull';
+const CHECKPOINT_KEY = 'porticos_pull';
 const OVERLAP_MS = 5 * 60_000;
 const LOOKBACK_DEFAULT_MS = 2 * 60 * 60_000;
 const RADIO_GEOCERCA_M = 150;
@@ -121,14 +123,14 @@ async function guardarCheckpoint(fecha) {
   if (error) throw new Error(`Error guardando checkpoint: ${error.message}`);
 }
 
-async function obtenerVehiculo() {
-  const { data, error } = await supabase.from('porticos_vehiculos').select('id, unit_id').eq('patente', PATENTE).maybeSingle();
-  if (error) throw new Error(`Error leyendo vehiculo: ${error.message}`);
-  if (!data) throw new Error(`Vehiculo ${PATENTE} no encontrado en porticos_vehiculos`);
+async function obtenerVehiculos() {
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id');
+  if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
+  if (!data || !data.length) throw new Error('No hay vehiculos registrados en porticos_vehiculos');
   return data;
 }
 
-async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDate, endDate, unitId }) {
+async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDate, endDate, unitIds }) {
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'] });
   try {
     const page = await browser.newPage();
@@ -176,7 +178,7 @@ async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDat
         return { error: `Forma inesperada: ${JSON.stringify(json).slice(0, 300)}` };
       }
       return { rows: json[1] };
-    }, startDate, endDate, String(unitId));
+    }, startDate, endDate, unitIds);
 
     if (result.error) throw new Error(result.error);
     return result.rows || [];
@@ -189,79 +191,93 @@ async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
 
-  const vehiculo = await obtenerVehiculo();
+  const vehiculos = await obtenerVehiculos();
+  const porUnitId = new Map(vehiculos.map((v) => [v.unit_id, v]));
   const checkpoint = await obtenerCheckpoint();
   const ahora = new Date();
   const start = new Date(checkpoint.getTime() - OVERLAP_MS);
 
-  console.log(`=== Sync Pórticos KCERDA (${PATENTE}, unitId ${vehiculo.unit_id}): ${fmtTL(start)} → ${fmtTL(ahora)} ===`);
+  console.log(`=== Sync Pórticos (${vehiculos.length} vehículo(s): ${vehiculos.map((v) => v.patente).join(', ')}): ${fmtTL(start)} → ${fmtTL(ahora)} ===`);
 
   const rows = await loginYConsultarTravel({
     TL_USER, TL_PASSWORD, TL_DOMAIN,
     startDate: fmtTL(start), endDate: fmtTL(ahora),
-    unitId: vehiculo.unit_id,
+    unitIds: vehiculos.map((v) => v.unit_id).join(','),
   });
-  console.log(`[1] ${rows.length} posiciones GPS recibidas`);
+  console.log(`[1] ${rows.length} posiciones GPS recibidas (todos los vehículos)`);
 
-  const puntos = rows
-    .map((r) => ({ time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'), lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0 }))
-    .filter((p) => p.lat && p.lon && !isNaN(p.time))
-    .sort((a, b) => a.time - b.time);
-  console.log(`[2] ${puntos.length} puntos GPS válidos`);
+  const puntosPorVehiculo = new Map();
+  for (const r of rows) {
+    const vehiculo = porUnitId.get(r.unitIdA0);
+    if (!vehiculo) continue;
+    if (!puntosPorVehiculo.has(vehiculo.id)) puntosPorVehiculo.set(vehiculo.id, []);
+    puntosPorVehiculo.get(vehiculo.id).push({
+      time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
+      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0,
+    });
+  }
 
-  const detecciones = [];
-  let ultimoPortico = null;
-  let ultimoTs = null;
-  for (const p of puntos) {
-    for (const portico of PORTICOS) {
-      const d = haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
-      if (d <= RADIO_GEOCERCA_M) {
-        const tsMs = p.time.getTime();
-        const esNuevo = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
-        if (esNuevo) {
-          // banda horaria y monto se calculan al SERVIR los datos (app/api/pasadas),
-          // no acá, para no duplicar la lógica del tarifario en dos lugares.
-          detecciones.push({
-            vehiculo_id: vehiculo.id,
-            ts: p.time.toISOString(),
-            portico_codigo: portico.codigo,
-            concesionaria: portico.concesionaria,
-            tramo: portico.tramo,
-            distancia_m: Math.round(d),
-            velocidad_kmh: p.speed,
-          });
+  let totalDetecciones = 0;
+  for (const vehiculo of vehiculos) {
+    const puntos = (puntosPorVehiculo.get(vehiculo.id) || [])
+      .filter((p) => p.lat && p.lon && !isNaN(p.time))
+      .sort((a, b) => a.time - b.time);
+    console.log(`[2] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
+
+    const detecciones = [];
+    let ultimoPortico = null;
+    let ultimoTs = null;
+    for (const p of puntos) {
+      for (const portico of PORTICOS) {
+        const d = haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
+        if (d <= RADIO_GEOCERCA_M) {
+          const tsMs = p.time.getTime();
+          const esNuevo = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
+          if (esNuevo) {
+            // banda horaria y monto se calculan al SERVIR los datos (app/api/pasadas),
+            // no acá, para no duplicar la lógica del tarifario en dos lugares.
+            detecciones.push({
+              vehiculo_id: vehiculo.id,
+              ts: p.time.toISOString(),
+              portico_codigo: portico.codigo,
+              concesionaria: portico.concesionaria,
+              tramo: portico.tramo,
+              distancia_m: Math.round(d),
+              velocidad_kmh: p.speed,
+            });
+          }
+          ultimoPortico = portico.codigo;
+          ultimoTs = tsMs;
         }
-        ultimoPortico = portico.codigo;
-        ultimoTs = tsMs;
+      }
+    }
+    console.log(`[3] ${vehiculo.patente}: ${detecciones.length} pasadas nuevas detectadas`);
+    totalDetecciones += detecciones.length;
+
+    if (detecciones.length) {
+      const { error } = await supabase
+        .from('porticos_pasadas_reales')
+        .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo', ignoreDuplicates: true });
+      if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente}: ${error.message}`);
+      console.log(`[4] ✅ ${vehiculo.patente}: ${detecciones.length} pasadas insertadas/verificadas`);
+
+      // Notificación a Telegram por cada pasada nueva (estado/facturado/correcto:
+      // todo "OK" por ahora porque no hay factura oficial con la que comparar).
+      for (const d of detecciones) {
+        const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
+        const monto = TARIFAS[d.portico_codigo][banda];
+        const texto =
+          `🚗 <b>${vehiculo.patente}</b> — pasada por pórtico\n` +
+          `📅 ${fmtFechaHoraChile(d.ts)}\n` +
+          `🛣️ Pórtico: ${d.portico_codigo} (${d.concesionaria})\n` +
+          `✅ Estado: OK\n` +
+          `💰 Facturado: ${clp(monto)}\n` +
+          `💰 Correcto: ${clp(monto)}`;
+        await notificarTelegram(texto);
       }
     }
   }
-  console.log(`[3] ${detecciones.length} pasadas nuevas detectadas`);
-
-  if (detecciones.length) {
-    const { error } = await supabase
-      .from('porticos_pasadas_reales')
-      .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo', ignoreDuplicates: true });
-    if (error) throw new Error(`Error guardando pasadas: ${error.message}`);
-    console.log(`[4] ✅ ${detecciones.length} pasadas insertadas/verificadas`);
-
-    // Notificación a Telegram por cada pasada nueva (estado/facturado/correcto:
-    // todo "OK" por ahora porque no hay factura oficial con la que comparar).
-    for (const d of detecciones) {
-      const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
-      const monto = TARIFAS[d.portico_codigo][banda];
-      const texto =
-        `🚗 <b>${PATENTE}</b> — pasada por pórtico\n` +
-        `📅 ${fmtFechaHoraChile(d.ts)}\n` +
-        `🛣️ Pórtico: ${d.portico_codigo} (${d.concesionaria})\n` +
-        `✅ Estado: OK\n` +
-        `💰 Facturado: ${clp(monto)}\n` +
-        `💰 Correcto: ${clp(monto)}`;
-      await notificarTelegram(texto);
-    }
-  } else {
-    console.log('[4] Sin pasadas nuevas en el rango consultado');
-  }
+  if (!totalDetecciones) console.log('[4] Sin pasadas nuevas en el rango consultado (ningún vehículo)');
 
   await guardarCheckpoint(ahora);
   console.log(`[5] Checkpoint actualizado a: ${ahora.toISOString()}`);
