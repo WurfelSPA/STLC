@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: ÚNICO punto de contacto con TrackGTS para la cuenta
+# "amelendez"/"tlchile". Reemplaza a sync-historial-santamarta.yml y
+# sync-porticos.yml (¡BORRAR ESOS DOS WORKFLOWS al activar este!) — esos dos,
+# más el cron de /api/sync en Vercel, autenticaban la misma cuenta por
+# separado y coincidieron en logins simultáneos, lo que activó el rate-limit
+# de TrackGTS y dejó sin datos a un cliente real (2026-08-27).
+#
+# sync-tlchile.js hace en una sola corrida: un login clásico + una sola
+# llamada a reportTravel (Santa Marta y pórticos juntos) y el HealthCheck REST
+# (Tracklink/MZDConnect) — todo lo demás (paneles internos, portal de
+# pórticos) lee exclusivamente de Supabase, nunca de TrackGTS en vivo.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sync tlchile
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+
+  workflow_dispatch:
+
+jobs:
+  sync-tlchile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm install puppeteer @supabase/supabase-js
+        timeout-minutes: 5
+
+      - name: Sync tlchile
+        env:
+          TL_USER: ${{ secrets.TL_USER }}
+          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
+          TL_DOMAIN: ${{ secrets.TL_DOMAIN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/sync-tlchile.js
