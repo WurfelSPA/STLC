@@ -496,7 +496,18 @@ async function main() {
   await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
 
   // --- 2) HealthCheck (API REST) — Tracklink / MZDConnect ---------------------
-  for (const { customer, tabla } of HEALTHCHECK_CUSTOMERS) {
+  // TrackGTS rate-limitó el segundo Authenticate/Auth (mconnect) incluso
+  // llamado segundos después del primero (tlchile) dentro de esta MISMA
+  // corrida (visto en vivo 2026-08-27) — el límite no es solo "entre
+  // procesos", también pega entre llamadas seguidas de la misma corrida.
+  // Por eso van con una pausa entre medio en vez de una tras otra.
+  const HEALTHCHECK_GAP_MS = 60_000;
+  for (let i = 0; i < HEALTHCHECK_CUSTOMERS.length; i++) {
+    const { customer, tabla } = HEALTHCHECK_CUSTOMERS[i];
+    if (i > 0) {
+      console.log(`[healthcheck] Esperando ${HEALTHCHECK_GAP_MS / 1000}s antes de autenticar "${customer}"...`);
+      await new Promise((r) => setTimeout(r, HEALTHCHECK_GAP_MS));
+    }
     await sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer, tabla);
   }
 
