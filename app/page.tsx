@@ -139,12 +139,51 @@ export default function Home() {
     if (encontrados.length === 0) {
       alert("NO ENCONTRADO.");
     } else {
+      // Cuando el mismo vehiculo (misma Placa) tiene mas de un dispositivo
+      // registrado (reasignacion de GPS/cliente a lo largo del tiempo, y la
+      // fila vieja nunca se borra), preferimos seleccionar por defecto el que
+      // reporto mas reciente en vez del primero que devuelva la consulta.
+      const mejor = elegirInstalacionActual(encontrados);
       setResultados(encontrados);
-      setSeleccionada(encontrados[0]);
-      setComentarios(encontrados[0].Comentarios || "");
+      setSeleccionada(mejor);
+      setComentarios(mejor.Comentarios || "");
       setBdOrigen(origen);
     }
     setBuscando(false);
+  };
+
+  // Dentro de un grupo de filas con la MISMA Placa, la fila con el reporte
+  // mas reciente es la instalacion actual; el resto quedo de una asignacion
+  // anterior (dispositivo/cliente reemplazado) que nunca se limpio de la BD.
+  const instalacionActualPorPlaca = (todas: Unidad[]): Map<string, string> => {
+    const masReciente = new Map<string, string>(); // Placa -> IMEI con fecha mas reciente
+    const mejorFecha = new Map<string, string>();
+    for (const u of todas) {
+      const placa = (u.Placa || "").trim().toUpperCase();
+      if (!placa) continue;
+      const fecha = u["Fecha Ultimo Reporte"] || "";
+      if (!mejorFecha.has(placa) || fecha > (mejorFecha.get(placa) || "")) {
+        mejorFecha.set(placa, fecha);
+        masReciente.set(placa, u.IMEI);
+      }
+    }
+    return masReciente;
+  };
+
+  const esInstalacionAnterior = (u: Unidad, todas: Unidad[]): boolean => {
+    const placa = (u.Placa || "").trim().toUpperCase();
+    if (!placa) return false;
+    const grupo = todas.filter(x => (x.Placa || "").trim().toUpperCase() === placa);
+    if (grupo.length < 2) return false;
+    const actual = instalacionActualPorPlaca(todas).get(placa);
+    return u.IMEI !== actual;
+  };
+
+  const elegirInstalacionActual = (todas: Unidad[]): Unidad => {
+    const actualPorPlaca = instalacionActualPorPlaca(todas);
+    const placa = (todas[0].Placa || "").trim().toUpperCase();
+    const imeiActual = placa ? actualPorPlaca.get(placa) : undefined;
+    return todas.find(u => u.IMEI === imeiActual) || todas[0];
   };
 
   const seleccionar = (u: Unidad) => {
@@ -401,6 +440,11 @@ export default function Home() {
 
             {/* BD ORIGEN */}
             <div className="text-blue-700 font-bold mb-1">{bdOrigen}</div>
+            {esInstalacionAnterior(seleccionada, resultados) && (
+              <div className="bg-gray-200 text-gray-700 text-xs px-2 py-1 mb-2 border border-gray-400 inline-block">
+                ⚠️ Esta es una instalación anterior en este vehículo (Placa {seleccionada.Placa}) — hay un dispositivo/cliente más reciente registrado en la misma placa, ver fila resaltada en gris abajo.
+              </div>
+            )}
 
             {/* TABLA RESULTADOS */}
             <div className="overflow-x-auto">
@@ -413,14 +457,20 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {resultados.map((u, i) => (
+                  {resultados.map((u, i) => {
+                    const anterior = esInstalacionAnterior(u, resultados);
+                    return (
                     <tr
                       key={i}
                       onClick={() => seleccionar(u)}
-                      className={`cursor-pointer hover:bg-blue-50 ${seleccionada?.IMEI === u.IMEI ? "bg-blue-100" : ""} ${servicioVencido(u["Serv. Hasta"]) ? "!bg-red-100" : servicioPorVencer(u["Serv. Hasta"]) ? "!bg-yellow-100" : ""}`}
+                      title={anterior ? "Instalación anterior en este vehículo — hay un dispositivo/cliente más reciente en la misma placa." : undefined}
+                      className={`cursor-pointer hover:bg-blue-50 ${seleccionada?.IMEI === u.IMEI ? "bg-blue-100" : ""} ${servicioVencido(u["Serv. Hasta"]) ? "!bg-red-100" : servicioPorVencer(u["Serv. Hasta"]) ? "!bg-yellow-100" : anterior ? "!bg-gray-200 text-gray-500 italic" : ""}`}
                     >
                       <td className="border border-gray-300 px-2 py-0.5">{u.IMEI}</td>
-                      <td className="border border-gray-300 px-2 py-0.5">{u["Cliente/Empresa"]}</td>
+                      <td className="border border-gray-300 px-2 py-0.5">
+                        {u["Cliente/Empresa"]}
+                        {anterior && <span className="ml-1 text-[10px] not-italic bg-gray-400 text-white px-1 rounded">anterior</span>}
+                      </td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.Usuario}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Odómetro"]}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u["Fabricante AVL"]}</td>
@@ -441,7 +491,8 @@ export default function Home() {
                       <td className="border border-gray-300 px-2 py-0.5">{u.Placa}</td>
                       <td className="border border-gray-300 px-2 py-0.5">{u.Color}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
