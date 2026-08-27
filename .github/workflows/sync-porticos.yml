@@ -11,11 +11,11 @@
 # la cuenta tiene un límite real de solicitudes entre logins.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Sync Pórticos KCERDA
+name: Sync Pórticos Pórticos
 
 on:
   schedule:
-    - cron: '10,30,50 * * * *'
+    - cron: '13,43,50 * * * *'
 
   workflow_dispatch:
 
@@ -37,7 +37,7 @@ jobs:
         run: npm install puppeteer @supabase/supabase-js
         timeout-minutes: 5
 
-      - name: Sync pórticos KCERDA
+      - name: Sync pórticos
         env:
           TL_USER: ${{ secrets.TL_USER }}
           TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
@@ -45,4 +45,4 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node scripts/sync-porticos-kcerda.js
+        run: node scripts/sync-porticos.js
