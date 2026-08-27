@@ -17,6 +17,29 @@ type SyncResult = {
   message: string;
 };
 
+// Candado compartido (Supabase, tabla SyncCheckpoints) entre TODOS los
+// procesos que autentican la cuenta "amelendez"/"tlchile" en TrackGTS:
+// este cron de Vercel (/api/sync, cada 20 min), sync-historial-santamarta.js
+// y sync-porticos.js (ambos en GitHub Actions, vía login clásico). TrackGTS
+// bloquea logins seguidos de la MISMA cuenta (~20 min observado) sin importar
+// si es por este endpoint REST o por el login clásico del portal — por eso el
+// candado es uno solo, compartido entre los tres. Si otro proceso reservó la
+// cuenta hace menos de 20 min, este se salta la corrida en vez de chocar.
+const TLCHILE_LOCK_KEY = "tlchile_auth_lock";
+const TLCHILE_LOCK_WINDOW_MS = 20 * 60_000;
+
+async function intentarReservarTlchile(): Promise<boolean> {
+  const { data } = await supabase
+    .from("SyncCheckpoints")
+    .select("value")
+    .eq("key", TLCHILE_LOCK_KEY)
+    .maybeSingle();
+  const ultimo = data?.value ? new Date(data.value).getTime() : 0;
+  if (Date.now() - ultimo < TLCHILE_LOCK_WINDOW_MS) return false;
+  await supabase.from("SyncCheckpoints").upsert({ key: TLCHILE_LOCK_KEY, value: new Date().toISOString() });
+  return true;
+}
+
 async function sincronizar(customer: string, tabla: string): Promise<SyncResult> {
   // PASO 1: Autenticar
   const authRes = await fetch(`${BASE_URL}/api/Authenticate/Auth`, {
@@ -122,8 +145,15 @@ async function sincronizar(customer: string, tabla: string): Promise<SyncResult>
 
 export async function POST() {
   try {
+    const tlchileDisponible = await intentarReservarTlchile();
     const [tracklink, mzd] = await Promise.allSettled([
-      sincronizar("tlchile",  "Tracklink"),
+      tlchileDisponible
+        ? sincronizar("tlchile", "Tracklink")
+        : Promise.resolve<SyncResult>({
+            success: false,
+            rateLimited: true,
+            message: "⏭️ Omitido: otro proceso (Vercel o GitHub Actions) usó la cuenta tlchile hace menos de 20 min.",
+          }),
       sincronizar("mconnect", "MZDConnect"),
     ]);
 

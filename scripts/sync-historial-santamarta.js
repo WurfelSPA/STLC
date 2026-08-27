@@ -53,6 +53,27 @@ const LOOKBACK_DEFAULT_MS = 2 * 60 * 60_000; // si no hay checkpoint (primera co
 const MAX_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 90_000;
 
+// Candado compartido (Supabase, tabla SyncCheckpoints) entre TODOS los
+// procesos que autentican la cuenta "amelendez"/"tlchile" en TrackGTS: este
+// script, sync-porticos.js (GitHub Actions, login clásico) y /api/sync
+// (Vercel, vía API REST). TrackGTS bloquea logins seguidos de la MISMA
+// cuenta (~20 min observado) sin importar la superficie de login — por eso
+// el candado es uno solo, compartido entre los tres procesos.
+const TLCHILE_LOCK_KEY = 'tlchile_auth_lock';
+const TLCHILE_LOCK_WINDOW_MS = 20 * 60_000;
+
+async function intentarReservarTlchile() {
+  const { data } = await supabase
+    .from('SyncCheckpoints')
+    .select('value')
+    .eq('key', TLCHILE_LOCK_KEY)
+    .maybeSingle();
+  const ultimo = data?.value ? new Date(data.value).getTime() : 0;
+  if (Date.now() - ultimo < TLCHILE_LOCK_WINDOW_MS) return false;
+  await supabase.from('SyncCheckpoints').upsert({ key: TLCHILE_LOCK_KEY, value: new Date().toISOString() });
+  return true;
+}
+
 function fmtTL(d) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
@@ -168,6 +189,12 @@ async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) {
     throw new Error('Faltan variables de entorno: TL_USER, TL_PASSWORD, TL_DOMAIN');
+  }
+
+  const tlchileDisponible = await intentarReservarTlchile();
+  if (!tlchileDisponible) {
+    console.log('⏭️  Omitido: otro proceso (Vercel o GitHub Actions) usó la cuenta tlchile hace menos de 20 min.');
+    return;
   }
 
   const checkpoint = await obtenerCheckpoint();

@@ -42,6 +42,27 @@ const CHECKPOINT_KEY = 'porticos_pull';
 const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
 const OVERLAP_MS = 5 * 60_000;
 const LOOKBACK_DEFAULT_MS = 2 * 60 * 60_000;
+
+// Candado compartido (Supabase, tabla SyncCheckpoints) entre TODOS los
+// procesos que autentican la cuenta "amelendez"/"tlchile" en TrackGTS: este
+// script, sync-historial-santamarta.js (GitHub Actions, login clásico) y
+// /api/sync (Vercel, vía API REST). TrackGTS bloquea logins seguidos de la
+// MISMA cuenta (~20 min observado) sin importar la superficie de login —
+// por eso el candado es uno solo, compartido entre los tres procesos.
+const TLCHILE_LOCK_KEY = 'tlchile_auth_lock';
+const TLCHILE_LOCK_WINDOW_MS = 20 * 60_000;
+
+async function intentarReservarTlchile() {
+  const { data } = await supabase
+    .from('SyncCheckpoints')
+    .select('value')
+    .eq('key', TLCHILE_LOCK_KEY)
+    .maybeSingle();
+  const ultimo = data?.value ? new Date(data.value).getTime() : 0;
+  if (Date.now() - ultimo < TLCHILE_LOCK_WINDOW_MS) return false;
+  await supabase.from('SyncCheckpoints').upsert({ key: TLCHILE_LOCK_KEY, value: new Date().toISOString() });
+  return true;
+}
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
 
@@ -193,6 +214,12 @@ async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDat
 async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
+
+  const tlchileDisponible = await intentarReservarTlchile();
+  if (!tlchileDisponible) {
+    console.log('⏭️  Omitido: otro proceso (Vercel o GitHub Actions) usó la cuenta tlchile hace menos de 20 min.');
+    return;
+  }
 
   const vehiculos = await obtenerVehiculos();
   const porUnitId = new Map(vehiculos.map((v) => [v.unit_id, v]));
