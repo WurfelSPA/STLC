@@ -1,21 +1,23 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Action: sync periódico de pórticos/TAG para la prueba interna KCERDA
-# (Suzuki Nomade DFFD-69, unitId TrackGTS 3571).
+# GitHub Action: sync periódico de pórticos/TAG para todos los vehículos
+# registrados en porticos_vehiculos, de cualquier cliente/cuenta (hoy: KCERDA/
+# Suzuki Nomade DFFD-69, y el vehículo propio de Alex/VVJG-14 — pensado para
+# seguir creciendo a más cuentas).
 #
 # Mismo motivo que el de Santa Marta: no puede correr en Vercel porque necesita
 # un login real de TrackGTS vía Puppeteer, no el token simple de /api/sync.
 #
-# Programado a los minutos 10/30/50 (offset de los otros dos crons de esta
-# cuenta: /api/sync en Vercel corre en 0/20/40, y el sync de Santa Marta en
-# 5/25/45) para no loguearse en TrackGTS al mismo tiempo con la misma cuenta —
-# la cuenta tiene un límite real de solicitudes entre logins.
+# Programado a los minutos 13/43 (cada 30 min, offset de los otros dos crons de
+# esta cuenta: /api/sync en Vercel corre en 0/20/40, y el sync de Santa Marta
+# en 5/25/45) para no loguearse en TrackGTS al mismo tiempo con la misma cuenta
+# — la cuenta tiene un límite real de solicitudes entre logins.
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Sync Pórticos Pórticos
+name: Sync Pórticos
 
 on:
   schedule:
-    - cron: '13,43,50 * * * *'
+    - cron: '13,43 * * * *'
 
   workflow_dispatch:
 
