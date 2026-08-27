@@ -84,16 +84,43 @@ const PORTICOS = [
   { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Eje Gral. Velásquez: Ruta 5 Sur – Am. Vespucio', lat: -33.5514, lon: -70.7091 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
+  // Ruta 5 Norte — agregados 2026-08-27. Únicos peajes interurbanos con
+  // coordenadas confiables encontradas (OpenStreetMap, cruzadas con el km
+  // oficial MOP/concesionaria) — el resto del catálogo nacional (Tarifas)
+  // no tiene coordenadas publicadas y queda solo de referencia.
+  { codigo: 'LAMPA',        concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 26, Lampa',                lat: -33.2356, lon: -70.7589 },
+  { codigo: 'LASVEGAS',     concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 89, Llay-Llay',             lat: -32.8433, lon: -70.9893 },
+  { codigo: 'PICHIDANGUI',  concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 163, La Ligua',             lat: -32.1750, lon: -71.5207 },
+  { codigo: 'TRONCALSUR',   concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Km 283, Canela (Troncal Sur)', lat: -31.4200, lon: -71.5704 },
+  { codigo: 'TONGOY',       concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Acceso sur Tongoy (Lateral)',  lat: -30.3517, lon: -71.4323 },
+  { codigo: 'GUANAQUEROS',  concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Guanaqueros (Lateral)',        lat: -30.1974, lon: -71.3880 },
+  { codigo: 'PTACOLORADA',  concesionaria: 'Ruta 5 Norte (Ruta del Algarrobo)', tramo: 'Km 554, La Higuera (Punta Colorada)', lat: -29.3710, lon: -71.0732 },
+  { codigo: 'TOTORAL',      concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 732, norte de Vallenar (Totoral)', lat: -27.9971, lon: -70.5658 },
+  { codigo: 'PTOVIEJO',     concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 841, norte de Copiapó (Puerto Viejo)', lat: -27.3482, lon: -70.6364 },
 ];
 
 const TARIFAS = {
-  P3:   { TBFP: 692, TBP: 1337, TS: 2029 },
+  // P3/2.2/5.2 actualizados 2026-08-27 al tarifario 2026 vigente (ver dashboard.html
+  // para la fuente/detalle). P8/P11/P13/PA19 quedan sin cambios — la última
+  // investigación de Vespucio Norte devolvió cifras contradictorias.
+  P3:   { TBFP: 719, TBP: 1384, TS: 2097 },
   P8:   { TBFP: 631, TBP: 1263, TS: 1263 },
   P11:  { TBFP: 291, TBP: 583,  TS: 874  },
   P13:  { TBFP: 398, TBP: 797,  TS: 797  },
   PA19: { TBFP: 365, TBP: 731,  TS: 731  },
-  '2.2':{ TBFP: 243, TBP: 486,  TS: 486  },
-  '5.2':{ TBFP: 281, TBP: 562,  TS: 842  },
+  '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
+  '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
+  // Ruta 5 Norte — tarifas planas (sin banda horaria oficial), mismo monto
+  // en las 3 columnas para que el cálculo de banda no cambie el resultado.
+  LAMPA:       { TBFP: 900,  TBP: 900,  TS: 900  },
+  LASVEGAS:    { TBFP: 2900, TBP: 2900, TS: 2900 },
+  PICHIDANGUI: { TBFP: 2900, TBP: 2900, TS: 2900 },
+  TRONCALSUR:  { TBFP: 4250, TBP: 4250, TS: 4250 },
+  TONGOY:      { TBFP: 1100, TBP: 1100, TS: 1100 },
+  GUANAQUEROS: { TBFP: 1100, TBP: 1100, TS: 1100 },
+  PTACOLORADA: { TBFP: 3150, TBP: 3150, TS: 3150 },
+  TOTORAL:     { TBFP: 2900, TBP: 2900, TS: 2900 },
+  PTOVIEJO:    { TBFP: 1750, TBP: 1750, TS: 1750 },
 };
 
 // --- HealthCheck (Tracklink / MZDConnect) -----------------------------------
