@@ -1,0 +1,510 @@
+#!/usr/bin/env node
+'use strict';
+/**
+ * sync-tlchile.js
+ *
+ * ÚNICO punto de contacto con TrackGTS para la cuenta "amelendez"/"tlchile".
+ * Reemplaza a sync-historial-santamarta.js + sync-porticos.js + el cron de
+ * /api/sync (Vercel) — los tres autenticaban esta misma cuenta por separado
+ * y coincidieron en logins simultáneos, lo que activó el rate-limit de
+ * TrackGTS y dejó sin datos a un cliente real (2026-08-27). TrackGTS es una
+ * empresa muy cerrada — ya se le pidió reiteradas veces bajar ese límite y
+ * no es negociable — así que la solución es de nuestro lado: UNA sola
+ * sesión por corrida, y todo lo demás (paneles internos, futuros clientes
+ * de pórticos) lee exclusivamente de Supabase, nunca de TrackGTS en vivo.
+ *
+ * Por corrida:
+ *   1) Un solo login clásico (Puppeteer) + una sola llamada a reportTravel
+ *      con los unitIds de Santa Marta Y de pórticos juntos → se separan las
+ *      filas por unitIdA0 y se guardan en SantaMartaHistorial /
+ *      porticos_pasadas_reales (con geocercas + Telegram para pórticos).
+ *   2) Authenticate + HealthCheck (API REST, mismo dominio) para los
+ *      clientes "tlchile" y "mconnect" → Tracklink / MZDConnect. Antes vivía
+ *      en /api/sync (Vercel, cron propio); ahora corre acá para que sea la
+ *      MISMA sesión/ventana de rate-limit la que se reserva una sola vez.
+ *
+ * Variables de entorno esperadas (GitHub Secrets):
+ *   TL_USER, TL_PASSWORD, TL_DOMAIN, SUPABASE_SERVICE_ROLE_KEY,
+ *   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (opcionales, solo para pórticos)
+ */
+
+const puppeteer = require('puppeteer');
+const { createClient } = require('@supabase/supabase-js');
+
+if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY');
+}
+const supabase = createClient(
+  'https://lomkolhgmkvshucqjuhf.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+// --- Candado / marca de última corrida exitosa -----------------------------
+// Ya no hace falta para evitar choques entre procesos (solo queda este), pero
+// se mantiene como red de seguridad ante un disparo manual (forzar-sync) que
+// coincida con el cron, y "tlchile_last_success" alimenta el panel interno
+// de STLC (botón "Sincronizar" ahora es de solo lectura, ver Navbar.tsx).
+const TLCHILE_LOCK_KEY = 'tlchile_auth_lock';
+const TLCHILE_LOCK_WINDOW_MS = 20 * 60_000;
+const TLCHILE_LAST_SUCCESS_KEY = 'tlchile_last_success';
+
+async function intentarReservarTlchile() {
+  const { data } = await supabase
+    .from('SyncCheckpoints')
+    .select('value')
+    .eq('key', TLCHILE_LOCK_KEY)
+    .maybeSingle();
+  const ultimo = data?.value ? new Date(data.value).getTime() : 0;
+  if (Date.now() - ultimo < TLCHILE_LOCK_WINDOW_MS) return false;
+  await supabase.from('SyncCheckpoints').upsert({ key: TLCHILE_LOCK_KEY, value: new Date().toISOString() });
+  return true;
+}
+
+// --- Santa Marta -------------------------------------------------------------
+const UNIDADES_SANTAMARTA = [
+  { unitId: 6702, imei: '868589061400860', alias: 'CATERPILAR 1250 Bulldozer' },
+  { unitId: 6567, imei: '868589061200856', alias: 'KOMATSU 1550 Retroexcavadora' },
+  { unitId: 6700, imei: '868589061490010', alias: 'MERCEDES-BENZ-4144-HKSX-54' },
+  { unitId: 6568, imei: '868589061373570', alias: 'BULLDOZER-KOMTASU-D155-AC' },
+  { unitId: 5969, imei: '868589061071729', alias: 'EXCAVADORA-KOMATSU-1401-PC-220' },
+];
+const SANTAMARTA_CHECKPOINT_KEY = 'santamarta_pull';
+
+// --- Pórticos ------------------------------------------------------------
+const PORTICOS_CHECKPOINT_KEY = 'porticos_pull';
+const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
+const RADIO_GEOCERCA_M = 150;
+const MIN_GAP_MS = 2 * 60 * 1000;
+
+const PORTICOS = [
+  { codigo: 'P3',   concesionaria: 'Costanera Norte',   tramo: 'Puente Lo Saldes – Vivaceta',                lat: -33.4240, lon: -70.6220 },
+  { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
+  { codigo: 'P11',  concesionaria: 'Vespucio Norte',    tramo: 'Pedro Fontova – Ruta 5 Norte',                lat: -33.3658, lon: -70.6951 },
+  { codigo: 'P13',  concesionaria: 'Vespucio Norte',    tramo: 'Recoleta – Pedro Fontova',                    lat: -33.3734, lon: -70.6646 },
+  { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Eje Gral. Velásquez: Ruta 5 Sur – Am. Vespucio', lat: -33.5514, lon: -70.7091 },
+  { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
+  { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
+];
+
+const TARIFAS = {
+  P3:   { TBFP: 692, TBP: 1337, TS: 2029 },
+  P8:   { TBFP: 631, TBP: 1263, TS: 1263 },
+  P11:  { TBFP: 291, TBP: 583,  TS: 874  },
+  P13:  { TBFP: 398, TBP: 797,  TS: 797  },
+  PA19: { TBFP: 365, TBP: 731,  TS: 731  },
+  '2.2':{ TBFP: 243, TBP: 486,  TS: 486  },
+  '5.2':{ TBFP: 281, TBP: 562,  TS: 842  },
+};
+
+// --- HealthCheck (Tracklink / MZDConnect) -----------------------------------
+const HEALTHCHECK_CUSTOMERS = [
+  { customer: 'tlchile',  tabla: 'Tracklink' },
+  { customer: 'mconnect', tabla: 'MZDConnect' },
+];
+
+async function notificarTelegram(texto) {
+  const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.log('[telegram] TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID no configurados, se omite notificación.');
+    return;
+  }
+  const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: texto, parse_mode: 'HTML' }),
+  });
+  if (!res.ok) console.log(`[telegram] Error enviando mensaje: HTTP ${res.status} ${await res.text()}`);
+}
+
+function fmtFechaHoraChile(iso) {
+  const d = new Date(new Date(iso).getTime() - 4 * 3600 * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getUTCDate())}-${p(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+
+function clp(n) {
+  return '$' + Math.round(n).toLocaleString('es-CL');
+}
+
+function fmtTL(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function haversineMetros(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// HEURÍSTICA de banda horaria (no es la ventana oficial exacta de cada concesionaria).
+function bandaHeuristica(fecha) {
+  const dow = fecha.getDay();
+  const h = fecha.getHours();
+  if (dow === 0 || dow === 6) return 'TBFP';
+  if ((h >= 7 && h < 9) || (h >= 18 && h < 21)) return 'TBP';
+  return 'TBFP';
+}
+
+async function obtenerCheckpoint(key, lookbackMs) {
+  const { data, error } = await supabase.from('SyncCheckpoints').select('value').eq('key', key).maybeSingle();
+  if (error) throw new Error(`Error leyendo checkpoint ${key}: ${error.message}`);
+  if (data?.value) return new Date(data.value);
+  return new Date(Date.now() - lookbackMs);
+}
+
+async function guardarCheckpoint(key, fecha) {
+  const { error } = await supabase.from('SyncCheckpoints').upsert({ key, value: fecha.toISOString() });
+  if (error) throw new Error(`Error guardando checkpoint ${key}: ${error.message}`);
+}
+
+async function obtenerVehiculosPorticos() {
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id');
+  if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
+  return data || [];
+}
+
+async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDate, endDate, unitIds }) {
+  const MAX_ATTEMPTS = 2;
+  const RETRY_DELAY_MS = 90_000;
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
+    try {
+      const page = await browser.newPage();
+      page.setDefaultTimeout(60_000);
+      const loginUrl = `https://${TL_DOMAIN}.trackgts.com/admin/login.html`;
+      console.log(`[login] Intento ${attempt}/${MAX_ATTEMPTS} — ${loginUrl}`);
+      await page.goto(loginUrl, { waitUntil: 'networkidle0', timeout: 60_000 });
+      await page.waitForSelector('#username', { timeout: 30_000 });
+
+      await page.evaluate(() => localStorage.setItem('sltLanguage', '0'));
+      await page.reload({ waitUntil: 'networkidle0' });
+      await page.waitForSelector('#username', { timeout: 30_000 });
+
+      await page.evaluate((user, password, domain) => {
+        const K = 'd5fg4df5sg4ds5fg';
+        const S = { a: '1', b: '2', c: '3', d: '4', e: '5', f: '6', g: '7', h: '8', i: '9' };
+        const k = CryptoJS.enc.Utf8.parse(K);
+        const iv = CryptoJS.enc.Utf8.parse(K);
+        const a = [];
+        for (const c of password) {
+          a.push(
+            CryptoJS.AES.encrypt(
+              CryptoJS.enc.Utf8.parse(S[c] || c), k,
+              { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+            ).toString()
+          );
+        }
+        ARRAYPSWD = a;
+        document.getElementById('username').value = user;
+        document.getElementById('domain').value = domain;
+        document.getElementById('password').value = '********';
+        LOGININPROCESS = false;
+        onLoginOn();
+      }, TL_USER, TL_PASSWORD, TL_DOMAIN);
+
+      console.log('[login] Esperando sesión (15s)...');
+      await new Promise((r) => setTimeout(r, 15_000));
+
+      console.log(`[travel] Consultando reportTravel: ${startDate} → ${endDate}`);
+      const result = await page.evaluate(async (startStr, endStr, unitIdsStr) => {
+        const h = JSONUSER.hash;
+        const res = await fetch(`https://www.trackgts.com:82/api/reportTravel/${h}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json;charset=utf-8' },
+          body: JSON.stringify([{ startDate: startStr, endDate: endStr, unitIds: unitIdsStr }]),
+        });
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); } catch (e) {
+          return { error: `Respuesta no-JSON: ${text.slice(0, 300)}` };
+        }
+        if (typeof json === 'string') {
+          try { json = JSON.parse(json); } catch (e) {
+            return { error: `Doble-parse falló: ${text.slice(0, 300)}` };
+          }
+        }
+        if (json && json.idResult !== undefined) {
+          return { error: `idResult=${json.idResult} (sesión inválida)` };
+        }
+        if (!Array.isArray(json) || json.length < 2 || !Array.isArray(json[1])) {
+          return { error: `Forma inesperada: ${JSON.stringify(json).slice(0, 300)}` };
+        }
+        return { rows: json[1] };
+      }, startDate, endDate, unitIds);
+
+      if (result.error) throw new Error(result.error);
+      return result.rows || [];
+    } catch (err) {
+      lastError = err;
+      console.log(`[!] Intento ${attempt}/${MAX_ATTEMPTS} falló: ${err.message}`);
+      if (attempt < MAX_ATTEMPTS) {
+        console.log(`[!] Esperando ${Math.round(RETRY_DELAY_MS / 1000)}s antes de reintentar...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+    } finally {
+      await browser.close();
+    }
+  }
+  throw lastError;
+}
+
+async function sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer, tabla) {
+  const BASE_URL = `https://${TL_DOMAIN}.trackgts.com:8081`;
+  const authRes = await fetch(`${BASE_URL}/api/Authenticate/Auth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: TL_USER, password: TL_PASSWORD, customer }),
+  });
+  if (authRes.status === 429) {
+    console.log(`[healthcheck:${tabla}] ⚠️ Rate limit al autenticar.`);
+    return;
+  }
+  if (!authRes.ok) {
+    console.log(`[healthcheck:${tabla}] ❌ Error de autenticación: HTTP ${authRes.status}`);
+    return;
+  }
+  const authData = await authRes.json();
+  const accessToken = authData.data?.accessToken;
+  const retailId = authData.data?.user?.parentCustomerId?.toString();
+  if (!accessToken || !retailId) {
+    console.log(`[healthcheck:${tabla}] ❌ No se obtuvo token o retailId.`);
+    return;
+  }
+
+  const reportRes = await fetch(`${BASE_URL}/api/HealthCheck/GetReportHealthCheck`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ retailId }),
+  });
+  if (reportRes.status === 429) {
+    console.log(`[healthcheck:${tabla}] ⚠️ Rate limit al obtener reporte.`);
+    return;
+  }
+  if (!reportRes.ok) {
+    console.log(`[healthcheck:${tabla}] ❌ Error al obtener reporte: HTTP ${reportRes.status}`);
+    return;
+  }
+  const reportData = await reportRes.json();
+  const unidades = reportData.data ?? [];
+  if (!unidades.length) {
+    console.log(`[healthcheck:${tabla}] ❌ La API no devolvió unidades.`);
+    return;
+  }
+
+  const registros = unidades.map((u) => ({
+    'IMEI':                 u.imei,
+    'Unit ID':              u.unitId,
+    'Serie':                u.serie,
+    'Fecha Ultimo Reporte': u.fechaUltimoReporte,
+    'Ubicación':            u.ubicacion,
+    'Antigüedad (minutos)': u.antiguedadMinutos,
+    'Mensaje':              u.mensaje,
+    'EstadoGPS':            u.estadoGPS,
+    'EstadoIgnición':       u.estadoIgnicion,
+    'EstadoMotor':          u.estadoMotor,
+    'Velocidad':            String(u.velocidad ?? ''),
+    'Odómetro':             String(u.odometro ?? ''),
+    'Horómetro':            u.horometro ?? null,
+    'VBatExterna':          String(u.vBatExterna ?? ''),
+    '%BatExterna':          u.porcentBatInterna,
+    'Fabricante AVL':       u.fabricanteAVL,
+    'Modelo AVL':           u.modeloAVL,
+    'Modelo AVL Ref':       u.modeloAVLRef,
+    'Protocolo':            u.protocolo,
+    'Teléfono SIM':         u.telefonoSim,
+    'Serie SIM':            u.serieSim,
+    'GPRS':                 u.gprs,
+    'Servicio':             u.servicio,
+    'Servicio Comercial':   u.servicioComercial,
+    'Serv. Desde':          u.servDesde,
+    'Serv. Hasta':          u.servHasta,
+    'TipoInstalacion':      u.tipoInstalacion,
+    'Alias':                u.alias,
+    'Tipo':                 u.tipo,
+    'Marca':                u.marca,
+    'Modelo':               u.modelo,
+    'Año':                  u.anio,
+    'Placa':                u.placa,
+    'Color':                u.color,
+    'Chasis':               u.chasis,
+    'Motor':                u.motor,
+    'Cliente/Empresa':      u.clienteEmpresa,
+    'Cust ID':              u.custId,
+    'Nombre':               u.nombre,
+    'Apellido':             u.apellido,
+    'Direccion':            u.direccion,
+    'Pais':                 u.pais,
+    'Correo':               u.correo,
+    'Usuario':              u.usuario,
+    'Telefono':             u.telefono,
+    'ClienteAdicional1':    u.clienteAdicional1 ?? '',
+    'ClienteAdicional2':    u.clienteAdicional2 ?? '',
+    'ClienteAdicional3':    u.clienteAdicional3 ?? '',
+    'ClienteAdicional4':    u.clienteAdicional4 ?? '',
+  }));
+
+  const { error } = await supabase.from(tabla).upsert(registros, { onConflict: 'IMEI' });
+  if (error) {
+    console.log(`[healthcheck:${tabla}] ❌ Error al guardar: ${error.message}`);
+    return;
+  }
+  console.log(`[healthcheck:${tabla}] ✅ ${unidades.length} unidades sincronizadas.`);
+}
+
+async function main() {
+  const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
+  if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
+
+  const tlchileDisponible = await intentarReservarTlchile();
+  if (!tlchileDisponible) {
+    console.log('⏭️  Omitido: la cuenta tlchile fue usada hace menos de 20 min (candado activo).');
+    return;
+  }
+
+  // --- 1) Una sola sesión clásica: Santa Marta + Pórticos juntos -----------
+  const vehiculosPorticos = await obtenerVehiculosPorticos();
+  const santamartaCheckpoint = await obtenerCheckpoint(SANTAMARTA_CHECKPOINT_KEY, 2 * 60 * 60_000);
+  const porticosCheckpoint = await obtenerCheckpoint(PORTICOS_CHECKPOINT_KEY, 2 * 60 * 60_000);
+  const OVERLAP_MS = 5 * 60_000;
+  const ahora = new Date();
+  const startMs = Math.min(santamartaCheckpoint.getTime(), porticosCheckpoint.getTime()) - OVERLAP_MS;
+  const start = new Date(startMs);
+
+  const unitIds = [
+    ...UNIDADES_SANTAMARTA.map((u) => u.unitId),
+    ...vehiculosPorticos.map((v) => v.unit_id),
+  ].join(',');
+
+  console.log(`=== Sync tlchile: ${fmtTL(start)} → ${fmtTL(ahora)} (${UNIDADES_SANTAMARTA.length} Santa Marta + ${vehiculosPorticos.length} pórticos) ===`);
+
+  const rows = await loginYConsultarTravel({
+    TL_USER, TL_PASSWORD, TL_DOMAIN,
+    startDate: fmtTL(start), endDate: fmtTL(ahora),
+    unitIds,
+  });
+  console.log(`[travel] ${rows.length} posiciones GPS recibidas (todas las unidades)`);
+
+  // --- Santa Marta -----------------------------------------------------------
+  const porUnitIdSantaMarta = new Map(UNIDADES_SANTAMARTA.map((u) => [u.unitId, u]));
+  const registrosSantaMarta = rows
+    .filter((r) => porUnitIdSantaMarta.has(r.unitIdA0))
+    .map((r) => {
+      const u = porUnitIdSantaMarta.get(r.unitIdA0);
+      return {
+        'IMEI': u.imei,
+        'Unit ID': r.unitIdA0,
+        'Alias': u.alias,
+        'gpsUtcTime': r.gpsUtcTimeC13,
+        'Odómetro': r.odometerC14 ?? null,
+        'Horómetro': r.hourmeterC15 ?? null,
+        'Velocidad': r.speedC8 ?? null,
+        'Latitud': r.latC12 ?? null,
+        'Longitud': r.lonC11 ?? null,
+      };
+    });
+  console.log(`[santamarta] ${registrosSantaMarta.length} filas válidas`);
+  if (registrosSantaMarta.length) {
+    const { error } = await supabase
+      .from('SantaMartaHistorial')
+      .upsert(registrosSantaMarta, { onConflict: 'IMEI,gpsUtcTime', ignoreDuplicates: true });
+    if (error) throw new Error(`Error al guardar historial Santa Marta: ${error.message}`);
+    console.log(`[santamarta] ✅ ${registrosSantaMarta.length} registros insertados/verificados.`);
+  }
+  await guardarCheckpoint(SANTAMARTA_CHECKPOINT_KEY, ahora);
+
+  // --- Pórticos --------------------------------------------------------------
+  const porUnitIdPorticos = new Map(vehiculosPorticos.map((v) => [v.unit_id, v]));
+  const puntosPorVehiculo = new Map();
+  for (const r of rows) {
+    const vehiculo = porUnitIdPorticos.get(r.unitIdA0);
+    if (!vehiculo) continue;
+    if (!puntosPorVehiculo.has(vehiculo.id)) puntosPorVehiculo.set(vehiculo.id, []);
+    puntosPorVehiculo.get(vehiculo.id).push({
+      time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
+      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0,
+    });
+  }
+
+  let totalDetecciones = 0;
+  for (const vehiculo of vehiculosPorticos) {
+    const puntos = (puntosPorVehiculo.get(vehiculo.id) || [])
+      .filter((p) => p.lat && p.lon && !isNaN(p.time))
+      .sort((a, b) => a.time - b.time);
+    console.log(`[porticos] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
+
+    const detecciones = [];
+    let ultimoPortico = null;
+    let ultimoTs = null;
+    for (const p of puntos) {
+      for (const portico of PORTICOS) {
+        const d = haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
+        if (d <= RADIO_GEOCERCA_M) {
+          const tsMs = p.time.getTime();
+          const esNuevo = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
+          if (esNuevo) {
+            detecciones.push({
+              vehiculo_id: vehiculo.id,
+              ts: p.time.toISOString(),
+              portico_codigo: portico.codigo,
+              concesionaria: portico.concesionaria,
+              tramo: portico.tramo,
+              distancia_m: Math.round(d),
+              velocidad_kmh: p.speed,
+              lat: p.lat,
+              lon: p.lon,
+            });
+          }
+          ultimoPortico = portico.codigo;
+          ultimoTs = tsMs;
+        }
+      }
+    }
+    console.log(`[porticos] ${vehiculo.patente}: ${detecciones.length} pasadas nuevas detectadas`);
+    totalDetecciones += detecciones.length;
+
+    if (detecciones.length) {
+      const { error } = await supabase
+        .from('porticos_pasadas_reales')
+        .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo', ignoreDuplicates: true });
+      if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente}: ${error.message}`);
+      console.log(`[porticos] ✅ ${vehiculo.patente}: ${detecciones.length} pasadas insertadas/verificadas`);
+
+      if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
+      for (const d of detecciones) {
+        const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
+        const monto = TARIFAS[d.portico_codigo][banda];
+        const texto =
+          `🚗 <b>${vehiculo.patente}</b> — pasada por pórtico\n` +
+          `📅 ${fmtFechaHoraChile(d.ts)}\n` +
+          `🛣️ Pórtico: ${d.portico_codigo} (${d.concesionaria})\n` +
+          `✅ Estado: OK\n` +
+          `💰 Facturado: ${clp(monto)}\n` +
+          `💰 Correcto: ${clp(monto)}`;
+        await notificarTelegram(texto);
+      }
+    }
+  }
+  if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
+  await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
+
+  // --- 2) HealthCheck (API REST) — Tracklink / MZDConnect ---------------------
+  for (const { customer, tabla } of HEALTHCHECK_CUSTOMERS) {
+    await sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer, tabla);
+  }
+
+  await guardarCheckpoint(TLCHILE_LAST_SUCCESS_KEY, ahora);
+  console.log(`=== Sync tlchile completo: ${ahora.toISOString()} ===`);
+}
+
+main().catch((err) => {
+  console.error('ERROR FATAL:', err.message);
+  process.exit(1);
+});

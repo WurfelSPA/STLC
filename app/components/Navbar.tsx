@@ -106,8 +106,8 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
   const handleSync = async () => {
     if (sincState === "loading") return;
     setSincState("loading");
-    setMsgTracklink("Sincronizando Tracklink...");
-    setMsgMZD("Sincronizando MZDConnect...");
+    setMsgTracklink("Consultando estado...");
+    setMsgMZD("Consultando estado...");
 
     try {
       const res = await fetch("/api/sync", { method: "POST" });
@@ -213,7 +213,7 @@ export default function Navbar({ paginaActiva, onHome }: NavbarProps) {
               : "bg-gray-200 text-blue-900 hover:bg-white"
           }`}
         >
-          {sincState === "loading" ? "Sincronizando..." : "API actualizar"}
+          {sincState === "loading" ? "Consultando..." : "Ver estado API"}
         </button>
 
         {/* USUARIO / SESIÓN */}
