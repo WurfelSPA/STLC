@@ -247,6 +247,8 @@ async function main() {
               tramo: portico.tramo,
               distancia_m: Math.round(d),
               velocidad_kmh: p.speed,
+              lat: p.lat,
+              lon: p.lon,
             });
           }
           ultimoPortico = portico.codigo;
