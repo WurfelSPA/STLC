@@ -414,7 +414,10 @@ async function main() {
   if (registrosSantaMarta.length) {
     const { error } = await supabase
       .from('SantaMartaHistorial')
-      .upsert(registrosSantaMarta, { onConflict: 'IMEI,gpsUtcTime', ignoreDuplicates: true });
+      // ignoreDuplicates:false (default) = ON CONFLICT DO UPDATE: si una fila ya
+      // existía con algún campo vacío (por una corrida anterior incompleta o con
+      // código viejo), esta corrida la corrige sola en vez de dejarla pegada.
+      .upsert(registrosSantaMarta, { onConflict: 'IMEI,gpsUtcTime' });
     if (error) throw new Error(`Error al guardar historial Santa Marta: ${error.message}`);
     console.log(`[santamarta] ✅ ${registrosSantaMarta.length} registros insertados/verificados.`);
   }
@@ -473,7 +476,12 @@ async function main() {
     if (detecciones.length) {
       const { error } = await supabase
         .from('porticos_pasadas_reales')
-        .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo', ignoreDuplicates: true });
+        // ignoreDuplicates:false (default) = ON CONFLICT DO UPDATE: si esta misma
+        // pasada ya estaba guardada (por el solape de 5 min entre corridas, o por
+        // haberse insertado con una versión anterior del código) pero le faltaba
+        // lat/lon u otro campo, esta corrida la completa sola — sin depender de
+        // un rescate manual ni de un login extra a TrackGTS.
+        .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo' });
       if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente}: ${error.message}`);
       console.log(`[porticos] ✅ ${vehiculo.patente}: ${detecciones.length} pasadas insertadas/verificadas`);
 
