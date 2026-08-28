@@ -511,12 +511,35 @@ async function main() {
     });
   }
 
+  // Si el vehículo queda estacionado/detenido cerca de un pórtico (ej. su
+  // destino final queda al lado), cada corrida futura volvía a "detectar"
+  // el mismo pórtico una y otra vez (el dedup de MIN_GAP_MS solo mira dentro
+  // de la corrida actual, no recuerda corridas anteriores) — generaba
+  // pasadas y notificaciones de Telegram falsas mientras el auto seguía
+  // parado ahí. Por eso antes de detectar se consulta cuándo fue la ÚLTIMA
+  // pasada real ya guardada de cada vehículo+pórtico, y no se vuelve a
+  // contar si pasaron menos de VENTANA_MISMA_PASADA_MS desde esa última vez.
+  const VENTANA_MISMA_PASADA_MS = 3 * 60 * 60 * 1000; // 3 horas
+
   let totalDetecciones = 0;
   for (const vehiculo of vehiculosPorticos) {
     const puntos = (puntosPorVehiculo.get(vehiculo.id) || [])
       .filter((p) => p.lat && p.lon && !isNaN(p.time))
       .sort((a, b) => a.time - b.time);
     console.log(`[porticos] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
+
+    const { data: pasadasPrevias, error: errPrevias } = await supabase
+      .from('porticos_pasadas_reales')
+      .select('portico_codigo, ts')
+      .eq('vehiculo_id', vehiculo.id)
+      .gte('ts', new Date(Date.now() - VENTANA_MISMA_PASADA_MS).toISOString());
+    if (errPrevias) throw new Error(`Error leyendo pasadas previas de ${vehiculo.patente}: ${errPrevias.message}`);
+    const ultimaPasadaPorPortico = new Map();
+    for (const row of pasadasPrevias || []) {
+      const t = new Date(row.ts).getTime();
+      const actual = ultimaPasadaPorPortico.get(row.portico_codigo);
+      if (!actual || t > actual) ultimaPasadaPorPortico.set(row.portico_codigo, t);
+    }
 
     const detecciones = [];
     let ultimoPortico = null;
@@ -530,8 +553,10 @@ async function main() {
           : haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
-          const esNuevo = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
-          if (esNuevo) {
+          const esNuevoEnEstaCorrida = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
+          const ultimaConocida = ultimaPasadaPorPortico.get(portico.codigo);
+          const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > VENTANA_MISMA_PASADA_MS;
+          if (esNuevoEnEstaCorrida && esNuevoVsHistorico) {
             detecciones.push({
               vehiculo_id: vehiculo.id,
               ts: p.time.toISOString(),
@@ -543,6 +568,7 @@ async function main() {
               lat: p.lat,
               lon: p.lon,
             });
+            ultimaPasadaPorPortico.set(portico.codigo, tsMs);
           }
           ultimoPortico = portico.codigo;
           ultimoTs = tsMs;
