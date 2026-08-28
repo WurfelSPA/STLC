@@ -180,6 +180,29 @@ function haversineMetros(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Distancia mínima entre un punto (el pórtico) y el TRAMO RECTO entre dos
+// lecturas GPS consecutivas — no solo la distancia a cada lectura suelta.
+// Con GPS que reporta cada 30-60+ segundos, un auto a velocidad de autopista
+// puede cruzar un círculo de 150m ENTRE dos lecturas sin que ninguna caiga
+// adentro; revisando el tramo se detecta igual. Aproximación plana (válida
+// para segmentos de unos pocos km, muy por sobre la distancia real entre
+// dos puntos GPS consecutivos de un mismo vehículo).
+function distanciaPuntoASegmentoMetros(latP, lonP, latA, lonA, latB, lonB) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const cosRef = Math.cos(toRad(latP));
+  const ax = toRad(lonA - lonP) * cosRef * R;
+  const ay = toRad(latA - latP) * R;
+  const bx = toRad(lonB - lonP) * cosRef * R;
+  const by = toRad(latB - latP) * R;
+  const dx = bx - ax, dy = by - ay;
+  const lenCuadrado = dx * dx + dy * dy;
+  let t = lenCuadrado === 0 ? 0 : (-ax * dx - ay * dy) / lenCuadrado;
+  t = Math.max(0, Math.min(1, t));
+  const cx = ax + t * dx, cy = ay + t * dy;
+  return Math.hypot(cx, cy);
+}
+
 // HEURÍSTICA de banda horaria (no es la ventana oficial exacta de cada concesionaria).
 function bandaHeuristica(fecha) {
   const dow = fecha.getDay();
@@ -487,9 +510,13 @@ async function main() {
     const detecciones = [];
     let ultimoPortico = null;
     let ultimoTs = null;
-    for (const p of puntos) {
+    for (let i = 0; i < puntos.length; i++) {
+      const p = puntos[i];
+      const anterior = puntos[i - 1];
       for (const portico of PORTICOS) {
-        const d = haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
+        const d = anterior
+          ? distanciaPuntoASegmentoMetros(portico.lat, portico.lon, anterior.lat, anterior.lon, p.lat, p.lon)
+          : haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
           const esNuevo = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
