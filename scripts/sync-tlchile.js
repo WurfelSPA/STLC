@@ -84,6 +84,14 @@ const PORTICOS = [
   { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Eje Gral. Velásquez: Ruta 5 Sur – Am. Vespucio', lat: -33.5514, lon: -70.7091 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
+  // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
+  // propio track GPS real de VVJG-14 (frenada/parada del vehículo justo en
+  // ese punto), confirmadas porque el monto coincide EXACTO con la tarifa
+  // oficial investigada (311,52 / 665,24 / 520,53 — ver dashboard.html) y el
+  // usuario anotó ese mismo monto en pantalla del pórtico el 2026-08-28.
+  { codigo: '4.1',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Santa Julia',            lat: -33.541545, lon: -70.640163 },
+  { codigo: '3.1',  concesionaria: 'Vespucio Sur',      tramo: 'Santa Rosa – Gran Avenida',                  lat: -33.538576, lon: -70.658991 },
+  { codigo: '3.3',  concesionaria: 'Vespucio Sur',      tramo: 'Gran Avenida – Ruta 5',                      lat: -33.534718, lon: -70.672764 },
   // Ruta 5 Norte — agregados 2026-08-27. Únicos peajes interurbanos con
   // coordenadas confiables encontradas (OpenStreetMap, cruzadas con el km
   // oficial MOP/concesionaria) — el resto del catálogo nacional (Tarifas)
@@ -110,6 +118,9 @@ const TARIFAS = {
   PA19: { TBFP: 365, TBP: 731,  TS: 731  },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
+  '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
+  '3.1':{ TBFP: 333, TBP: 665,  TS: 998  },
+  '3.3':{ TBFP: 260, TBP: 521,  TS: 781  },
   // Ruta 5 Norte — tarifas planas (sin banda horaria oficial), mismo monto
   // en las 3 columnas para que el cálculo de banda no cambie el resultado.
   LAMPA:       { TBFP: 900,  TBP: 900,  TS: 900  },
