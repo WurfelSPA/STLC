@@ -81,7 +81,14 @@ const PORTICOS = [
   { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
   { codigo: 'P11',  concesionaria: 'Vespucio Norte',    tramo: 'Pedro Fontova – Ruta 5 Norte',                lat: -33.3658, lon: -70.6951 },
   { codigo: 'P13',  concesionaria: 'Vespucio Norte',    tramo: 'Recoleta – Pedro Fontova',                    lat: -33.3734, lon: -70.6646 },
-  { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Eje Gral. Velásquez: Ruta 5 Sur – Am. Vespucio', lat: -33.5514, lon: -70.7091 },
+  // PA19 — coordenada actualizada 2026-08-28 (la anterior nunca se validó con
+  // una pasada real). Nueva coordenada calculada por distancia acumulada real
+  // sobre el track GPS de VVJG-14, entre 2.2 y el resto de pórticos de
+  // Autopista Central (Eje Gral. Velásquez) — ver PA21/PA23/PA25 abajo.
+  { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Ruta 5 Sur – Américo Vespucio',               lat: -33.510753, lon: -70.699381 },
+  { codigo: 'PA21', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Carlos Valdovinos',        lat: -33.473049, lon: -70.687728 },
+  { codigo: 'PA23', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.438662, lon: -70.691992 },
+  { codigo: 'PA25', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.408249, lon: -70.694405 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
@@ -141,7 +148,16 @@ const TARIFAS = {
   P8:   { TBFP: 631, TBP: 1263, TS: 1263 },
   P11:  { TBFP: 291, TBP: 583,  TS: 874  },
   P13:  { TBFP: 398, TBP: 797,  TS: 797  },
-  PA19: { TBFP: 365, TBP: 731,  TS: 731  },
+  // PA19/21/23/25 actualizados 2026-08-28 con el tarifario oficial 2026 de
+  // autopistacentral.cl (texto limpio, no imagen — alta confianza). PA19 y
+  // PA21 son tarifa plana (sin banda horaria definida). PA23/PA25 sí tienen
+  // banda punta (07:00-10:00 y 07:00-09:30/14:30-15:00/19:00-19:30
+  // respectivamente) — el monto TBP coincidió exacto con lo que el usuario
+  // anotó en pantalla (576 y 844) el mismo día en ese horario.
+  PA19: { TBFP: 413, TBP: 413,  TS: 413  },
+  PA21: { TBFP: 512, TBP: 512,  TS: 512  },
+  PA23: { TBFP: 288, TBP: 576,  TS: 576  },
+  PA25: { TBFP: 422, TBP: 844,  TS: 844  },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
