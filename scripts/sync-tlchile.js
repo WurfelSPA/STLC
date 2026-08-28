@@ -158,6 +158,19 @@ function fmtTL(d) {
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
+// Postgres no permite que un mismo upsert() incluya dos filas que apunten
+// al mismo conflicto cuando se resuelve con DO UPDATE (a diferencia de
+// ignoreDuplicates/DO NOTHING) — revienta con "ON CONFLICT DO UPDATE command
+// cannot affect row a second time". reportTravel puede devolver más de un
+// punto con el mismo (IMEI, gpsUtcTime) dentro de una misma consulta, así
+// que hay que des-duplicar el lote ANTES de cada upsert (se queda con la
+// última ocurrencia, que trae los datos más frescos).
+function dedupePorClave(filas, claveDe) {
+  const porClave = new Map();
+  for (const f of filas) porClave.set(claveDe(f), f);
+  return Array.from(porClave.values());
+}
+
 function haversineMetros(lat1, lon1, lat2, lon2) {
   const R = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -439,14 +452,15 @@ async function main() {
     });
   console.log(`[santamarta] ${registrosSantaMarta.length} filas válidas`);
   if (registrosSantaMarta.length) {
+    const registrosSantaMartaSinDuplicar = dedupePorClave(registrosSantaMarta, (r) => `${r['IMEI']}|${r['gpsUtcTime']}`);
     const { error } = await supabase
       .from('SantaMartaHistorial')
       // ignoreDuplicates:false (default) = ON CONFLICT DO UPDATE: si una fila ya
       // existía con algún campo vacío (por una corrida anterior incompleta o con
       // código viejo), esta corrida la corrige sola en vez de dejarla pegada.
-      .upsert(registrosSantaMarta, { onConflict: 'IMEI,gpsUtcTime' });
+      .upsert(registrosSantaMartaSinDuplicar, { onConflict: 'IMEI,gpsUtcTime' });
     if (error) throw new Error(`Error al guardar historial Santa Marta: ${error.message}`);
-    console.log(`[santamarta] ✅ ${registrosSantaMarta.length} registros insertados/verificados.`);
+    console.log(`[santamarta] ✅ ${registrosSantaMartaSinDuplicar.length} registros insertados/verificados.`);
   }
   await guardarCheckpoint(SANTAMARTA_CHECKPOINT_KEY, ahora);
 
@@ -497,10 +511,14 @@ async function main() {
         }
       }
     }
-    console.log(`[porticos] ${vehiculo.patente}: ${detecciones.length} pasadas nuevas detectadas`);
-    totalDetecciones += detecciones.length;
+    // Dedupe defensivo por si el mismo punto GPS (mismo ts) aparece dos veces
+    // en la respuesta de reportTravel — evita el mismo error de Postgres que
+    // rompía Santa Marta, y de paso evita notificar dos veces por Telegram.
+    const deteccionesSinDuplicar = dedupePorClave(detecciones, (d) => `${d.vehiculo_id}|${d.ts}|${d.portico_codigo}`);
+    console.log(`[porticos] ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas nuevas detectadas`);
+    totalDetecciones += deteccionesSinDuplicar.length;
 
-    if (detecciones.length) {
+    if (deteccionesSinDuplicar.length) {
       const { error } = await supabase
         .from('porticos_pasadas_reales')
         // ignoreDuplicates:false (default) = ON CONFLICT DO UPDATE: si esta misma
@@ -508,12 +526,12 @@ async function main() {
         // haberse insertado con una versión anterior del código) pero le faltaba
         // lat/lon u otro campo, esta corrida la completa sola — sin depender de
         // un rescate manual ni de un login extra a TrackGTS.
-        .upsert(detecciones, { onConflict: 'vehiculo_id,ts,portico_codigo' });
+        .upsert(deteccionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo' });
       if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente}: ${error.message}`);
-      console.log(`[porticos] ✅ ${vehiculo.patente}: ${detecciones.length} pasadas insertadas/verificadas`);
+      console.log(`[porticos] ✅ ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas insertadas/verificadas`);
 
       if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
-      for (const d of detecciones) {
+      for (const d of deteccionesSinDuplicar) {
         const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
         const monto = TARIFAS[d.portico_codigo][banda];
         const texto =
