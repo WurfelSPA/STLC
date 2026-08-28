@@ -89,6 +89,14 @@ const PORTICOS = [
   { codigo: 'PA21', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Carlos Valdovinos',        lat: -33.473049, lon: -70.687728 },
   { codigo: 'PA23', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.438662, lon: -70.691992 },
   { codigo: 'PA25', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.408249, lon: -70.694405 },
+  // PA24/PA26 — mismo punto físico que PA23/PA25 pero sentido Norte-Sur (de
+  // vuelta). Igual monto TBFP/TBP que su par, pero ventana horaria de punta
+  // DISTINTA (ver VENTANAS_PUNTA_PORTICO) — confirmado 2026-08-28: el regreso
+  // por PA25/Río Mapocho a las 14:55 mostró $422 (TBFP) en la pantalla real,
+  // no los $844 (TBP) que la ventana de PA25 habría dado a esa hora — porque
+  // en sentido Norte-Sur el código real es PA26, con ventana punta 18:30-20:30.
+  { codigo: 'PA24', concesionaria: 'Autopista Central', tramo: 'Alameda – Carlos Valdovinos',                 lat: -33.438662, lon: -70.691992 },
+  { codigo: 'PA26', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Alameda',                       lat: -33.408249, lon: -70.694405 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
@@ -123,20 +131,29 @@ const PORTICOS = [
 // "4.3" a la vuelta (longitud creciente, hacia el oriente) — mismo patrón
 // para 3.1↔3.4 y 3.3↔3.2. El monto anotado en pantalla por el usuario en
 // ambos viajes coincidió exacto con la tarifa oficial de cada código.
-const PARES_DIRECCIONALES_VESPUCIO_SUR = {
-  '4.1': { alterno: '4.3', tramoAlterno: 'Coronel – Santa Julia' },
-  '3.1': { alterno: '3.4', tramoAlterno: 'Ruta 5 – Gran Avenida' },
-  '3.3': { alterno: '3.2', tramoAlterno: 'Gran Avenida – Santa Rosa' },
+// Vespucio Sur (anillo E-O) se resuelve por tendencia de LONGITUD: positivo =
+// longitud creciente = hacia el oriente = código alterno. Autopista Central /
+// Eje Gral. Velásquez (corredor N-S) se resuelve por tendencia de LATITUD:
+// positivo = latitud creciente = hacia el norte = código BASE (las columnas
+// "Sur-Norte" del tarifario), negativo = hacia el sur = código alterno
+// ("Norte-Sur") — polaridad opuesta a Vespucio Sur, por eso `positivoEsAlterno`.
+const PARES_DIRECCIONALES = {
+  '4.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '4.3',  tramoAlterno: 'Coronel – Santa Julia' },
+  '3.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.4',  tramoAlterno: 'Ruta 5 – Gran Avenida' },
+  '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
+  PA23:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA24', tramoAlterno: 'Alameda – Carlos Valdovinos' },
+  PA25:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA26', tramoAlterno: 'Río Mapocho – Alameda' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
 // detección — si no hay "anterior" (primer punto de la corrida) se asume
 // el código base por defecto, no se puede determinar sentido.
 function resolverCodigoDireccional(portico, anterior, actual) {
-  const par = PARES_DIRECCIONALES_VESPUCIO_SUR[portico.codigo];
+  const par = PARES_DIRECCIONALES[portico.codigo];
   if (!par || !anterior) return { codigo: portico.codigo, tramo: portico.tramo };
-  const tendencia = actual.lon - anterior.lon; // positivo = longitud creciente = hacia el oriente
-  if (tendencia > 0) return { codigo: par.alterno, tramo: par.tramoAlterno };
+  const tendencia = par.eje === 'lat' ? actual.lat - anterior.lat : actual.lon - anterior.lon;
+  const esAlterno = par.positivoEsAlterno ? tendencia > 0 : tendencia < 0;
+  if (esAlterno) return { codigo: par.alterno, tramo: par.tramoAlterno };
   return { codigo: portico.codigo, tramo: portico.tramo };
 }
 
@@ -158,6 +175,10 @@ const TARIFAS = {
   PA21: { TBFP: 512, TBP: 512,  TS: 512  },
   PA23: { TBFP: 288, TBP: 576,  TS: 576  },
   PA25: { TBFP: 422, TBP: 844,  TS: 844  },
+  // PA24/PA26 (sentido Norte-Sur, ver PORTICOS) — mismo monto TBFP/TBP que
+  // PA23/PA25, ventana horaria distinta.
+  PA24: { TBFP: 288, TBP: 576,  TS: 864  },
+  PA26: { TBFP: 422, TBP: 844,  TS: 844  },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
@@ -274,6 +295,12 @@ const VENTANAS_PUNTA_PORTICO = {
   PA21: null,
   PA23: [[7 * 60, 10 * 60]],
   PA25: [[7 * 60, 9 * 60 + 30], [14 * 60 + 30, 15 * 60], [19 * 60, 19 * 60 + 30]],
+  // PA24/PA26 (sentido Norte-Sur, de vuelta) — ventana punta vespertina, no
+  // matutina como su par PA23/PA25. Se aproxima la franja TS de PA24
+  // (18:30-19:00) como parte de la ventana TBP por simplicidad (el sistema
+  // solo modela 2 bandas, TBFP/TBP, no 3).
+  PA24: [[18 * 60, 20 * 60 + 30]],
+  PA26: [[18 * 60 + 30, 20 * 60 + 30]],
 };
 
 // HEURÍSTICA de banda horaria: usa la ventana oficial confirmada del pórtico si
