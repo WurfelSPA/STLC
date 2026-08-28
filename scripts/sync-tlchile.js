@@ -236,9 +236,35 @@ async function guardarCheckpoint(key, fecha) {
 }
 
 async function obtenerVehiculosPorticos() {
-  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id');
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa');
   if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
   return data || [];
+}
+
+// El alias del vehículo en Tracklink puede cambiar (ej. "DEMOGV58LAU" ->
+// "ALMELENDEZ", mismo IMEI/patente) — se refleja solo en el portal de
+// pórticos en vez de quedar pegado al valor que tenía al agregarlo.
+async function sincronizarAliasVehiculos(vehiculosPorticos) {
+  const imeis = vehiculosPorticos.map((v) => v.imei).filter(Boolean);
+  if (!imeis.length) return;
+  const { data: filasTracklink, error } = await supabase
+    .from('Tracklink')
+    .select('"IMEI", "Alias"')
+    .in('IMEI', imeis);
+  if (error) { console.log(`[alias] Error leyendo Tracklink: ${error.message}`); return; }
+  const aliasPorImei = new Map((filasTracklink || []).map((f) => [f['IMEI'], f['Alias']]));
+
+  for (const v of vehiculosPorticos) {
+    const aliasNuevo = aliasPorImei.get(v.imei);
+    if (aliasNuevo && aliasNuevo !== v.empresa) {
+      const { error: errUpdate } = await supabase
+        .from('porticos_vehiculos')
+        .update({ empresa: aliasNuevo })
+        .eq('id', v.id);
+      if (errUpdate) console.log(`[alias] Error actualizando ${v.patente}: ${errUpdate.message}`);
+      else console.log(`[alias] ${v.patente}: "${v.empresa}" → "${aliasNuevo}"`);
+    }
+  }
 }
 
 async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDate, endDate, unitIds }) {
@@ -627,6 +653,8 @@ async function main() {
     }
     await sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer, tabla);
   }
+
+  await sincronizarAliasVehiculos(vehiculosPorticos);
 
   await guardarCheckpoint(TLCHILE_LAST_SUCCESS_KEY, ahora);
   console.log(`=== Sync tlchile completo: ${ahora.toISOString()} ===`);
