@@ -262,11 +262,36 @@ function distanciaPuntoASegmentoMetros(latP, lonP, latA, lonA, latB, lonB) {
   return Math.hypot(cx, cy);
 }
 
-// HEURÍSTICA de banda horaria (no es la ventana oficial exacta de cada concesionaria).
-function bandaHeuristica(fecha) {
+// Ventanas oficiales de banda punta CONFIRMADAS por pórtico (hora Chile, L-V,
+// en minutos desde medianoche). `null` = tarifa plana / sin banda punta entre
+// semana (confirmado con lectura real de 4.1: $311,52 = TBFP a las 07:14, hora
+// en que la heurística genérica de abajo habría dicho erróneamente TBP).
+// Pórticos no listados acá siguen usando la heurística genérica 07-09/18-21
+// hasta que se confirme su ventana oficial real.
+const VENTANAS_PUNTA_PORTICO = {
+  '4.1': null,
+  PA19: null,
+  PA21: null,
+  PA23: [[7 * 60, 10 * 60]],
+  PA25: [[7 * 60, 9 * 60 + 30], [14 * 60 + 30, 15 * 60], [19 * 60, 19 * 60 + 30]],
+};
+
+// HEURÍSTICA de banda horaria: usa la ventana oficial confirmada del pórtico si
+// existe, si no cae de vuelta en la heurística genérica (no es la ventana
+// oficial exacta de las concesionarias que aún no hemos investigado).
+function bandaHeuristica(fecha, porticoCodigo) {
   const dow = fecha.getDay();
   const h = fecha.getHours();
+  const min = fecha.getMinutes();
   if (dow === 0 || dow === 6) return 'TBFP';
+
+  if (porticoCodigo && Object.prototype.hasOwnProperty.call(VENTANAS_PUNTA_PORTICO, porticoCodigo)) {
+    const ventanas = VENTANAS_PUNTA_PORTICO[porticoCodigo];
+    if (!ventanas) return 'TBFP';
+    const minutosDia = h * 60 + min;
+    return ventanas.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin) ? 'TBP' : 'TBFP';
+  }
+
   if ((h >= 7 && h < 9) || (h >= 18 && h < 21)) return 'TBP';
   return 'TBFP';
 }
@@ -671,7 +696,7 @@ async function main() {
 
       if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
       for (const d of deteccionesSinDuplicar) {
-        const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000));
+        const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000), d.portico_codigo);
         const monto = TARIFAS[d.portico_codigo][banda];
         const texto =
           `🚗 <b>${vehiculo.patente}</b> — pasada por pórtico\n` +
