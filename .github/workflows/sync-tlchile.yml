@@ -16,7 +16,7 @@ name: Sync tlchile
 
 on:
   schedule:
-    - cron: '0,30 * * * *'
+    - cron: '5,35 * * * *'
 
   workflow_dispatch:
 
