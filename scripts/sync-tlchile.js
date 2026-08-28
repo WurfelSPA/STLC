@@ -107,6 +107,32 @@ const PORTICOS = [
   { codigo: 'PTOVIEJO',     concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 841, norte de Copiapó (Puerto Viejo)', lat: -27.3482, lon: -70.6364 },
 ];
 
+// Algunos pares de pórticos de Vespucio Sur comparten prácticamente la
+// misma posición física (las dos calzadas — ida y vuelta — quedan lo
+// bastante cerca como para caer en el mismo radio de 150m), pero el código
+// y la tarifa oficial correcta dependen del sentido de viaje. Confirmado en
+// vivo el 2026-08-28 con el track GPS real de VVJG-14: mismo punto exacto,
+// "4.1" a la ida (longitud GPS decreciente, viajando hacia el poniente) y
+// "4.3" a la vuelta (longitud creciente, hacia el oriente) — mismo patrón
+// para 3.1↔3.4 y 3.3↔3.2. El monto anotado en pantalla por el usuario en
+// ambos viajes coincidió exacto con la tarifa oficial de cada código.
+const PARES_DIRECCIONALES_VESPUCIO_SUR = {
+  '4.1': { alterno: '4.3', tramoAlterno: 'Coronel – Santa Julia' },
+  '3.1': { alterno: '3.4', tramoAlterno: 'Ruta 5 – Gran Avenida' },
+  '3.3': { alterno: '3.2', tramoAlterno: 'Gran Avenida – Santa Rosa' },
+};
+
+// anterior/actual son los dos puntos GPS consecutivos que generaron la
+// detección — si no hay "anterior" (primer punto de la corrida) se asume
+// el código base por defecto, no se puede determinar sentido.
+function resolverCodigoDireccional(portico, anterior, actual) {
+  const par = PARES_DIRECCIONALES_VESPUCIO_SUR[portico.codigo];
+  if (!par || !anterior) return { codigo: portico.codigo, tramo: portico.tramo };
+  const tendencia = actual.lon - anterior.lon; // positivo = longitud creciente = hacia el oriente
+  if (tendencia > 0) return { codigo: par.alterno, tramo: par.tramoAlterno };
+  return { codigo: portico.codigo, tramo: portico.tramo };
+}
+
 const TARIFAS = {
   // P3/2.2/5.2 actualizados 2026-08-27 al tarifario 2026 vigente (ver dashboard.html
   // para la fuente/detalle). P8/P11/P13/PA19 quedan sin cambios — la última
@@ -121,6 +147,12 @@ const TARIFAS = {
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
   '3.1':{ TBFP: 333, TBP: 665,  TS: 998  },
   '3.3':{ TBFP: 260, TBP: 521,  TS: 781  },
+  // Códigos "alternos" (sentido contrario) de 4.1/3.1/3.3 — ver
+  // PARES_DIRECCIONALES_VESPUCIO_SUR. Confirmados 2026-08-28 con el monto
+  // real anotado por el usuario al volver por el mismo tramo.
+  '4.3':{ TBFP: 45,  TBP: 90,   TS: 136  },
+  '3.4':{ TBFP: 121, TBP: 241,  TS: 362  },
+  '3.2':{ TBFP: 472, TBP: 945,  TS: 1417 },
   // Ruta 5 Norte — tarifas planas (sin banda horaria oficial), mismo monto
   // en las 3 columnas para que el cálculo de banda no cambie el resultado.
   LAMPA:       { TBFP: 900,  TBP: 900,  TS: 900  },
@@ -579,24 +611,25 @@ async function main() {
           : haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
-          const esNuevoEnEstaCorrida = portico.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
-          const ultimaConocida = ultimaPasadaPorPortico.get(portico.codigo);
+          const resuelto = resolverCodigoDireccional(portico, anterior, p);
+          const esNuevoEnEstaCorrida = resuelto.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
+          const ultimaConocida = ultimaPasadaPorPortico.get(resuelto.codigo);
           const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > VENTANA_MISMA_PASADA_MS;
           if (esNuevoEnEstaCorrida && esNuevoVsHistorico) {
             detecciones.push({
               vehiculo_id: vehiculo.id,
               ts: p.time.toISOString(),
-              portico_codigo: portico.codigo,
+              portico_codigo: resuelto.codigo,
               concesionaria: portico.concesionaria,
-              tramo: portico.tramo,
+              tramo: resuelto.tramo,
               distancia_m: Math.round(d),
               velocidad_kmh: p.speed,
               lat: p.lat,
               lon: p.lon,
             });
-            ultimaPasadaPorPortico.set(portico.codigo, tsMs);
+            ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
           }
-          ultimoPortico = portico.codigo;
+          ultimoPortico = resuelto.codigo;
           ultimoTs = tsMs;
         }
       }
