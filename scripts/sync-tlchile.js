@@ -316,6 +316,11 @@ function distanciaPuntoASegmentoMetros(latP, lonP, latA, lonA, latB, lonB) {
 // hasta que se confirme su ventana oficial real.
 const VENTANAS_PUNTA_PORTICO = {
   '4.1': null,
+  // Confirmado 2026-08-28: lectura real de 2.2 en pantalla fue $251,22 tanto
+  // a la ida (07:24, dentro de la ventana genérica 07-09h que habría dado
+  // erróneamente TBP/$502) como a la vuelta (15:17, fuera de ventana
+  // genérica) — mismo monto TBFP en ambos casos, sin banda punta L-V.
+  '2.2': null,
   PA19: null,
   PA21: null,
   PA23: [[7 * 60, 10 * 60]],
