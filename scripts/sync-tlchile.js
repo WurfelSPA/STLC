@@ -117,6 +117,13 @@ const PORTICOS = [
   // corrección de etiqueta/dirección, no cambia ningún monto facturado.
   { codigo: 'PA20', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Ruta 5 Sur',                lat: -33.510753, lon: -70.699381 },
   { codigo: 'PA22', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Américo Vespucio',         lat: -33.473049, lon: -70.687728 },
+  // PA28/PA29 — tramo norte del Eje Gral. Velásquez (Río Mapocho – Ruta 5
+  // Norte), agregado 2026-08-28 a partir del track GPS real del regreso: el
+  // usuario reportó un "$512" extra ANTES de PA26 (no explicado hasta ahora),
+  // coordenada calculada por distancia acumulada real desde el ingreso a la
+  // autopista hasta el punto medio del tramo (4,93km oficiales).
+  { codigo: 'PA28', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Ruta 5 Norte',                   lat: -33.391238, lon: -70.699554 },
+  { codigo: 'PA29', concesionaria: 'Autopista Central', tramo: 'Ruta 5 Norte – Río Mapocho',                   lat: -33.391238, lon: -70.699554 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
@@ -165,6 +172,7 @@ const PARES_DIRECCIONALES = {
   PA25:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA26', tramoAlterno: 'Río Mapocho – Alameda' },
   PA19:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA20', tramoAlterno: 'Américo Vespucio – Ruta 5 Sur' },
   PA21:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA22', tramoAlterno: 'Carlos Valdovinos – Américo Vespucio' },
+  PA28:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA29', tramoAlterno: 'Ruta 5 Norte – Río Mapocho' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
@@ -204,6 +212,9 @@ const TARIFAS = {
   // PA20/PA22 (sentido Norte-Sur, ver PORTICOS) — mismo monto flat que PA19/PA21.
   PA20: { TBFP: 413, TBP: 413,  TS: 413  },
   PA22: { TBFP: 512, TBP: 512,  TS: 512  },
+  // PA28 (ida, con TS)/PA29 (vuelta, sin TS) — ver PORTICOS.
+  PA28: { TBFP: 512, TBP: 1025, TS: 1537 },
+  PA29: { TBFP: 512, TBP: 1025, TS: 1025 },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
@@ -333,6 +344,12 @@ const VENTANAS_PUNTA_PORTICO = {
   PA26: [[18 * 60 + 30, 20 * 60 + 30]],
   PA20: null,
   PA22: null,
+  // PA28 (ida): TBP 07:00-07:30/08:30-09:30/10:00-10:30/18:00-19:00, TS
+  // 07:30-08:30 (aproximada como parte de la ventana TBP, ver nota PA24).
+  PA28: [[7 * 60, 9 * 60 + 30], [10 * 60, 10 * 60 + 30], [18 * 60, 19 * 60]],
+  // PA29 (vuelta): TBP 17:00-20:30, sin TS. Confirmado 2026-08-28: cruce real
+  // a las 14:52 (fuera de esta ventana) mostró $512 (TBFP), como corresponde.
+  PA29: [[17 * 60, 20 * 60 + 30]],
 };
 
 // HEURÍSTICA de banda horaria: usa la ventana oficial confirmada del pórtico si
