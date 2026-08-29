@@ -75,6 +75,21 @@ const PORTICOS_CHECKPOINT_KEY = 'porticos_pull';
 const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
+// Un tránsito real de un pórtico de flujo libre puede tener velocidad baja
+// puntualmente (congestión) — confirmado 2026-08-28: el pórtico 3.3 registró
+// velocidad_kmh=0 en una pasada REAL (monto $520,53 anotado en pantalla por
+// el usuario), así que NO se puede filtrar por velocidad en la detección
+// inicial. Lo que sí es señal inequívoca de vehículo estacionado (no un
+// tránsito) es la MISMA pasada de un pórtico repitiéndose con velocidad baja
+// y en prácticamente la misma coordenada — confirmado el mismo día: P11
+// (Vespucio Norte, cerca del trabajo del usuario en Conchalí) generó 3
+// "pasadas" separadas por horas, todas velocidad_kmh=0 y casi la misma
+// coordenada exacta (vehículo estacionado ahí toda la jornada) — el filtro
+// de 3h (VENTANA_MISMA_PASADA_MS) no las agarraba porque estaban espaciadas
+// por más de 3h entre sí. Para una repetición de baja velocidad se usa una
+// ventana mucho más larga (un día laboral completo) en vez de 3h.
+const VELOCIDAD_MINIMA_TRANSITO_KMH = 5;
+const VENTANA_ESTACIONADO_MS = 20 * 60 * 60 * 1000;
 
 const PORTICOS = [
   { codigo: 'P3',   concesionaria: 'Costanera Norte',   tramo: 'Puente Lo Saldes – Vivaceta',                lat: -33.4240, lon: -70.6220 },
@@ -97,6 +112,11 @@ const PORTICOS = [
   // en sentido Norte-Sur el código real es PA26, con ventana punta 18:30-20:30.
   { codigo: 'PA24', concesionaria: 'Autopista Central', tramo: 'Alameda – Carlos Valdovinos',                 lat: -33.438662, lon: -70.691992 },
   { codigo: 'PA26', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Alameda',                       lat: -33.408249, lon: -70.694405 },
+  // PA20/PA22 — mismo punto físico que PA19/PA21, sentido Norte-Sur (vuelta).
+  // Tarifa plana idéntica a su par (sin ventana horaria), se agregan solo por
+  // corrección de etiqueta/dirección, no cambia ningún monto facturado.
+  { codigo: 'PA20', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Ruta 5 Sur',                lat: -33.510753, lon: -70.699381 },
+  { codigo: 'PA22', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Américo Vespucio',         lat: -33.473049, lon: -70.687728 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
@@ -143,6 +163,8 @@ const PARES_DIRECCIONALES = {
   '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
   PA23:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA24', tramoAlterno: 'Alameda – Carlos Valdovinos' },
   PA25:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA26', tramoAlterno: 'Río Mapocho – Alameda' },
+  PA19:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA20', tramoAlterno: 'Américo Vespucio – Ruta 5 Sur' },
+  PA21:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA22', tramoAlterno: 'Carlos Valdovinos – Américo Vespucio' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
@@ -179,6 +201,9 @@ const TARIFAS = {
   // PA23/PA25, ventana horaria distinta.
   PA24: { TBFP: 288, TBP: 576,  TS: 864  },
   PA26: { TBFP: 422, TBP: 844,  TS: 844  },
+  // PA20/PA22 (sentido Norte-Sur, ver PORTICOS) — mismo monto flat que PA19/PA21.
+  PA20: { TBFP: 413, TBP: 413,  TS: 413  },
+  PA22: { TBFP: 512, TBP: 512,  TS: 512  },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
@@ -301,6 +326,8 @@ const VENTANAS_PUNTA_PORTICO = {
   // solo modela 2 bandas, TBFP/TBP, no 3).
   PA24: [[18 * 60, 20 * 60 + 30]],
   PA26: [[18 * 60 + 30, 20 * 60 + 30]],
+  PA20: null,
+  PA22: null,
 };
 
 // HEURÍSTICA de banda horaria: usa la ventana oficial confirmada del pórtico si
@@ -682,7 +709,15 @@ async function main() {
           const resuelto = resolverCodigoDireccional(portico, anterior, p);
           const esNuevoEnEstaCorrida = resuelto.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
           const ultimaConocida = ultimaPasadaPorPortico.get(resuelto.codigo);
-          const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > VENTANA_MISMA_PASADA_MS;
+          // Ventana de "misma pasada" extendida si el punto actual sugiere
+          // vehículo estacionado (velocidad baja) — evita recontar como
+          // tránsito nuevo a un vehículo que simplemente sigue parqueado
+          // cerca del pórtico horas después. La primera detección de un
+          // código (ultimaConocida indefinida) siempre pasa, sin importar la
+          // velocidad — así no se pierde un tránsito real a baja velocidad
+          // por congestión (ver nota de 3.3 más arriba).
+          const ventanaAplicable = p.speed < VELOCIDAD_MINIMA_TRANSITO_KMH ? VENTANA_ESTACIONADO_MS : VENTANA_MISMA_PASADA_MS;
+          const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > ventanaAplicable;
           if (esNuevoEnEstaCorrida && esNuevoVsHistorico) {
             detecciones.push({
               vehiculo_id: vehiculo.id,
