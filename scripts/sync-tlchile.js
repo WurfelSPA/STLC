@@ -104,26 +104,18 @@ const PORTICOS = [
   { codigo: 'PA21', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Carlos Valdovinos',        lat: -33.473049, lon: -70.687728 },
   { codigo: 'PA23', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.438662, lon: -70.691992 },
   { codigo: 'PA25', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.408249, lon: -70.694405 },
-  // PA24/PA26 — mismo punto físico que PA23/PA25 pero sentido Norte-Sur (de
-  // vuelta). Igual monto TBFP/TBP que su par, pero ventana horaria de punta
-  // DISTINTA (ver VENTANAS_PUNTA_PORTICO) — confirmado 2026-08-28: el regreso
-  // por PA25/Río Mapocho a las 14:55 mostró $422 (TBFP) en la pantalla real,
-  // no los $844 (TBP) que la ventana de PA25 habría dado a esa hora — porque
-  // en sentido Norte-Sur el código real es PA26, con ventana punta 18:30-20:30.
-  { codigo: 'PA24', concesionaria: 'Autopista Central', tramo: 'Alameda – Carlos Valdovinos',                 lat: -33.438662, lon: -70.691992 },
-  { codigo: 'PA26', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Alameda',                       lat: -33.408249, lon: -70.694405 },
-  // PA20/PA22 — mismo punto físico que PA19/PA21, sentido Norte-Sur (vuelta).
-  // Tarifa plana idéntica a su par (sin ventana horaria), se agregan solo por
-  // corrección de etiqueta/dirección, no cambia ningún monto facturado.
-  { codigo: 'PA20', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Ruta 5 Sur',                lat: -33.510753, lon: -70.699381 },
-  { codigo: 'PA22', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Américo Vespucio',         lat: -33.473049, lon: -70.687728 },
-  // PA28/PA29 — tramo norte del Eje Gral. Velásquez (Río Mapocho – Ruta 5
-  // Norte), agregado 2026-08-28 a partir del track GPS real del regreso: el
-  // usuario reportó un "$512" extra ANTES de PA26 (no explicado hasta ahora),
-  // coordenada calculada por distancia acumulada real desde el ingreso a la
-  // autopista hasta el punto medio del tramo (4,93km oficiales).
+  // PA24/PA26/PA20/PA22/PA29 (sentido Norte-Sur, de vuelta) y PA28 (tramo
+  // norte, ver más abajo) — mismo punto físico que su par de ida, código
+  // distinto según sentido. IMPORTANTE: NO se agregan como entradas propias
+  // acá — solo existen como `alterno` dentro de PARES_DIRECCIONALES (igual
+  // que 4.3/3.4/3.2 de Vespucio Sur). Agregarlos como entrada física
+  // duplicada (bug real encontrado y corregido 2026-08-29) hace que la
+  // geocerca dispare AMBOS códigos para el mismo cruce, porque el punto
+  // cae dentro del radio de las dos entradas por separado — una de ellas se
+  // resuelve bien por dirección, pero la otra (sin par definido para SU
+  // propio código) siempre devuelve su código tal cual, sin importar el
+  // sentido real de circulación.
   { codigo: 'PA28', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Ruta 5 Norte',                   lat: -33.391238, lon: -70.699554 },
-  { codigo: 'PA29', concesionaria: 'Autopista Central', tramo: 'Ruta 5 Norte – Río Mapocho',                   lat: -33.391238, lon: -70.699554 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
