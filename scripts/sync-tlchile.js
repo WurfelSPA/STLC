@@ -116,6 +116,31 @@ const PORTICOS = [
   // propio código) siempre devuelve su código tal cual, sin importar el
   // sentido real de circulación.
   { codigo: 'PA28', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Ruta 5 Norte',                   lat: -33.391238, lon: -70.699554 },
+  // Autopista Central tiene DOS ejes físicos distintos que comparten la
+  // numeración "PA" pero son corredores separados: el bloque de arriba
+  // (PA19/21/23/25/28) es el "Eje Gral. Velásquez"; este bloque es el
+  // "Eje Norte-Sur" (alineado con Av. Departamental/Carlos Valdovinos/Av.
+  // Río Mapocho/14 de la Fama). Faltaba por completo — confirmado
+  // 2026-08-31 con el track GPS real de VVJG-14 (La Florida → El Cortijo,
+  // Conchalí): el sistema solo detectó P11 de los 3 pórticos que el
+  // usuario vio en pantalla ($738/$364/$850) porque este eje entero no
+  // tenía geocercas cargadas. Coordenadas de la capa pública de OSM
+  // (barrier=toll_booth / highway=toll_gantry, exportada por el usuario),
+  // cruzadas contra el track GPS real (6-90m de distancia en cada una).
+  // Tarifas TBFP/TBP del tarifario oficial 2026 (concesiones.mop.gob.cl);
+  // TS = 3×TBFP (misma fórmula que la tarifa base declarada en ese PDF:
+  // TBFP 92,021 $/km, TBP 184,042 $/km, TS 276,063 $/km — TS no lo usa hoy
+  // bandaHeuristica, que solo elige entre TBFP/TBP). PA31/PA13/PA16
+  // CONFIRMADOS: el TBP calculado coincidió exacto con lo que el usuario
+  // vio en pantalla a las 08:00/08:06/08:10 ese día. PA30/PA10/PA9/PA11/
+  // PA17/PA18/PA12/PA14/PA15 son el resto del mismo corredor (Departamental
+  // hasta Vespucio Norte) con tarifa oficial pero sin cruce real todavía.
+  { codigo: 'PA30', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Departamental',             lat: -33.507288, lon: -70.669319 },
+  { codigo: 'PA10', concesionaria: 'Autopista Central', tramo: 'Departamental – Carlos Valdovinos',            lat: -33.495772, lon: -70.663899 },
+  { codigo: 'PA31', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.469011, lon: -70.656243 },
+  { codigo: 'PA13', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.448923, lon: -70.659592 },
+  { codigo: 'PA16', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – 14 de la Fama',                 lat: -33.417186, lon: -70.678723 },
+  { codigo: 'PA17', concesionaria: 'Autopista Central', tramo: '14 de la Fama – Américo Vespucio Norte',      lat: -33.368582, lon: -70.699104 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
@@ -165,6 +190,14 @@ const PARES_DIRECCIONALES = {
   PA19:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA20', tramoAlterno: 'Américo Vespucio – Ruta 5 Sur' },
   PA21:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA22', tramoAlterno: 'Carlos Valdovinos – Américo Vespucio' },
   PA28:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA29', tramoAlterno: 'Ruta 5 Norte – Río Mapocho' },
+  // Eje Norte-Sur (ver PORTICOS) — misma convención de latitud que Eje Gral.
+  // Velásquez, porque ambos corredores corren N-S.
+  PA30:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA9',  tramoAlterno: 'Departamental – Américo Vespucio' },
+  PA10:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA11', tramoAlterno: 'Carlos Valdovinos – Departamental' },
+  PA31:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA12', tramoAlterno: 'Alameda – Carlos Valdovinos' },
+  PA13:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA14', tramoAlterno: 'Río Mapocho – Alameda' },
+  PA16:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA15', tramoAlterno: '14 de la Fama – Río Mapocho' },
+  PA17:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA18', tramoAlterno: 'Américo Vespucio Norte – 14 de la Fama' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
@@ -207,6 +240,24 @@ const TARIFAS = {
   // PA28 (ida, con TS)/PA29 (vuelta, sin TS) — ver PORTICOS.
   PA28: { TBFP: 512, TBP: 1025, TS: 1537 },
   PA29: { TBFP: 512, TBP: 1025, TS: 1025 },
+  // Eje Norte-Sur (ver PORTICOS/PARES_DIRECCIONALES) — tarifario oficial 2026
+  // MOP (concesiones.mop.gob.cl), TS = 3×TBFP por la fórmula declarada en ese
+  // PDF (no la usa bandaHeuristica hoy, solo referencia). PA31/PA13/PA16
+  // CONFIRMADOS: coincidieron exacto con el monto en pantalla el 2026-08-31
+  // (08:00/08:06/08:10, TBP en los 3 casos). PA30/PA10/PA9/PA11/PA17/PA18/
+  // PA12/PA14/PA15 son la misma fuente oficial sin cruce real todavía.
+  PA30: { TBFP: 393, TBP: 786,  TS: 1178 },
+  PA9:  { TBFP: 393, TBP: 786,  TS: 1178 },
+  PA10: { TBFP: 286, TBP: 572,  TS: 857  },
+  PA11: { TBFP: 286, TBP: 572,  TS: 857  },
+  PA31: { TBFP: 369, TBP: 738,  TS: 1107 },
+  PA12: { TBFP: 369, TBP: 738,  TS: 1107 },
+  PA13: { TBFP: 182, TBP: 364,  TS: 546  },
+  PA14: { TBFP: 182, TBP: 364,  TS: 546  },
+  PA16: { TBFP: 425, TBP: 850,  TS: 1275 },
+  PA15: { TBFP: 425, TBP: 850,  TS: 1275 },
+  PA17: { TBFP: 462, TBP: 925,  TS: 1387 },
+  PA18: { TBFP: 462, TBP: 925,  TS: 1387 },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
@@ -695,11 +746,23 @@ async function main() {
       .sort((a, b) => a.time - b.time);
     console.log(`[porticos] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
 
+    // OJO: el lookback de esta consulta tiene que ser al MENOS tan largo como
+    // la ventana más larga que se usa más abajo (VENTANA_ESTACIONADO_MS, 20h),
+    // no VENTANA_MISMA_PASADA_MS (3h) — si se corre un sync más de 3h después
+    // de la última pasada real de un pórtico y el auto sigue estacionado ahí,
+    // esta consulta "olvidaba" la pasada anterior (quedaba fuera del rango) y
+    // el punto estacionado se trataba como detección nueva ("primera vez",
+    // que siempre pasa sin importar la velocidad) — generaba una pasada y una
+    // notificación de Telegram falsas. Bug real confirmado 2026-08-31: VVJG-14
+    // quedó estacionado junto a P11 (cerca de la oficina) desde las 08:22, y
+    // un sync a las 11:24 (3h02m después) volvió a "detectarlo" como pasada
+    // nueva porque la pasada real de las 08:22 ya había quedado fuera de la
+    // ventana de 3h de esta consulta.
     const { data: pasadasPrevias, error: errPrevias } = await supabase
       .from('porticos_pasadas_reales')
       .select('portico_codigo, ts')
       .eq('vehiculo_id', vehiculo.id)
-      .gte('ts', new Date(Date.now() - VENTANA_MISMA_PASADA_MS).toISOString());
+      .gte('ts', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
     if (errPrevias) throw new Error(`Error leyendo pasadas previas de ${vehiculo.patente}: ${errPrevias.message}`);
     const ultimaPasadaPorPortico = new Map();
     for (const row of pasadasPrevias || []) {
