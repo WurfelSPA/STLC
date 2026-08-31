@@ -362,6 +362,22 @@ function distanciaPuntoASegmentoMetros(latP, lonP, latA, lonA, latB, lonB) {
   return Math.hypot(cx, cy);
 }
 
+// Un tránsito real SIGUE de largo después del pórtico; un vehículo que
+// termina su viaje (se estaciona) justo dentro del radio de una geocerca
+// real nunca vuelve a aparecer fuera de ella. Antes de dar una pasada por
+// confirmada (y recién ahí notificar por Telegram / contarla en el
+// dashboard o en la API de AGP) se exige encontrar al menos un punto GPS
+// POSTERIOR ya fuera del radio — mismo criterio tanto dentro de la corrida
+// actual (un tránsito real en autopista sale del radio en la siguiente
+// lectura, 30-60s después) como entre corridas (se reintenta cada 30 min
+// contra las pasadas todavía sin confirmar). Bug real confirmado
+// 2026-08-31: la oficina de un cliente quedó dentro del radio de 150m de
+// un pórtico real de Vespucio Norte (P11) — cada llegada a estacionarse
+// generaba una "pasada" y una notificación falsas, sin ningún cruce real.
+function hayPuntoFueraDelRadio(puntos, lat, lon) {
+  return puntos.some((p) => haversineMetros(p.lat, p.lon, lat, lon) > RADIO_GEOCERCA_M);
+}
+
 // Ventanas oficiales de banda punta CONFIRMADAS por pórtico (hora Chile, L-V,
 // en minutos desde medianoche). `null` = tarifa plana / sin banda punta entre
 // semana (confirmado con lectura real de 4.1: $311,52 = TBFP a las 07:14, hora
@@ -413,6 +429,22 @@ function bandaHeuristica(fecha, porticoCodigo) {
 
   if ((h >= 7 && h < 9) || (h >= 18 && h < 21)) return 'TBP';
   return 'TBFP';
+}
+
+// Extraído para poder armar el mismo texto tanto al confirmar una pasada al
+// toque (mismo lote de puntos) como al confirmar una pasada que quedó
+// pendiente de una corrida anterior (ver "Confirmación diferida" abajo).
+function mensajePasada(patente, pasada) {
+  const banda = bandaHeuristica(new Date(new Date(pasada.ts).getTime() - 4 * 3600 * 1000), pasada.portico_codigo);
+  const monto = TARIFAS[pasada.portico_codigo][banda];
+  return (
+    `🚗 <b>${patente}</b> — pasada por pórtico\n` +
+    `📅 ${fmtFechaHoraChile(pasada.ts)}\n` +
+    `🛣️ Pórtico: ${pasada.portico_codigo} (${pasada.concesionaria})\n` +
+    `✅ Estado: OK\n` +
+    `💰 Facturado: ${clp(monto)}\n` +
+    `💰 Correcto: ${clp(monto)}`
+  );
 }
 
 async function obtenerCheckpoint(key, lookbackMs) {
@@ -771,6 +803,37 @@ async function main() {
       if (!actual || t > actual) ultimaPasadaPorPortico.set(row.portico_codigo, t);
     }
 
+    // Confirmación diferida: una pasada que quedó "confirmado=false" en una
+    // corrida anterior (porque en ese momento no había ningún punto GPS
+    // posterior fuera del radio todavía) se reintenta acá contra los puntos
+    // NUEVOS de esta corrida. Si esos puntos nuevos muestran que el vehículo
+    // ya salió del radio, recién ahora se confirma y se notifica por
+    // Telegram (con la fecha/hora ORIGINAL del cruce, no la de esta
+    // corrida). Si el vehículo lleva más de VENTANA_ESTACIONADO_MS sin
+    // confirmarse, se abandona en silencio — fue un estacionamiento dentro
+    // del radio de un pórtico real, nunca un tránsito.
+    if (puntos.length) {
+      const { data: pendientes, error: errPendientes } = await supabase
+        .from('porticos_pasadas_reales')
+        .select('*')
+        .eq('vehiculo_id', vehiculo.id)
+        .eq('confirmado', false)
+        .gte('ts', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
+      if (errPendientes) throw new Error(`Error leyendo pasadas pendientes de ${vehiculo.patente}: ${errPendientes.message}`);
+      for (const pendiente of pendientes || []) {
+        if (!hayPuntoFueraDelRadio(puntos, pendiente.lat, pendiente.lon)) continue;
+        const { error: errConfirmar } = await supabase
+          .from('porticos_pasadas_reales')
+          .update({ confirmado: true })
+          .eq('id', pendiente.id);
+        if (errConfirmar) { console.log(`[porticos] Error confirmando pasada pendiente de ${vehiculo.patente}: ${errConfirmar.message}`); continue; }
+        console.log(`[porticos] ✅ ${vehiculo.patente}: pasada pendiente de ${pendiente.portico_codigo} (${fmtTL(new Date(pendiente.ts))}) confirmada esta corrida.`);
+        if (PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) {
+          await notificarTelegram(mensajePasada(vehiculo.patente, pendiente));
+        }
+      }
+    }
+
     const detecciones = [];
     let ultimoPortico = null;
     let ultimoTs = null;
@@ -796,6 +859,12 @@ async function main() {
           const ventanaAplicable = p.speed < VELOCIDAD_MINIMA_TRANSITO_KMH ? VENTANA_ESTACIONADO_MS : VENTANA_MISMA_PASADA_MS;
           const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > ventanaAplicable;
           if (esNuevoEnEstaCorrida && esNuevoVsHistorico) {
+            // confirmado: ¿hay ya, en esta misma corrida, algún punto GPS
+            // posterior que muestre al vehículo fuera del radio? Un tránsito
+            // real en autopista lo confirma casi al toque (siguiente lectura,
+            // 30-60s después); si no, queda pendiente y se reintenta en la
+            // próxima corrida contra los puntos nuevos (ver "Confirmación
+            // diferida" más arriba) — nunca se notifica hasta confirmarse.
             detecciones.push({
               vehiculo_id: vehiculo.id,
               ts: p.time.toISOString(),
@@ -806,6 +875,7 @@ async function main() {
               velocidad_kmh: p.speed,
               lat: p.lat,
               lon: p.lon,
+              confirmado: hayPuntoFueraDelRadio(puntos.slice(i + 1), p.lat, p.lon),
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
           }
@@ -834,17 +904,13 @@ async function main() {
       console.log(`[porticos] ✅ ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas insertadas/verificadas`);
 
       if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
-      for (const d of deteccionesSinDuplicar) {
-        const banda = bandaHeuristica(new Date(new Date(d.ts).getTime() - 4 * 3600 * 1000), d.portico_codigo);
-        const monto = TARIFAS[d.portico_codigo][banda];
-        const texto =
-          `🚗 <b>${vehiculo.patente}</b> — pasada por pórtico\n` +
-          `📅 ${fmtFechaHoraChile(d.ts)}\n` +
-          `🛣️ Pórtico: ${d.portico_codigo} (${d.concesionaria})\n` +
-          `✅ Estado: OK\n` +
-          `💰 Facturado: ${clp(monto)}\n` +
-          `💰 Correcto: ${clp(monto)}`;
-        await notificarTelegram(texto);
+      // Solo se notifica lo YA confirmado en esta misma corrida (el vehículo
+      // ya mostró un punto posterior fuera del radio). Lo que quedó
+      // confirmado:false se notifica más adelante, cuando la "Confirmación
+      // diferida" de una corrida futura lo confirme — o nunca, si resulta
+      // ser un vehículo estacionado dentro del radio y no un tránsito real.
+      for (const d of deteccionesSinDuplicar.filter((d) => d.confirmado)) {
+        await notificarTelegram(mensajePasada(vehiculo.patente, d));
       }
     }
   }
