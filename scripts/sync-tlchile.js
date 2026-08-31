@@ -73,6 +73,15 @@ const SANTAMARTA_CHECKPOINT_KEY = 'santamarta_pull';
 // --- Pórticos ------------------------------------------------------------
 const PORTICOS_CHECKPOINT_KEY = 'porticos_pull';
 const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
+// "patente|codigo" conocidos como falso positivo — el radio de 150m alcanza
+// a rozar el pórtico pero el vehículo nunca lo cruza de verdad. La regla de
+// "confirmado" (¿salió del radio después?) no alcanza a distinguir esto en
+// nudos con varios pórticos reales muy juntos: el vehículo sale del radio
+// de UNO porque se desvía hacia otro pórtico vecino o una calle local, no
+// porque siguió de largo por la autopista. P11/PA17 (nudo de Vespucio
+// Norte, Conchalí) — confirmado 2026-08-31 por el usuario: nunca le cobran
+// ahí, es la salida hacia su oficina, no un cruce real.
+const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17']);
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
 // Un tránsito real de un pórtico de flujo libre puede tener velocidad baja
@@ -858,7 +867,8 @@ async function main() {
           // por congestión (ver nota de 3.3 más arriba).
           const ventanaAplicable = p.speed < VELOCIDAD_MINIMA_TRANSITO_KMH ? VENTANA_ESTACIONADO_MS : VENTANA_MISMA_PASADA_MS;
           const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > ventanaAplicable;
-          if (esNuevoEnEstaCorrida && esNuevoVsHistorico) {
+          const esFalsoPositivoConocido = FALSOS_POSITIVOS_CONOCIDOS.has(`${vehiculo.patente}|${resuelto.codigo}`);
+          if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido) {
             // confirmado: ¿hay ya, en esta misma corrida, algún punto GPS
             // posterior que muestre al vehículo fuera del radio? Un tránsito
             // real en autopista lo confirma casi al toque (siguiente lectura,
