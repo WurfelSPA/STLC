@@ -81,7 +81,11 @@ const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
 // porque siguió de largo por la autopista. P11/PA17 (nudo de Vespucio
 // Norte, Conchalí) — confirmado 2026-08-31 por el usuario: nunca le cobran
 // ahí, es la salida hacia su oficina, no un cruce real.
-const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17']);
+// P10 nunca llegó a confirmarse solo (el vehículo no "sale" del radio
+// estando estacionado), pero se agrega igual para no dejar filas
+// pendientes eternas acumulándose — mismo nudo que P11/PA17, a 121m del
+// punto real donde el usuario se estaciona (confirmado 2026-09-01).
+const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17', 'VVJG-14|P10']);
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
 // Un tránsito real de un pórtico de flujo libre puede tener velocidad baja
