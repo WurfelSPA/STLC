@@ -81,11 +81,17 @@ const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
 // porque siguió de largo por la autopista. P11/PA17 (nudo de Vespucio
 // Norte, Conchalí) — confirmado 2026-08-31 por el usuario: nunca le cobran
 // ahí, es la salida hacia su oficina, no un cruce real.
-// P10 nunca llegó a confirmarse solo (el vehículo no "sale" del radio
-// estando estacionado), pero se agrega igual para no dejar filas
-// pendientes eternas acumulándose — mismo nudo que P11/PA17, a 121m del
-// punto real donde el usuario se estaciona (confirmado 2026-09-01).
-const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17', 'VVJG-14|P10']);
+// OJO con agregar códigos acá a la ligera: si el usuario alguna vez cruza
+// ese pórtico DE VERDAD, esta lista lo silencia sin avisar. Solo van acá
+// códigos donde ya se descartó explícitamente que sea un cruce real (P11
+// es la salida hacia la oficina, jamás un tránsito) — no basta con "generó
+// una fila pendiente sin confirmar", porque ESO ya lo resuelve solo la
+// regla de "confirmado" (exige ver al vehículo salir del radio) sin
+// necesidad de excluir nada. P10 se sacó de esta lista 2026-09-01 por
+// justamente esa razón: es un pórtico real que el usuario sí podría cruzar
+// (ej. de vuelta), y una fila pendiente sin confirmar no le genera ningún
+// falso positivo visible (no notifica, no aparece en el dashboard).
+const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17']);
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
 // Un tránsito real de un pórtico de flujo libre puede tener velocidad baja
