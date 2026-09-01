@@ -218,6 +218,67 @@ const PORTICOS = [
   { codigo: 'PTACOLORADA',  concesionaria: 'Ruta 5 Norte (Ruta del Algarrobo)', tramo: 'Km 554, La Higuera (Punta Colorada)', lat: -29.3710, lon: -71.0732 },
   { codigo: 'TOTORAL',      concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 732, norte de Vallenar (Totoral)', lat: -27.9971, lon: -70.5658 },
   { codigo: 'PTOVIEJO',     concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 841, norte de Copiapó (Puerto Viejo)', lat: -27.3482, lon: -70.6364 },
+  // Costanera Norte completo (P0-P9, EP/EV/SB) — agregado 2026-09-01, ver
+  // fuentes en TARIFAS abajo. El P3 de esta concesionaria ya estaba cargado
+  // (arriba, junto a P8/P11/P13) y coincide exacto con esta misma fuente
+  // oficial — no se duplica.
+  { codigo: 'P0',   concesionaria: 'Costanera Norte', tramo: 'Puente Padre Arteaga – Puente San Francisco', lat: -33.371106, lon: -70.522745 },
+  { codigo: 'P1CN', concesionaria: 'Costanera Norte', tramo: 'Puente San Francisco – Gran Vía',              lat: -33.375775, lon: -70.542855 },
+  { codigo: 'P2.1', concesionaria: 'Costanera Norte', tramo: 'Gran Vía – Centenario',                        lat: -33.384644, lon: -70.592650 },
+  { codigo: 'P2.2CN', concesionaria: 'Costanera Norte', tramo: 'Centenario – Puente Lo Saldes',               lat: -33.394427, lon: -70.603456 },
+  { codigo: 'P4CN', concesionaria: 'Costanera Norte', tramo: 'Vivaceta – Torres Tajamar',                    lat: -33.430225, lon: -70.657961 },
+  { codigo: 'P5CN', concesionaria: 'Costanera Norte', tramo: 'Vivaceta – Carrascal',                         lat: -33.426438, lon: -70.669833 },
+  { codigo: 'P6.1', concesionaria: 'Costanera Norte', tramo: 'Carrascal – Petersen',                         lat: -33.411710, lon: -70.739581 },
+  { codigo: 'P6.2', concesionaria: 'Costanera Norte', tramo: 'Petersen – Américo Vespucio Poniente',         lat: -33.412972, lon: -70.766457 },
+  { codigo: 'P7CN', concesionaria: 'Costanera Norte', tramo: 'Estoril – Las Tranqueras',                     lat: -33.387681, lon: -70.542926 },
+  { codigo: 'P8.0', concesionaria: 'Costanera Norte', tramo: 'Las Tranqueras – Costanera Norte',             lat: -33.408073, lon: -70.599764 },
+  { codigo: 'P8.1', concesionaria: 'Costanera Norte', tramo: 'Las Tranqueras – Costanera Norte',             lat: -33.408141, lon: -70.599763 },
+  { codigo: 'P8.2', concesionaria: 'Costanera Norte', tramo: 'Costanera Norte – Las Tranqueras',              lat: -33.408491, lon: -70.601945 },
+  { codigo: 'P8.3', concesionaria: 'Costanera Norte', tramo: 'Costanera Norte – Las Tranqueras',              lat: -33.409988, lon: -70.602224 },
+  { codigo: 'P9CN', concesionaria: 'Costanera Norte', tramo: 'Ruta 68 – Américo Vespucio Poniente',          lat: -33.418078, lon: -70.791003 },
+  { codigo: 'EP',   concesionaria: 'Costanera Norte', tramo: 'Entrada Purísima',                              lat: -33.430280, lon: -70.657227 },
+  { codigo: 'EV',   concesionaria: 'Costanera Norte', tramo: 'Entrada Vivaceta',                              lat: -33.430280, lon: -70.657227 },
+  { codigo: 'SB',   concesionaria: 'Costanera Norte', tramo: 'Salida Bellavista',                             lat: -33.422147, lon: -70.619825 },
+  // AVO (Américo Vespucio Oriente, tramo El Salto–Príncipe de Gales) —
+  // agregado 2026-09-01. OJO: esta concesionaria cobra por KILÓMETROS
+  // RECORRIDOS entre el pórtico de entrada y el de salida (no un monto fijo
+  // por pórtico individual como el resto del sistema) — no encaja en el
+  // modelo TARIFAS[codigo][banda] de este archivo. Se agregan solo las
+  // coordenadas para que la detección/geocerca funcione; el monto queda
+  // "no estimable" (sin entrada en TARIFAS, ver mensajePasada) hasta que se
+  // rediseñe el cálculo para pares entrada-salida.
+  { codigo: 'P101', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Bilbao',                    lat: -33.430139, lon: -70.574703 },
+  { codigo: 'P102', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Martín de Zamora',          lat: -33.420415, lon: -70.581420 },
+  { codigo: 'P103', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Los Militares',             lat: -33.412457, lon: -70.582035 },
+  { codigo: 'P104', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Presidente Riesco',         lat: -33.409402, lon: -70.586971 },
+  { codigo: 'P105', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Salida Kennedy Oriente',    lat: -33.401491, lon: -70.580488 },
+  { codigo: 'P106', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Salida Kennedy Poniente',   lat: -33.405036, lon: -70.586333 },
+  { codigo: 'P107', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Kennedy – Vespucio',        lat: -33.409307, lon: -70.586937 },
+  { codigo: 'P108', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Costanera Norte – Nororiente', lat: -33.396604, lon: -70.588756 },
+  { codigo: 'P109', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Puente Centenario',         lat: -33.392756, lon: -70.592471 },
+  { codigo: 'P110', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'La Pirámide',               lat: -33.395250, lon: -70.610110 },
+  { codigo: 'P111', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Cerro Colorado',            lat: -33.405036, lon: -70.586333 },
+  { codigo: 'P201', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'C. Empresarial – El Salto', lat: -33.396448, lon: -70.619800 },
+  { codigo: 'P202', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Viaducto',                  lat: -33.395250, lon: -70.610110 },
+  { codigo: 'P203', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Costanera Norte Oriente',   lat: -33.396148, lon: -70.604134 },
+  { codigo: 'P204', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Salida Av. Vitacura',       lat: -33.391634, lon: -70.597093 },
+  { codigo: 'P205', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Vitacura',                  lat: -33.400234, lon: -70.587549 },
+  { codigo: 'P206', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Kennedy – Vespucio Sur',    lat: -33.401491, lon: -70.580488 },
+  { codigo: 'P209', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Cristóbal Colón',           lat: -33.424430, lon: -70.578416 },
+  { codigo: 'P210', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Isabel la Católica',        lat: -33.425970, lon: -70.575685 },
+  { codigo: 'P211', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Tobalaba',                  lat: -33.432543, lon: -70.574492 },
+  { codigo: 'P212', concesionaria: 'Vespucio Oriente (AVO)', tramo: 'Costanera Sur',             lat: -33.391634, lon: -70.597093 },
+  // Túnel San Cristóbal (Variante Vespucio, El Salto–Kennedy) — agregado
+  // 2026-09-01, tarifario oficial 2026 MOP. A diferencia de AVO, este SÍ es
+  // un cobro fijo por pórtico (un solo túnel, dos sentidos).
+  { codigo: 'PC101', concesionaria: 'Túnel San Cristóbal', tramo: 'El Salto – Kennedy', lat: -33.398616, lon: -70.615725 },
+  { codigo: 'PC102', concesionaria: 'Túnel San Cristóbal', tramo: 'Kennedy – El Salto', lat: -33.398800, lon: -70.615132 },
+  // Acceso Vial AMB (camino al Aeropuerto A. Merino Benítez) — agregado
+  // 2026-09-01. Un solo pórtico. Monto aproximado ("peaje a luca", ~$1.000
+  // para categoría 1, anunciado por MOP para 2026) — sin tarifario oficial
+  // detallado por banda horaria encontrado todavía, tratar como estimado
+  // grueso hasta confirmar con una pasada real.
+  { codigo: 'AMB', concesionaria: 'Acceso Vial AMB', tramo: 'Peaje Acceso Vial AMB', lat: -33.416596, lon: -70.792727 },
 ];
 
 // Algunos pares de pórticos de Vespucio Sur comparten prácticamente la
@@ -360,6 +421,34 @@ const TARIFAS = {
   PTACOLORADA: { TBFP: 3150, TBP: 3150, TS: 3150 },
   TOTORAL:     { TBFP: 2900, TBP: 2900, TS: 2900 },
   PTOVIEJO:    { TBFP: 1750, TBP: 1750, TS: 1750 },
+  // Costanera Norte — tarifario oficial 2026 MOP
+  // (concesiones.mop.gob.cl/uploads/sites/4/2026/07/COSTANERA-NORTE.pdf).
+  P0:    { TBFP: 150, TBP: 288,  TS: 437  },
+  P1CN:  { TBFP: 449, TBP: 865,  TS: 1310 },
+  'P2.1':{ TBFP: 426, TBP: 820,  TS: 1242 },
+  'P2.2CN': { TBFP: 264, TBP: 509,  TS: 771  },
+  P4CN:  { TBFP: 413, TBP: 795,  TS: 1204 },
+  P5CN:  { TBFP: 716, TBP: 1378, TS: 1378 },
+  'P6.1':{ TBFP: 240, TBP: 461,  TS: 461  },
+  'P6.2':{ TBFP: 365, TBP: 702,  TS: 702  },
+  P7CN:  { TBFP: 250, TBP: 482,  TS: 730  },
+  'P8.0':{ TBFP: 584, TBP: 1124, TS: 1702 },
+  'P8.1':{ TBFP: 584, TBP: 1124, TS: 1702 },
+  'P8.2':{ TBFP: 584, TBP: 1124, TS: 1702 },
+  'P8.3':{ TBFP: 584, TBP: 1124, TS: 1702 },
+  P9CN:  { TBFP: 535, TBP: 1030, TS: 1030 },
+  EP:    { TBFP: 226, TBP: 435,  TS: 658  },
+  EV:    { TBFP: 119, TBP: 230,  TS: 348  },
+  SB:    { TBFP: 234, TBP: 450,  TS: 682  },
+  // AVO (P101-P212): sin entrada acá a propósito — cobra por distancia
+  // recorrida, no encaja en TARIFAS[codigo][banda]. mensajePasada() ya
+  // maneja un código sin tarifa como "no estimable" sin crashear.
+  // Túnel San Cristóbal — tarifario oficial 2026 MOP.
+  PC101: { TBFP: 565, TBP: 904,  TS: 1131 },
+  PC102: { TBFP: 452, TBP: 678,  TS: 678  },
+  // Acceso Vial AMB — estimado grueso ("peaje a luca" anunciado por MOP
+  // para 2026), sin tarifario oficial detallado por banda encontrado.
+  AMB:   { TBFP: 1000, TBP: 1000, TS: 1000 },
 };
 
 // --- HealthCheck (Tracklink / MZDConnect) -----------------------------------
@@ -521,14 +610,23 @@ function bandaHeuristica(fecha, porticoCodigo) {
 // pendiente de una corrida anterior (ver "Confirmación diferida" abajo).
 function mensajePasada(patente, pasada) {
   const banda = bandaHeuristica(new Date(new Date(pasada.ts).getTime() - 4 * 3600 * 1000), pasada.portico_codigo);
-  const monto = TARIFAS[pasada.portico_codigo][banda];
+  // Un código sin TARIFAS cargada (ej. AVO — cobra por distancia recorrida
+  // entrada/salida, no por pórtico individual, no encaja en este modelo) no
+  // debe tirar el sync entero — antes esto reventaba con "Cannot read
+  // properties of undefined" apenas se confirmaba la primera pasada real de
+  // un pórtico así, cortando la corrida completa (incluida la sección de
+  // Santa Marta si el error ocurría antes... no es el caso acá porque
+  // pórticos corre después, pero igual dejaba sin health-check ni checkpoint
+  // final). Bug real encontrado 2026-09-01 al agregar AVO.
+  const monto = TARIFAS[pasada.portico_codigo] ? TARIFAS[pasada.portico_codigo][banda] : null;
+  const montoTxt = monto == null ? "no estimable (cobro por distancia recorrida)" : clp(monto);
   return (
     `🚗 <b>${patente}</b> — pasada por pórtico\n` +
     `📅 ${fmtFechaHoraChile(pasada.ts)}\n` +
     `🛣️ Pórtico: ${pasada.portico_codigo} (${pasada.concesionaria})\n` +
     `✅ Estado: OK\n` +
-    `💰 Facturado: ${clp(monto)}\n` +
-    `💰 Correcto: ${clp(monto)}`
+    `💰 Facturado: ${montoTxt}\n` +
+    `💰 Correcto: ${montoTxt}`
   );
 }
 
