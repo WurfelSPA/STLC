@@ -197,6 +197,14 @@ const PORTICOS = [
   { codigo: '4.1',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Santa Julia',            lat: -33.541545, lon: -70.640163 },
   { codigo: '3.1',  concesionaria: 'Vespucio Sur',      tramo: 'Santa Rosa – Gran Avenida',                  lat: -33.538576, lon: -70.658991 },
   { codigo: '3.3',  concesionaria: 'Vespucio Sur',      tramo: 'Gran Avenida – Ruta 5',                      lat: -33.534718, lon: -70.672764 },
+  // 1.1/4.2 — agregados 2026-09-01, confirmados con el regreso real de
+  // VVJG-14 esa noche (11m de distancia al track GPS real en ambos casos,
+  // monto TBFP exacto: $532,59≈$532 y $798,89≈$798). Tarifario oficial 2026
+  // MOP (concesiones.mop.gob.cl/uploads/sites/4/2026/01/VESPUCIO-SUR.pdf) —
+  // esa misma fuente confirma sin cambios los montos ya cargados de 2.2/
+  // 5.2/4.1/3.1/3.3/4.3/3.4/3.2.
+  { codigo: '1.1',  concesionaria: 'Vespucio Sur',      tramo: 'General Velásquez – Ruta 78',                lat: -33.516561, lon: -70.712534 },
+  { codigo: '4.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Vicuña Mackenna',        lat: -33.526802, lon: -70.602574 },
   // Ruta 5 Norte — agregados 2026-08-27. Únicos peajes interurbanos con
   // coordenadas confiables encontradas (OpenStreetMap, cruzadas con el km
   // oficial MOP/concesionaria) — el resto del catálogo nacional (Tarifas)
@@ -329,6 +337,9 @@ const TARIFAS = {
   PA18: { TBFP: 462, TBP: 925,  TS: 1387 },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
+  // 1.1/4.2 — ver PORTICOS arriba (fuente y confirmación).
+  '1.1':{ TBFP: 533, TBP: 1065, TS: 1065 },
+  '4.2':{ TBFP: 266, TBP: 533,  TS: 799  },
   '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
   '3.1':{ TBFP: 333, TBP: 665,  TS: 998  },
   '3.3':{ TBFP: 260, TBP: 521,  TS: 781  },
@@ -460,6 +471,11 @@ const VENTANAS_PUNTA_PORTICO = {
   // erróneamente TBP/$502) como a la vuelta (15:17, fuera de ventana
   // genérica) — mismo monto TBFP en ambos casos, sin banda punta L-V.
   '2.2': null,
+  // Confirmado 2026-08-31: lecturas reales de 1.1 ($532,59→$532) y 4.2
+  // ($798,89→$798) a las 18:21 y 18:46 — ambas dentro de la ventana
+  // genérica 18-21h (que habría dado erróneamente TBP) mostraron TBFP.
+  '1.1': null,
+  '4.2': null,
   PA19: null,
   PA21: null,
   PA23: [[7 * 60, 10 * 60]],
