@@ -105,6 +105,43 @@ const PORTICOS = [
   { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
   { codigo: 'P11',  concesionaria: 'Vespucio Norte',    tramo: 'Pedro Fontova – Ruta 5 Norte',                lat: -33.3658, lon: -70.6951 },
   { codigo: 'P13',  concesionaria: 'Vespucio Norte',    tramo: 'Recoleta – Pedro Fontova',                    lat: -33.3734, lon: -70.6646 },
+  // Vespucio Norte tiene un corredor completo de 17 pórticos (P1-P17), cada
+  // uno de un solo sentido y en un punto físico DISTINTO (a diferencia de
+  // Autopista Central, acá no hay pares base/alterno en la misma
+  // coordenada) — solo P8/P11/P13 estaban cargados. Faltaba el resto,
+  // incluyendo todo el tramo occidental (Costanera Norte–Ruta 68–Ruta 78).
+  // Confirmado 2026-08-31: el regreso real de VVJG-14 esa noche pasó por
+  // ahí (P9 confirmado por proximidad al track GPS; el resto del tramo
+  // Ruta 68/Ruta 78 quedó geográficamente identificado pero sin poder
+  // calzar con certeza cuáles de los ~8 pórticos candidatos cobraron
+  // realmente los 6 montos que el usuario anotó — el TAG del vehículo
+  // (contrato de arriendo) no tiene cuenta propia con historial accesible).
+  // Coordenadas: capa pública tag.cl/OSM. Tarifas: oficial 2026 MOP
+  // (concesiones.mop.gob.cl/uploads/sites/4/2026/01/VESPUCIO-NORTE.pdf) —
+  // esta misma fuente resuelve la incertidumbre vieja de P8/P11/P13 (ver
+  // TARIFAS abajo, quedan actualizados con esta fuente oficial).
+  { codigo: 'P15',  concesionaria: 'Vespucio Norte', tramo: 'El Salto – Recoleta',                lat: -33.388664, lon: -70.632967 },
+  { codigo: 'P14',  concesionaria: 'Vespucio Norte', tramo: 'Guanaco – El Salto',                 lat: -33.388604, lon: -70.633316 },
+  { codigo: 'P12',  concesionaria: 'Vespucio Norte', tramo: 'Pedro Fontova – Guanaco',            lat: -33.373394, lon: -70.664973 },
+  { codigo: 'P10',  concesionaria: 'Vespucio Norte', tramo: 'Ruta 5 Norte – Pedro Fontova',       lat: -33.365948, lon: -70.696904 },
+  { codigo: 'P9',   concesionaria: 'Vespucio Norte', tramo: 'Lo Echevers – Ruta 5 Norte',         lat: -33.368877, lon: -70.704343 },
+  { codigo: 'P7',   concesionaria: 'Vespucio Norte', tramo: 'Condell – Lo Echevers',              lat: -33.381320, lon: -70.753937 },
+  // P6/P5 y P17/P1 quedan a 30-60m entre sí — a diferencia del resto del
+  // corredor (puntos físicos distintos), estos dos SÍ son el mismo punto
+  // real en direcciones opuestas (igual que Autopista Central) y ambos
+  // caían dentro del radio del otro, disparando doble por un solo cruce.
+  // Solo se agrega el código en sentido Oriente-Poniente (el que usa la
+  // ruta real observada) como entrada física; P5/P1 quedan como `alterno`
+  // en PARES_DIRECCIONALES.
+  { codigo: 'P6',   concesionaria: 'Vespucio Norte', tramo: 'Condell – Costanera Norte',          lat: -33.399353, lon: -70.775564 },
+  { codigo: 'P4',   concesionaria: 'Vespucio Norte', tramo: 'Costanera Norte – Ruta 68',          lat: -33.431288, lon: -70.784851 },
+  // "P3VN" para no chocar con el P3 de Costanera Norte (arriba) — mismo
+  // código público "P3" pero son dos pórticos físicos distintos de dos
+  // concesionarias distintas (coincidencia real de numeración, no un error).
+  { codigo: 'P3VN', concesionaria: 'Vespucio Norte', tramo: 'Ruta 68 – Costanera Norte',          lat: -33.438714, lon: -70.783138 },
+  { codigo: 'P2',   concesionaria: 'Vespucio Norte', tramo: 'Ruta 68 – Los Mares',                lat: -33.456380, lon: -70.767152 },
+  { codigo: 'P16',  concesionaria: 'Vespucio Norte', tramo: 'Santa Elena – Ruta 68',              lat: -33.451213, lon: -70.772985 },
+  { codigo: 'P17',  concesionaria: 'Vespucio Norte', tramo: 'Los Mares – Ruta 78',                lat: -33.482867, lon: -70.753573 },
   // PA19 — coordenada actualizada 2026-08-28 (la anterior nunca se validó con
   // una pasada real). Nueva coordenada calculada por distancia acumulada real
   // sobre el track GPS de VVJG-14, entre 2.2 y el resto de pórticos de
@@ -207,6 +244,10 @@ const PARES_DIRECCIONALES = {
   PA13:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA14', tramoAlterno: 'Río Mapocho – Alameda' },
   PA16:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA15', tramoAlterno: '14 de la Fama – Río Mapocho' },
   PA17:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA18', tramoAlterno: 'Américo Vespucio Norte – 14 de la Fama' },
+  // Vespucio Norte occidental (ver PORTICOS) — mismo corredor E-O que
+  // Vespucio Sur, misma convención de longitud.
+  P6:    { eje: 'lon', positivoEsAlterno: true,  alterno: 'P5',   tramoAlterno: 'Costanera Norte – Condell' },
+  P17:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P1',   tramoAlterno: 'Ruta 78 – Santa Elena' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
@@ -223,12 +264,31 @@ function resolverCodigoDireccional(portico, anterior, actual) {
 
 const TARIFAS = {
   // P3/2.2/5.2 actualizados 2026-08-27 al tarifario 2026 vigente (ver dashboard.html
-  // para la fuente/detalle). P8/P11/P13/PA19 quedan sin cambios — la última
-  // investigación de Vespucio Norte devolvió cifras contradictorias.
+  // para la fuente/detalle).
   P3:   { TBFP: 719, TBP: 1384, TS: 2097 },
-  P8:   { TBFP: 631, TBP: 1263, TS: 1263 },
-  P11:  { TBFP: 291, TBP: 583,  TS: 874  },
-  P13:  { TBFP: 398, TBP: 797,  TS: 797  },
+  // Vespucio Norte completo (P1-P17) — tarifario oficial 2026 MOP
+  // (concesiones.mop.gob.cl/uploads/sites/4/2026/01/VESPUCIO-NORTE.pdf),
+  // agregado 2026-08-31. Esta misma fuente resuelve la incertidumbre vieja
+  // de P8/P11/P13 ("cifras contradictorias") — quedan actualizados acá.
+  // TS = TBP para los pórticos donde el PDF no define una tercera banda
+  // (columna "-"), mismo criterio que el resto del archivo.
+  P15:  { TBFP: 141, TBP: 281,  TS: 422  },
+  P14:  { TBFP: 483, TBP: 967,  TS: 967  },
+  P13:  { TBFP: 412, TBP: 824,  TS: 1236 },
+  P12:  { TBFP: 69,  TBP: 139,  TS: 139  },
+  P11:  { TBFP: 301, TBP: 603,  TS: 603  },
+  P10:  { TBFP: 301, TBP: 603,  TS: 904  },
+  P9:   { TBFP: 549, TBP: 1097, TS: 1097 },
+  P8:   { TBFP: 653, TBP: 1306, TS: 1306 },
+  P7:   { TBFP: 105, TBP: 209,  TS: 209  },
+  P6:   { TBFP: 452, TBP: 904,  TS: 904  },
+  P5:   { TBFP: 452, TBP: 904,  TS: 1357 },
+  P4:   { TBFP: 352, TBP: 703,  TS: 1055 },
+  P3VN: { TBFP: 352, TBP: 703,  TS: 1055 },
+  P2:   { TBFP: 211, TBP: 422,  TS: 633  },
+  P16:  { TBFP: 482, TBP: 965,  TS: 1447 },
+  P17:  { TBFP: 392, TBP: 784,  TS: 1176 },
+  P1:   { TBFP: 121, TBP: 241,  TS: 362  },
   // PA19/21/23/25 actualizados 2026-08-28 con el tarifario oficial 2026 de
   // autopistacentral.cl (texto limpio, no imagen — alta confianza). PA19 y
   // PA21 son tarifa plana (sin banda horaria definida). PA23/PA25 sí tienen
