@@ -588,26 +588,53 @@ const VENTANAS_PUNTA_PORTICO = {
   PA20: null,
   PA22: null,
   // PA28 (ida): TBP 07:00-07:30/08:30-09:30/10:00-10:30/18:00-19:00, TS
-  // 07:30-08:30 (aproximada como parte de la ventana TBP, ver nota PA24).
+  // 07:30-08:30 — ver VENTANAS_SATURACION_PORTICO abajo (ya no se aproxima
+  // como parte de TBP, el sistema modela TS aparte desde 2026-09-02).
   PA28: [[7 * 60, 9 * 60 + 30], [10 * 60, 10 * 60 + 30], [18 * 60, 19 * 60]],
   // PA29 (vuelta): TBP 17:00-20:30, sin TS. Confirmado 2026-08-28: cruce real
   // a las 14:52 (fuera de esta ventana) mostró $512 (TBFP), como corresponde.
   PA29: [[17 * 60, 20 * 60 + 30]],
 };
 
-// HEURÍSTICA de banda horaria: usa la ventana oficial confirmada del pórtico si
-// existe, si no cae de vuelta en la heurística genérica (no es la ventana
-// oficial exacta de las concesionarias que aún no hemos investigado).
+// Ventanas oficiales de SATURACIÓN (TS) confirmadas — hora Chile, L-V, en
+// minutos desde medianoche. Agregado 2026-09-02: el sistema nunca había
+// modelado esta tercera banda (solo TBFP/TBP), así que cualquier pasada
+// real en horario de saturación salía mal estimada sin importar la
+// tarifa cargada. Confirmado con lecturas reales del mismo día: 3.1
+// ($997≈$997,86) y 3.3 ($780,80 exacto) a las 07:31-07:32, y PA28
+// ($1.537 exacto) a las 08:00 — las 3 caen dentro de estas ventanas.
+// PA31/PA13/PA24 son la misma fuente oficial (MOP 2026) sin cruce real
+// todavía. Pórticos no listados acá nunca devuelven 'TS' — 2.2 en
+// particular muestra "----" (sin ventana fija) en el tarifario oficial de
+// Vespucio Sur pese a una lectura real de $753,87 en banda TS el mismo
+// día — sugiere que ahí la saturación se activa por congestión real, no
+// por horario fijo, y no se puede modelar con esta heurística.
+const VENTANAS_SATURACION_PORTICO = {
+  '3.1': [[7 * 60 + 30, 8 * 60 + 30]],
+  '3.3': [[7 * 60 + 30, 8 * 60 + 30]],
+  PA28: [[7 * 60 + 30, 8 * 60 + 30]],
+  PA31: [[8 * 60 + 30, 9 * 60]],
+  PA13: [[8 * 60 + 30, 9 * 60]],
+  PA24: [[18 * 60 + 30, 19 * 60]],
+};
+
+// HEURÍSTICA de banda horaria: TS confirmada > TBP confirmada/genérica >
+// TBFP. La ventana oficial del pórtico manda si existe; si no, cae de
+// vuelta en la heurística genérica (no es la ventana exacta de las
+// concesionarias que aún no hemos investigado).
 function bandaHeuristica(fecha, porticoCodigo) {
   const dow = fecha.getDay();
   const h = fecha.getHours();
   const min = fecha.getMinutes();
   if (dow === 0 || dow === 6) return 'TBFP';
+  const minutosDia = h * 60 + min;
+
+  const ventanasTS = porticoCodigo ? VENTANAS_SATURACION_PORTICO[porticoCodigo] : null;
+  if (ventanasTS && ventanasTS.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin)) return 'TS';
 
   if (porticoCodigo && Object.prototype.hasOwnProperty.call(VENTANAS_PUNTA_PORTICO, porticoCodigo)) {
     const ventanas = VENTANAS_PUNTA_PORTICO[porticoCodigo];
     if (!ventanas) return 'TBFP';
-    const minutosDia = h * 60 + min;
     return ventanas.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin) ? 'TBP' : 'TBFP';
   }
 
