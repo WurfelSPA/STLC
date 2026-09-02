@@ -1121,6 +1121,12 @@ async function main() {
         'Velocidad': r.speedC8 ?? null,
         'Latitud': r.latC12 ?? null,
         'Longitud': r.lonC11 ?? null,
+        // Confirmado en vivo 2026-09-02: Horómetro/Odómetro vienen null cuando
+        // msgTypeC0 es un evento (DOS10/DOS11/IDA/GEO-A/SPD) en vez de una
+        // lectura periódica real (POS-T/POS-H/IGN/IGF) — no es un bug nuestro,
+        // es la propia plataforma. Se guarda el tipo para que el cliente pueda
+        // distinguir "sin dato real" de "falló la sincronización".
+        'Tipo de Mensaje': r.msgTypeC0 ?? null,
       };
     });
   console.log(`[santamarta] ${registrosSantaMarta.length} filas válidas`);
