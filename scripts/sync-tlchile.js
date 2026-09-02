@@ -487,6 +487,11 @@ function fmtFechaHoraChile(iso) {
   return `${p(d.getUTCDate())}-${p(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
+function diaChile(date) {
+  const d = new Date(date.getTime() - 4 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
 function clp(n) {
   return '$' + Math.round(n).toLocaleString('es-CL');
 }
@@ -960,6 +965,61 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
   }
 }
 
+// Km recorridos por día = odómetro del último punto GPS del día menos el
+// del primero (el odómetro del vehículo es monotónico creciente en el
+// tiempo, así que "primer punto" = mínimo y "último punto" = máximo, no
+// hace falta comparar valores). Cada corrida solo trae los puntos nuevos
+// desde el último checkpoint, así que el inicio/fin de un día se va
+// extendiendo de a poco en cada corrida — por eso se compara contra lo que
+// ya había guardado (si existe) en vez de sobreescribir directo.
+async function actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo) {
+  for (const vehiculo of vehiculosPorticos) {
+    const puntos = (puntosPorVehiculo.get(vehiculo.id) || [])
+      .filter((p) => p.odometro != null && !isNaN(p.time))
+      .sort((a, b) => a.time - b.time);
+    if (!puntos.length) continue;
+
+    const porDia = new Map();
+    for (const p of puntos) {
+      const dia = diaChile(p.time);
+      const actual = porDia.get(dia);
+      if (!actual) {
+        porDia.set(dia, { odometro_inicio: p.odometro, ts_inicio: p.time, odometro_fin: p.odometro, ts_fin: p.time });
+      } else {
+        if (p.time < actual.ts_inicio) { actual.odometro_inicio = p.odometro; actual.ts_inicio = p.time; }
+        if (p.time > actual.ts_fin) { actual.odometro_fin = p.odometro; actual.ts_fin = p.time; }
+      }
+    }
+
+    for (const [dia, tramo] of porDia) {
+      const { data: existente, error: errExistente } = await supabase
+        .from('porticos_odometro_diario')
+        .select('odometro_inicio, ts_inicio, odometro_fin, ts_fin')
+        .eq('vehiculo_id', vehiculo.id)
+        .eq('dia', dia)
+        .maybeSingle();
+      if (errExistente) { console.log(`[odometro] Error leyendo ${vehiculo.patente} ${dia}: ${errExistente.message}`); continue; }
+
+      let odometro_inicio = tramo.odometro_inicio, ts_inicio = tramo.ts_inicio;
+      let odometro_fin = tramo.odometro_fin, ts_fin = tramo.ts_fin;
+      if (existente) {
+        if (new Date(existente.ts_inicio) < ts_inicio) { odometro_inicio = existente.odometro_inicio; ts_inicio = new Date(existente.ts_inicio); }
+        if (new Date(existente.ts_fin) > ts_fin) { odometro_fin = existente.odometro_fin; ts_fin = new Date(existente.ts_fin); }
+      }
+
+      const { error: errUpsert } = await supabase
+        .from('porticos_odometro_diario')
+        .upsert({
+          vehiculo_id: vehiculo.id, dia,
+          odometro_inicio, ts_inicio: ts_inicio.toISOString(),
+          odometro_fin, ts_fin: ts_fin.toISOString(),
+          actualizado_en: new Date().toISOString(),
+        }, { onConflict: 'vehiculo_id,dia' });
+      if (errUpsert) console.log(`[odometro] Error guardando ${vehiculo.patente} ${dia}: ${errUpsert.message}`);
+    }
+  }
+}
+
 async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
@@ -1034,7 +1094,7 @@ async function main() {
     if (!puntosPorVehiculo.has(vehiculo.id)) puntosPorVehiculo.set(vehiculo.id, []);
     puntosPorVehiculo.get(vehiculo.id).push({
       time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
-      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0,
+      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0, odometro: r.odometerC14,
     });
   }
 
@@ -1194,6 +1254,7 @@ async function main() {
   }
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
   await emparejarLecturasManuales(vehiculosPorticos);
+  await actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo);
   await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
 
   // --- 2) HealthCheck (API REST) — Tracklink / MZDConnect ---------------------
