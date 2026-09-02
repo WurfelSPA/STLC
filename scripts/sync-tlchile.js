@@ -903,6 +903,63 @@ async function sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer,
   console.log(`[healthcheck:${tabla}] ✅ ${unidades.length} unidades sincronizadas.`);
 }
 
+// Empareja los montos ingresados a mano desde el celular (registrar.html,
+// tracklink-porticos-portal) contra las pasadas reales detectadas — mismo
+// criterio que se venía usando a mano en el chat: la pasada CONFIRMADA más
+// cercana en el tiempo, del mismo vehículo, todavía sin monto_real. Corre
+// en cada sync (cada 30 min) y también reintenta lecturas de corridas
+// anteriores que en su momento no encontraron pasada (porque la pasada
+// real recién se confirma más tarde) — por eso la ventana de búsqueda de
+// lecturas pendientes es de 24h, igual que VENTANA_ESTACIONADO_MS.
+const VENTANA_EMPAREJAR_LECTURA_MS = 20 * 60 * 1000; // ±20 min entre el ingreso a mano y la pasada real
+
+async function emparejarLecturasManuales(vehiculosPorticos) {
+  for (const vehiculo of vehiculosPorticos) {
+    const { data: pendientes, error: errPendientes } = await supabase
+      .from('porticos_lecturas_manuales')
+      .select('id, monto, ts_ingreso')
+      .eq('vehiculo_id', vehiculo.id)
+      .is('pasada_id', null)
+      .gte('ts_ingreso', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
+    if (errPendientes) { console.log(`[lecturas] Error leyendo pendientes de ${vehiculo.patente}: ${errPendientes.message}`); continue; }
+    if (!pendientes || !pendientes.length) continue;
+
+    for (const lectura of pendientes) {
+      const tsIngresoMs = new Date(lectura.ts_ingreso).getTime();
+      const { data: candidatas, error: errCandidatas } = await supabase
+        .from('porticos_pasadas_reales')
+        .select('id, ts')
+        .eq('vehiculo_id', vehiculo.id)
+        .eq('confirmado', true)
+        .is('monto_real', null)
+        .gte('ts', new Date(tsIngresoMs - VENTANA_EMPAREJAR_LECTURA_MS).toISOString())
+        .lte('ts', new Date(tsIngresoMs + VENTANA_EMPAREJAR_LECTURA_MS).toISOString());
+      if (errCandidatas) { console.log(`[lecturas] Error buscando pasada para lectura ${lectura.id}: ${errCandidatas.message}`); continue; }
+      if (!candidatas || !candidatas.length) continue;
+
+      let mejor = candidatas[0];
+      let mejorDiff = Math.abs(new Date(mejor.ts).getTime() - tsIngresoMs);
+      for (const c of candidatas.slice(1)) {
+        const diff = Math.abs(new Date(c.ts).getTime() - tsIngresoMs);
+        if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
+      }
+
+      const { error: errUpdatePasada } = await supabase
+        .from('porticos_pasadas_reales')
+        .update({ monto_real: lectura.monto })
+        .eq('id', mejor.id);
+      if (errUpdatePasada) { console.log(`[lecturas] Error guardando monto_real en pasada ${mejor.id}: ${errUpdatePasada.message}`); continue; }
+
+      const { error: errUpdateLectura } = await supabase
+        .from('porticos_lecturas_manuales')
+        .update({ pasada_id: mejor.id, emparejado_en: new Date().toISOString() })
+        .eq('id', lectura.id);
+      if (errUpdateLectura) console.log(`[lecturas] Error marcando lectura ${lectura.id} como emparejada: ${errUpdateLectura.message}`);
+      else console.log(`[lecturas] ✅ ${vehiculo.patente}: $${lectura.monto} emparejado con pasada ${mejor.id} (Δ${Math.round(mejorDiff / 1000)}s)`);
+    }
+  }
+}
+
 async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
@@ -1136,6 +1193,7 @@ async function main() {
     }
   }
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
+  await emparejarLecturasManuales(vehiculosPorticos);
   await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
 
   // --- 2) HealthCheck (API REST) — Tracklink / MZDConnect ---------------------
