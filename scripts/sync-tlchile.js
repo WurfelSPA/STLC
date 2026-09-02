@@ -359,9 +359,16 @@ function resolverCodigoDireccional(portico, anterior, actual) {
 }
 
 const TARIFAS = {
-  // P3/2.2/5.2 actualizados 2026-08-27 al tarifario 2026 vigente (ver dashboard.html
+  // P3 (Costanera Norte, Puente Lo Saldes) corregido 2026-09-02: el valor
+  // anterior (719/1384/2097) venía de un PDF tarifario "confirmado por dos
+  // fuentes independientes", pero el historial de transacciones REALES de
+  // Smart Report muestra $306 (16:49) y $589 (16:06) — ninguna lectura real
+  // se acerca a 719. TS sin lectura real todavía: se estima con el mismo
+  // multiplicador ~1.514× TBP que se repite exacto en P4CN/P7CN/P8.0-8.3 de
+  // esta misma concesionaria (899≈589×1.514), no confirmado.
+  // 2.2/5.2 actualizados 2026-08-27 al tarifario 2026 vigente (ver dashboard.html
   // para la fuente/detalle).
-  P3:   { TBFP: 719, TBP: 1384, TS: 2097 },
+  P3:   { TBFP: 306, TBP: 589, TS: 892 },
   // Vespucio Norte completo (P1-P17) — tarifario oficial 2026 MOP
   // (concesiones.mop.gob.cl/uploads/sites/4/2026/01/VESPUCIO-NORTE.pdf),
   // agregado 2026-08-31. Esta misma fuente resuelve la incertidumbre vieja
@@ -375,7 +382,12 @@ const TARIFAS = {
   P11:  { TBFP: 301, TBP: 603,  TS: 603  },
   P10:  { TBFP: 301, TBP: 603,  TS: 904  },
   P9:   { TBFP: 549, TBP: 1097, TS: 1097 },
-  P8:   { TBFP: 653, TBP: 1306, TS: 1306 },
+  // P8 corregido 2026-09-02: el PDF oficial daba TBP/TS=1306, pero el
+  // historial de transacciones REALES de Smart Report (16 cobros de P8,
+  // entre las 10:39 y las 20:38, TODOS por $653, incluida hora punta
+  // 17:58-20:38) confirma que P8 es tarifa PLANA — nunca cobró 1306. Data
+  // real de facturación pesa más que el PDF acá.
+  P8:   { TBFP: 653, TBP: 653,  TS: 653  },
   P7:   { TBFP: 105, TBP: 209,  TS: 209  },
   P6:   { TBFP: 452, TBP: 904,  TS: 904  },
   P5:   { TBFP: 452, TBP: 904,  TS: 1357 },
