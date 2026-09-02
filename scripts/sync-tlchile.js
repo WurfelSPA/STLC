@@ -208,6 +208,18 @@ const PORTICOS = [
   // vio en pantalla a las 08:00/08:06/08:10 ese día. PA30/PA10/PA9/PA11/
   // PA17/PA18/PA12/PA14/PA15 son el resto del mismo corredor (Departamental
   // hasta Vespucio Norte) con tarifa oficial pero sin cruce real todavía.
+  // PA5/PA6/PA7/PA32/PA37: extremo sur del Eje Norte-Sur (San Bernardo),
+  // agregado 2026-09-02. Coordenadas del usuario (Google Places) cruzadas
+  // contra tramo+km real de Smart Report (cuenta kcerda) para confirmar
+  // identidad — el archivo original traía PA4↔PA37 y PA6↔PA37 con las
+  // coordenadas cruzadas entre sí (mismo texto de tramo apuntaba a otro
+  // código), corregido acá. PA3 y el PA4 real (Calera de Tango – La
+  // Capilla) siguen sin coordenada, no se encontró fuente confiable.
+  { codigo: 'PA37', concesionaria: 'Autopista Central', tramo: 'Colón – Calera de Tango',                      lat: -33.624384, lon: -70.714528 },
+  { codigo: 'PA6',  concesionaria: 'Autopista Central', tramo: 'Lo Blanco – Colón',                            lat: -33.596835, lon: -70.715823 },
+  { codigo: 'PA5',  concesionaria: 'Autopista Central', tramo: 'Colón – Las Acacias',                          lat: -33.582641, lon: -70.713824 },
+  { codigo: 'PA32', concesionaria: 'Autopista Central', tramo: 'Las Acacias – Lo Blanco',                      lat: -33.558862, lon: -70.710671 },
+  { codigo: 'PA7',  concesionaria: 'Autopista Central', tramo: 'Las Acacias – Américo Vespucio',               lat: -33.547848, lon: -70.696958 },
   { codigo: 'PA30', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Departamental',             lat: -33.507288, lon: -70.669319 },
   { codigo: 'PA10', concesionaria: 'Autopista Central', tramo: 'Departamental – Carlos Valdovinos',            lat: -33.495772, lon: -70.663899 },
   { codigo: 'PA31', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.469011, lon: -70.656243 },
@@ -423,6 +435,17 @@ const TARIFAS = {
   // CONFIRMADOS: coincidieron exacto con el monto en pantalla el 2026-08-31
   // (08:00/08:06/08:10, TBP en los 3 casos). PA30/PA10/PA9/PA11/PA17/PA18/
   // PA12/PA14/PA15 son la misma fuente oficial sin cruce real todavía.
+  // PA5/PA6/PA7/PA32/PA37 agregados 2026-09-02: cada uno solo tiene UNA
+  // lectura real de Smart Report (todas a media mañana/tarde, fuera de
+  // punta) — se toma como TBFP y se deriva TBP/TS con el multiplicador
+  // 2×/3× exacto que ya se confirmó en PA30/PA9/PA31/PA13/PA10/PA11 de
+  // este mismo corredor (ver fórmula del PDF oficial, nota más abajo). No
+  // confirmado independientemente para estos 5 códigos.
+  PA37: { TBFP: 455, TBP: 910,  TS: 1365 },
+  PA6:  { TBFP: 158, TBP: 316,  TS: 474  },
+  PA5:  { TBFP: 335, TBP: 670,  TS: 1005 },
+  PA32: { TBFP: 177, TBP: 354,  TS: 531  },
+  PA7:  { TBFP: 452, TBP: 904,  TS: 1356 },
   PA30: { TBFP: 393, TBP: 786,  TS: 1178 },
   PA9:  { TBFP: 393, TBP: 786,  TS: 1178 },
   PA10: { TBFP: 286, TBP: 572,  TS: 857  },
