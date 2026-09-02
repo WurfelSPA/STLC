@@ -110,6 +110,23 @@ const MIN_GAP_MS = 2 * 60 * 1000;
 const VELOCIDAD_MINIMA_TRANSITO_KMH = 5;
 const VENTANA_ESTACIONADO_MS = 20 * 60 * 60 * 1000;
 
+// Filtro de velocidad MÍNIMA por pórtico puntual — no confundir con
+// VELOCIDAD_MINIMA_TRANSITO_KMH de arriba (ese es global y a propósito NO
+// filtra por velocidad baja, porque 3.3 tuvo un tránsito real a 0 km/h por
+// congestión). Este es lo opuesto: para P10 (Vespucio Norte) se investigó
+// 2026-09-02 con capturas satelitales del usuario por qué se seguía
+// detectando aunque nunca entra a esa autopista — la coordenada de P10 es
+// correcta y el radio de 150m no está sobredimensionado (su estacionamiento
+// frente a El Cortijo queda genuinamente a ~110-124m, igual que en
+// cualquier otro pórtico), pero el camino de acceso/frontis real hacia El
+// Cortijo pasa DENTRO de ese radio. La señal que sí los distingue: los
+// cruces reales confirmados el mismo día en ese tramo de Vespucio Norte
+// (P9/P8/P7/P6) van a 70-100 km/h, mientras las detecciones de P10 junto al
+// acceso repiten 0-33 km/h. Por eso el filtro va SOLO en P10 (no global,
+// no excluye el código — si el usuario cruza P10 de verdad en la autopista
+// algún día, va a ir a esa velocidad y se sigue detectando igual).
+const VELOCIDAD_MINIMA_PORTICO = { P10: 40 };
+
 const PORTICOS = [
   { codigo: 'P3',   concesionaria: 'Costanera Norte',   tramo: 'Puente Lo Saldes – Vivaceta',                lat: -33.4240, lon: -70.6220 },
   { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
@@ -1196,7 +1213,9 @@ async function main() {
           const ventanaAplicable = p.speed < VELOCIDAD_MINIMA_TRANSITO_KMH ? VENTANA_ESTACIONADO_MS : VENTANA_MISMA_PASADA_MS;
           const esNuevoVsHistorico = !ultimaConocida || tsMs - ultimaConocida > ventanaAplicable;
           const esFalsoPositivoConocido = FALSOS_POSITIVOS_CONOCIDOS.has(`${vehiculo.patente}|${resuelto.codigo}`);
-          if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido) {
+          const velocidadMinima = VELOCIDAD_MINIMA_PORTICO[resuelto.codigo];
+          const cumpleVelocidadMinima = velocidadMinima == null || p.speed >= velocidadMinima;
+          if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima) {
             // confirmado: ¿hay ya, en esta misma corrida, algún punto GPS
             // posterior que muestre al vehículo fuera del radio? Un tránsito
             // real en autopista lo confirma casi al toque (siguiente lectura,
