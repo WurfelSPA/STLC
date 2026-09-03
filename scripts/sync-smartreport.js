@@ -176,7 +176,7 @@ async function obtenerPasesTag(cookieHeader, headers, cuenta, dateIniStr, dateEn
   // completo de ~30 pases anidado un nivel de más — hay algo en la forma
   // real de reportTagMultas.data que no calza con lo asumido (¿es un
   // arreglo con un elemento por patente, en vez de un objeto directo?).
-  console.log(`[smartreport][diag] typeof data.reportTagMultas.data: ${typeof data?.reportTagMultas?.data}, esArray: ${Array.isArray(data?.reportTagMultas?.data)}, largo si es array: ${Array.isArray(data?.reportTagMultas?.data) ? data.reportTagMultas.data.length : 'n/a'}`);
+  console.log(`[smartreport][diag] estructura cruda reportTagMultas.data: ${JSON.stringify(data?.reportTagMultas?.data).slice(0, 1500)}`);
   const contenedor = data?.reportTagMultas?.data;
   const reportTAG = Array.isArray(contenedor) ? (contenedor[0]?.reportTAG || []) : (contenedor?.reportTAG || []);
   return reportTAG;
