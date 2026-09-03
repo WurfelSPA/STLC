@@ -59,6 +59,11 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
       // esto sea un cliente server-to-server, no un navegador de verdad.
       Origin: 'https://app.smartreport.cl',
       Referer: 'https://app.smartreport.cl/',
+      Accept: '*/*',
+      'Accept-Language': 'es-CL,es-419;q=0.9,es;q=0.8,en;q=0.7',
+      // Node/undici no manda User-Agent de navegador por defecto — es una
+      // señal fácil de bot para un backend con protección anti-fraude.
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
       ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       ...headersExtra,
     },
@@ -98,15 +103,17 @@ const QUERY_DOWNLOAD_REPORT_FILE = `
 
 async function loginSmartReport(username, password) {
   const sessionid = crypto.randomUUID();
-  const headersBase = { usuario: username, displayname: '', language: 'es', sessionid };
-  const { data, setCookie } = await graphqlCall(null, headersBase, 'Login', QUERY_LOGIN, {
+  // Antes de loguearse la app real manda "usuario" vacío en el header (recién
+  // se llena una vez autenticado) — se replica por si el backend lo valida.
+  const headersLogin = { usuario: '', displayname: '', language: 'es', sessionid };
+  const { data } = await graphqlCall(null, headersLogin, 'Login', QUERY_LOGIN, {
     input: { username, password },
   });
   if (!data?.login?.token) throw new Error(`Login sin token en la respuesta: ${JSON.stringify(data).slice(0, 500)}`);
   // El server manda authToken/refreshToken por Set-Cookie — se arman a mano
   // acá porque fetch en Node no gestiona cookies solo como un navegador.
   const cookieHeader = `authToken=${data.login.token}; refreshToken=${data.login.refreshToken}`;
-  const headers = { ...headersBase, displayname: data.login.displayName || '' };
+  const headers = { usuario: username, displayname: data.login.displayName || '', language: 'es', sessionid };
   return { cookieHeader, headers };
 }
 
