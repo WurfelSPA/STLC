@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: descarga diaria del Reporte TAG de Smart Report y carga sus
+# montos reales en porticos_pasadas_reales.monto_smartreport — segunda fuente
+# de verdad independiente de "Real" (registrar.html), para medir qué tan
+# cerca está la estimación GPS propia del cobro real de la concesionaria.
+# Ver scripts/sync-smartreport.js para el detalle del flujo (login GraphQL +
+# generación async del Excel + descarga + emparejamiento por hora).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sync Smart Report
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 00:00 hora Chile (UTC-4)
+
+  workflow_dispatch:
+
+jobs:
+  sync-smartreport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm install xlsx @supabase/supabase-js
+        timeout-minutes: 5
+
+      - name: Sync Smart Report
+        env:
+          SR_USER: ${{ secrets.SR_USER }}
+          SR_PASSWORD: ${{ secrets.SR_PASSWORD }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/sync-smartreport.js
