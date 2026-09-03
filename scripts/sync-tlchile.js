@@ -1170,7 +1170,7 @@ async function main() {
     if (!puntosPorVehiculo.has(vehiculo.id)) puntosPorVehiculo.set(vehiculo.id, []);
     puntosPorVehiculo.get(vehiculo.id).push({
       time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
-      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0, odometro: r.odometerC14,
+      lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0, odometro: r.odometerC14, hdop: r.hdopC7,
     });
   }
 
@@ -1186,8 +1186,20 @@ async function main() {
 
   let totalDetecciones = 0;
   for (const vehiculo of vehiculosPorticos) {
-    const puntos = (puntosPorVehiculo.get(vehiculo.id) || [])
-      .filter((p) => p.lat && p.lon && !isNaN(p.time))
+    const puntosTotales = puntosPorVehiculo.get(vehiculo.id) || [];
+    // hdop=0 = posición "Guardado" (caché de TrackGTS, no un fix GPS real) —
+    // misma convención que usa su propio reporte de historial de posiciones
+    // para pintar "Guardado" vs "OK" (ver getGPSStatus en su código fuente,
+    // investigado 2026-09-03 tras confirmar con el usuario que VVJG-14
+    // registró 10 pórticos falsos de 4 concesionarias distintas mientras el
+    // auto estaba estacionado en casa con el motor apagado). p.hdop es
+    // undefined si el campo no viene en la respuesta — ahí NO se filtra
+    // (!== 0 deja pasar undefined), así que esto no rompe nada si la
+    // hipótesis resulta incorrecta, solo deja de proteger.
+    const puntosDescartadosPorHdop = puntosTotales.filter((p) => p.hdop === 0).length;
+    if (puntosDescartadosPorHdop) console.log(`[porticos] ${vehiculo.patente}: ${puntosDescartadosPorHdop} puntos descartados por hdop=0 (posición en caché, no GPS real).`);
+    const puntos = puntosTotales
+      .filter((p) => p.lat && p.lon && !isNaN(p.time) && p.hdop !== 0)
       .sort((a, b) => a.time - b.time);
     console.log(`[porticos] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
 
