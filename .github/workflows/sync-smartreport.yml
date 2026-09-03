@@ -30,7 +30,7 @@ jobs:
           node-version: '22'
 
       - name: Instalar dependencias
-        run: npm install xlsx @supabase/supabase-js
+        run: npm install @supabase/supabase-js
         timeout-minutes: 5
 
       - name: Sync Smart Report

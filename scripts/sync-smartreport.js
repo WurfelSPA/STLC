@@ -11,14 +11,19 @@
  * real (objetivo: <1% de error, Smart Report reporta 3-10%).
  *
  * Flujo (investigado a mano 2026-09-03 con DevTools, ver conversación):
- *   1) mutation Login(usuario, clave) → cookies authToken/refreshToken.
- *   2) mutation FileExcelDialog(dateIni, dateEnd) → jobId (encola el reporte).
- *   3) mutation DownloadReportFile(jobId) → el .xlsx completo en base64
- *      (con reintentos: el job es async, puede no estar listo al toque).
- *   4) Se parsea el Excel, se mapea cada fila (concesión + descripción) a
- *      nuestro portico_codigo, y se busca la pasada CONFIRMADA de esa
+ *   1) mutation Login(usuario, clave) → cookies authToken/refreshToken
+ *      (HttpOnly — vienen por Set-Cookie, el campo "token" del cuerpo JSON
+ *      siempre es null a propósito).
+ *   2) mutation ReportTagMultas(patentes, dateIni, dateEnd) → JSON directo
+ *      con cada pase de pórtico (data.reportTagMultas.data.reportTAG). Se
+ *      probó primero el camino de generar/descargar el Excel
+ *      (FileExcelDialog + DownloadReportFile) pero ese endpoint solo
+ *      EMPAQUETA datos que el cliente ya tiene — ReportTagMultas es la
+ *      fuente real y devuelve JSON limpio, sin pasar por Excel.
+ *   3) Se mapea cada fila (concesión + descripción) a nuestro
+ *      portico_codigo, y se busca la pasada CONFIRMADA de esa
  *      patente/pórtico más cercana en el tiempo (±10 min) para actualizar
- *      monto_smartreport — mismo criterio que ya se usa para "Real".
+ *      monto_smartreport — mismo criterio que ya usa "Real".
  *
  * Pide siempre los últimos SMARTREPORT_DIAS_ATRAS días completos (no un
  * checkpoint incremental): es liviano, y así no se pierde nada si un cobro
@@ -29,7 +34,6 @@
  */
 
 const { createClient } = require('@supabase/supabase-js');
-const XLSX = require('xlsx');
 const crypto = require('crypto');
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -47,6 +51,12 @@ const SR_URL = 'https://intermediate-v2.smartreport.cl/';
 const SMARTREPORT_DIAS_ATRAS = 4;
 const VENTANA_EMPAREJAR_MS = 10 * 60 * 1000; // ±10 min, igual que el resto del proyecto
 
+// Patentes a consultar en Smart Report — cada una con su "provider" interno
+// (id de la conexión GPS dentro de la cuenta de Smart Report, NO tiene
+// relación con nuestro unit_id de TrackGTS). Agregar acá si se suma otra
+// patente a esta misma cuenta.
+const PATENTES_SMARTREPORT = [{ patente: 'VVJG-14', provider: '54' }];
+
 // --- GraphQL: login + llamadas autenticadas ---------------------------------
 
 async function graphqlCall(cookieHeader, headersExtra, operationName, query, variables) {
@@ -54,15 +64,13 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // Origin/Referer van tal cual los mandaba el navegador en la captura
-      // real — probable que el backend los valide (CORS/anti-bot), aunque
-      // esto sea un cliente server-to-server, no un navegador de verdad.
+      // Origin/Referer/User-Agent tal cual los manda el navegador real —
+      // el backend parece validarlos (con Node/undici "de fábrica" el login
+      // fallaba en silencio).
       Origin: 'https://app.smartreport.cl',
       Referer: 'https://app.smartreport.cl/',
       Accept: '*/*',
       'Accept-Language': 'es-CL,es-419;q=0.9,es;q=0.8,en;q=0.7',
-      // Node/undici no manda User-Agent de navegador por defecto — es una
-      // señal fácil de bot para un backend con protección anti-fraude.
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
       ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       ...headersExtra,
@@ -76,7 +84,7 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
   const json = await res.json();
   if (json.errors) throw new Error(`GraphQL ${operationName} falló (HTTP ${res.status}): ${JSON.stringify(json.errors)}`);
   if (!json.data) throw new Error(`GraphQL ${operationName} sin "data" (HTTP ${res.status}): ${JSON.stringify(json).slice(0, 500)}`);
-  return { data: json.data, setCookies, status: res.status };
+  return { data: json.data, setCookies };
 }
 
 function extraerCookie(setCookies, nombre) {
@@ -100,15 +108,30 @@ const QUERY_LOGIN = `
   }
 `;
 
-const QUERY_FILE_EXCEL_DIALOG = `
-  mutation FileExcelDialog($input: inputDateTableDialog) {
-    fileExcelDialog(input: $input)
-  }
-`;
-
-const QUERY_DOWNLOAD_REPORT_FILE = `
-  mutation DownloadReportFile($input: inputDownloadReportFile) {
-    downloadReportFile(input: $input)
+const QUERY_REPORT_TAG_MULTAS = `
+  mutation ReportTagMultas($input: vehiculoInput) {
+    reportTagMultas(input: $input) {
+      data {
+        reportTAG {
+          tipo_portico
+          tarifa
+          rpt_fecha
+          portico
+          patente
+          km
+          id_portico
+          fecha
+          coord_y
+          coord_x
+          auto_tipo_nombre
+          auto_tipo_id
+          auto_nombre
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
   }
 `;
 
@@ -127,40 +150,33 @@ async function loginSmartReport(username, password) {
   const refreshToken = extraerCookie(setCookies, 'refreshToken');
   if (!authToken) throw new Error(`Login sin cookie authToken en la respuesta. set-cookie recibidas: ${JSON.stringify(setCookies)}`);
   const cookieHeader = `authToken=${authToken}; refreshToken=${refreshToken}`;
+  // El campo "usuario" que usan las siguientes consultas (ReportTagMultas,
+  // etc.) es el nombre de la CUENTA/empresa (ej. "transrent"), no el
+  // username individual de login — se deriva del displayName que devuelve
+  // el login (confirmado con una captura real: displayName "Transrent" ==
+  // usuario "transrent" en minúsculas).
+  const cuenta = (data.login.displayName || '').toLowerCase();
   const headers = { usuario: username, displayname: data.login.displayName || '', language: 'es', sessionid };
-  return { cookieHeader, headers };
+  return { cookieHeader, headers, cuenta };
 }
 
-async function generarYDescargarExcel(cookieHeader, headers, dateIniStr, dateEndStr, displayName) {
-  const { data: dJob } = await graphqlCall(cookieHeader, headers, 'FileExcelDialog', QUERY_FILE_EXCEL_DIALOG, {
-    input: { dateIni: dateIniStr, dateEnd: dateEndStr, displayName },
+async function obtenerPasesTag(cookieHeader, headers, cuenta, dateIniStr, dateEndStr) {
+  const { data } = await graphqlCall(cookieHeader, headers, 'ReportTagMultas', QUERY_REPORT_TAG_MULTAS, {
+    input: {
+      patentes: PATENTES_SMARTREPORT,
+      dateIni: dateIniStr,
+      dateEnd: dateEndStr,
+      getGPX: 0,
+      reprocesar: false,
+      usuario: cuenta,
+    },
   });
-  const job = JSON.parse(Buffer.from(dJob.fileExcelDialog, 'base64').toString('utf8'));
-  if (!job.success || !job.jobId) throw new Error(`FileExcelDialog no devolvió jobId: ${JSON.stringify(job)}`);
-
-  // El job es async ("queued") — se reintenta unas cuantas veces con espera
-  // en vez de pedirlo al toque, para darle tiempo a Smart Report a armarlo.
-  const INTENTOS = 8;
-  const ESPERA_MS = 4000;
-  for (let intento = 1; intento <= INTENTOS; intento++) {
-    await new Promise((r) => setTimeout(r, ESPERA_MS));
-    try {
-      const { data: dFile } = await graphqlCall(cookieHeader, headers, 'DownloadReportFile', QUERY_DOWNLOAD_REPORT_FILE, {
-        input: { jobId: job.jobId },
-      });
-      const raw = dFile.downloadReportFile;
-      if (raw && raw.startsWith('UEsDB')) return Buffer.from(raw, 'base64'); // firma ZIP (xlsx) en base64
-      console.log(`[smartreport] jobId ${job.jobId} todavía no listo (intento ${intento}/${INTENTOS})...`);
-    } catch (err) {
-      console.log(`[smartreport] jobId ${job.jobId} error en intento ${intento}/${INTENTOS}: ${err.message}`);
-    }
-  }
-  throw new Error(`DownloadReportFile no entregó el archivo tras ${INTENTOS} intentos (jobId ${job.jobId})`);
+  return data?.reportTagMultas?.data?.reportTAG || [];
 }
 
-// --- Parseo del Excel y mapeo de códigos ------------------------------------
+// --- Mapeo de códigos ---------------------------------------------------------
 
-// Concesión → prefijo de la DESCRIPCION → nuestro portico_codigo. Ver
+// Concesión → prefijo de PORTICO → nuestro portico_codigo. Ver
 // dashboard.html/sync-tlchile.js (este mismo repo) para el catálogo
 // completo — acá solo se traduce la nomenclatura pública de Smart Report a
 // la nuestra. AUTOPISTA CENTRAL no necesita tabla: usa el mismo código tal
@@ -170,8 +186,8 @@ const MAP_CN = { P0: 'P0', P3: 'P3', P4: 'P4CN', P5: 'P5CN', P7: 'P7CN', 'P8.0':
 const MAP_VS = { 'P1.1': '1.1', 'P2.2': '2.2', 'P3.1': '3.1', 'P3.2': '3.2', 'P3.3': '3.3', 'P3.4': '3.4', 'P4.1': '4.1', 'P4.2': '4.2', 'P4.3': '4.3', 'P5.2': '5.2' };
 const MAP_SK = { P101: 'PC101', P102: 'PC102' };
 
-function codigoInterno(concesion, descripcion) {
-  const primerToken = descripcion.trim().split(' ')[0];
+function codigoInterno(concesion, portico) {
+  const primerToken = portico.trim().split(' ')[0];
   const c = concesion.toUpperCase();
   if (c === 'VESPUCIO NORTE EXPRESS') return MAP_VN[primerToken] || null;
   if (c === 'COSTANERA NORTE') return MAP_CN[primerToken] || null;
@@ -184,40 +200,6 @@ function codigoInterno(concesion, descripcion) {
   return null;
 }
 
-// Convierte "dd-mm-yyyy HH:MM" (hora Chile, tal como la entrega Smart
-// Report) a un Date UTC real, con manejo correcto de cambio de día.
-function fechaSmartReportAUtc(fechaStr) {
-  const [fecha, hora] = fechaStr.trim().split(' ');
-  const [dd, mm, yyyy] = fecha.split('-').map(Number);
-  const [hh, min] = hora.split(':').map(Number);
-  const local = new Date(Date.UTC(yyyy, mm - 1, dd, hh, min, 0));
-  return new Date(local.getTime() + 4 * 3600 * 1000);
-}
-
-function extraerFilasDetalleAutopista(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer' });
-  const hoja = wb.Sheets[wb.SheetNames[0]];
-  const filas = XLSX.utils.sheet_to_json(hoja, { header: 1, raw: false, defval: '' });
-
-  let inicio = -1;
-  for (let i = 0; i < filas.length; i++) {
-    if (String(filas[i][0]).trim() === 'PATENTE' && String(filas[i][1]).trim() === 'FECHA') { inicio = i + 1; break; }
-  }
-  if (inicio === -1) return [];
-
-  const resultado = [];
-  for (let i = inicio; i < filas.length; i++) {
-    const [patente, fecha, concesion, descripcion, , tarifa] = filas[i];
-    if (!patente || !fecha) break; // fila vacía = fin de la sección
-    // TARIFA viene como texto con signo peso y separador de miles (ej.
-    // "$1,537"), no como número — hay que limpiarlo antes de parsear.
-    const monto = Number(String(tarifa).replace(/[^0-9.-]/g, ''));
-    if (!patente || !fecha || !concesion || !descripcion || !Number.isFinite(monto)) continue;
-    resultado.push({ patente: String(patente).trim(), fecha: String(fecha).trim(), concesion: String(concesion).trim(), descripcion: String(descripcion).trim(), monto });
-  }
-  return resultado;
-}
-
 // --- Emparejamiento contra porticos_pasadas_reales --------------------------
 
 async function emparejarYActualizar(filas) {
@@ -227,7 +209,7 @@ async function emparejarYActualizar(filas) {
   let sinPasada = 0;
 
   for (const fila of filas) {
-    const codigo = codigoInterno(fila.concesion, fila.descripcion);
+    const codigo = codigoInterno(fila.auto_nombre, fila.portico);
     if (!codigo) { sinMapear++; continue; }
 
     if (!vehiculoIdPorPatente.has(fila.patente)) {
@@ -238,7 +220,9 @@ async function emparejarYActualizar(filas) {
     const vehiculoId = vehiculoIdPorPatente.get(fila.patente);
     if (!vehiculoId) { sinPasada++; continue; } // patente no rastreada por este sistema
 
-    const tsReporte = fechaSmartReportAUtc(fila.fecha);
+    // rpt_fecha ya viene en ISO UTC real (ej. "2026-09-03T11:43:24.000Z") —
+    // a diferencia del Excel, acá no hace falta convertir desde hora Chile.
+    const tsReporte = new Date(fila.rpt_fecha);
     const { data: candidatas, error: errCand } = await supabase
       .from('porticos_pasadas_reales')
       .select('id, ts')
@@ -257,7 +241,7 @@ async function emparejarYActualizar(filas) {
       if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
     }
 
-    const { error: errUpdate } = await supabase.from('porticos_pasadas_reales').update({ monto_smartreport: fila.monto }).eq('id', mejor.id);
+    const { error: errUpdate } = await supabase.from('porticos_pasadas_reales').update({ monto_smartreport: fila.tarifa }).eq('id', mejor.id);
     if (errUpdate) throw new Error(`Error actualizando pasada ${mejor.id}: ${errUpdate.message}`);
     actualizadas++;
   }
@@ -273,7 +257,7 @@ function fmtSR(d) {
 }
 
 async function main() {
-  const { cookieHeader, headers } = await loginSmartReport(process.env.SR_USER, process.env.SR_PASSWORD);
+  const { cookieHeader, headers, cuenta } = await loginSmartReport(process.env.SR_USER, process.env.SR_PASSWORD);
   console.log('[smartreport] Login OK.');
 
   const hoy = new Date();
@@ -281,12 +265,9 @@ async function main() {
   const dateIni = `${fmtSR(desde)} 00:00`;
   const dateEnd = `${fmtSR(hoy)} 23:59`;
 
-  console.log(`[smartreport] Generando reporte ${dateIni} → ${dateEnd}...`);
-  const buffer = await generarYDescargarExcel(cookieHeader, headers, dateIni, dateEnd, headers.displayname || process.env.SR_USER);
-  console.log(`[smartreport] Excel descargado (${buffer.length} bytes).`);
-
-  const filas = extraerFilasDetalleAutopista(buffer);
-  console.log(`[smartreport] ${filas.length} filas de cobro leídas.`);
+  console.log(`[smartreport] Consultando pases ${dateIni} → ${dateEnd}...`);
+  const filas = await obtenerPasesTag(cookieHeader, headers, cuenta, dateIni, dateEnd);
+  console.log(`[smartreport] ${filas.length} filas de cobro recibidas.`);
   await emparejarYActualizar(filas);
 }
 
