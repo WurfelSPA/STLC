@@ -73,7 +73,19 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
   const json = await res.json();
   if (json.errors) throw new Error(`GraphQL ${operationName} falló (HTTP ${res.status}): ${JSON.stringify(json.errors)}`);
   if (!json.data) throw new Error(`GraphQL ${operationName} sin "data" (HTTP ${res.status}): ${JSON.stringify(json).slice(0, 500)}`);
-  return { data: json.data, setCookie };
+  return { data: json.data, setCookie, status: res.status, headers: res.headers };
+}
+
+// Diagnóstico temporal 2026-09-03: el login viene devolviendo
+// token/refreshToken=null de forma consistente (4 corridas seguidas, con
+// credenciales ya reconfirmadas y headers de navegador agregados) — se
+// vuelca el status HTTP y TODOS los headers de respuesta para buscar
+// alguna señal de bloqueo (rate-limit, WAF/CDN, cookie de verificación de
+// dispositivo, etc.) antes de seguir agregando headers a ciegas.
+function volcarHeaders(headers) {
+  const obj = {};
+  for (const [k, v] of headers.entries()) obj[k] = v;
+  return JSON.stringify(obj);
 }
 
 const QUERY_LOGIN = `
@@ -106,10 +118,15 @@ async function loginSmartReport(username, password) {
   // Antes de loguearse la app real manda "usuario" vacío en el header (recién
   // se llena una vez autenticado) — se replica por si el backend lo valida.
   const headersLogin = { usuario: '', displayname: '', language: 'es', sessionid };
-  const { data } = await graphqlCall(null, headersLogin, 'Login', QUERY_LOGIN, {
+  const { data, status, headers: resHeaders, setCookie } = await graphqlCall(null, headersLogin, 'Login', QUERY_LOGIN, {
     input: { username, password },
   });
-  if (!data?.login?.token) throw new Error(`Login sin token en la respuesta: ${JSON.stringify(data).slice(0, 500)}`);
+  if (!data?.login?.token) {
+    throw new Error(
+      `Login sin token en la respuesta (HTTP ${status}). set-cookie: ${setCookie || '(ninguno)'}. ` +
+      `headers respuesta: ${volcarHeaders(resHeaders)}. data: ${JSON.stringify(data).slice(0, 300)}`
+    );
+  }
   // El server manda authToken/refreshToken por Set-Cookie — se arman a mano
   // acá porque fetch en Node no gestiona cookies solo como un navegador.
   const cookieHeader = `authToken=${data.login.token}; refreshToken=${data.login.refreshToken}`;
