@@ -54,6 +54,11 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      // Origin/Referer van tal cual los mandaba el navegador en la captura
+      // real — probable que el backend los valide (CORS/anti-bot), aunque
+      // esto sea un cliente server-to-server, no un navegador de verdad.
+      Origin: 'https://app.smartreport.cl',
+      Referer: 'https://app.smartreport.cl/',
       ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       ...headersExtra,
     },
@@ -61,7 +66,8 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
   });
   const setCookie = res.headers.get('set-cookie');
   const json = await res.json();
-  if (json.errors) throw new Error(`GraphQL ${operationName} falló: ${JSON.stringify(json.errors)}`);
+  if (json.errors) throw new Error(`GraphQL ${operationName} falló (HTTP ${res.status}): ${JSON.stringify(json.errors)}`);
+  if (!json.data) throw new Error(`GraphQL ${operationName} sin "data" (HTTP ${res.status}): ${JSON.stringify(json).slice(0, 500)}`);
   return { data: json.data, setCookie };
 }
 
@@ -96,7 +102,7 @@ async function loginSmartReport(username, password) {
   const { data, setCookie } = await graphqlCall(null, headersBase, 'Login', QUERY_LOGIN, {
     input: { username, password },
   });
-  if (!data?.login?.token) throw new Error('Login sin token en la respuesta');
+  if (!data?.login?.token) throw new Error(`Login sin token en la respuesta: ${JSON.stringify(data).slice(0, 500)}`);
   // El server manda authToken/refreshToken por Set-Cookie — se arman a mano
   // acá porque fetch en Node no gestiona cookies solo como un navegador.
   const cookieHeader = `authToken=${data.login.token}; refreshToken=${data.login.refreshToken}`;
