@@ -171,7 +171,15 @@ async function obtenerPasesTag(cookieHeader, headers, cuenta, dateIniStr, dateEn
       usuario: cuenta,
     },
   });
-  return data?.reportTagMultas?.data?.reportTAG || [];
+  // Diagnóstico temporal 2026-09-03: la corrida anterior mostró
+  // filas.length===1 con esa única fila siendo, en realidad, el arreglo
+  // completo de ~30 pases anidado un nivel de más — hay algo en la forma
+  // real de reportTagMultas.data que no calza con lo asumido (¿es un
+  // arreglo con un elemento por patente, en vez de un objeto directo?).
+  console.log(`[smartreport][diag] typeof data.reportTagMultas.data: ${typeof data?.reportTagMultas?.data}, esArray: ${Array.isArray(data?.reportTagMultas?.data)}, largo si es array: ${Array.isArray(data?.reportTagMultas?.data) ? data.reportTagMultas.data.length : 'n/a'}`);
+  const contenedor = data?.reportTagMultas?.data;
+  const reportTAG = Array.isArray(contenedor) ? (contenedor[0]?.reportTAG || []) : (contenedor?.reportTAG || []);
+  return reportTAG;
 }
 
 // --- Mapeo de códigos ---------------------------------------------------------
