@@ -69,23 +69,22 @@ async function graphqlCall(cookieHeader, headersExtra, operationName, query, var
     },
     body: JSON.stringify({ operationName, query, variables }),
   });
-  const setCookie = res.headers.get('set-cookie');
+  // getSetCookie() (no headers.get('set-cookie')) — el servidor manda VARIOS
+  // headers Set-Cookie por separado (authToken, refreshToken), y .get() los
+  // combina en un solo string con comas, ambiguo para parsear bien.
+  const setCookies = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
   const json = await res.json();
   if (json.errors) throw new Error(`GraphQL ${operationName} falló (HTTP ${res.status}): ${JSON.stringify(json.errors)}`);
   if (!json.data) throw new Error(`GraphQL ${operationName} sin "data" (HTTP ${res.status}): ${JSON.stringify(json).slice(0, 500)}`);
-  return { data: json.data, setCookie, status: res.status, headers: res.headers };
+  return { data: json.data, setCookies, status: res.status };
 }
 
-// Diagnóstico temporal 2026-09-03: el login viene devolviendo
-// token/refreshToken=null de forma consistente (4 corridas seguidas, con
-// credenciales ya reconfirmadas y headers de navegador agregados) — se
-// vuelca el status HTTP y TODOS los headers de respuesta para buscar
-// alguna señal de bloqueo (rate-limit, WAF/CDN, cookie de verificación de
-// dispositivo, etc.) antes de seguir agregando headers a ciegas.
-function volcarHeaders(headers) {
-  const obj = {};
-  for (const [k, v] of headers.entries()) obj[k] = v;
-  return JSON.stringify(obj);
+function extraerCookie(setCookies, nombre) {
+  for (const c of setCookies) {
+    const m = c.match(new RegExp(`^${nombre}=([^;]+)`));
+    if (m) return m[1];
+  }
+  return null;
 }
 
 const QUERY_LOGIN = `
@@ -118,18 +117,16 @@ async function loginSmartReport(username, password) {
   // Antes de loguearse la app real manda "usuario" vacío en el header (recién
   // se llena una vez autenticado) — se replica por si el backend lo valida.
   const headersLogin = { usuario: '', displayname: '', language: 'es', sessionid };
-  const { data, status, headers: resHeaders, setCookie } = await graphqlCall(null, headersLogin, 'Login', QUERY_LOGIN, {
+  const { data, setCookies } = await graphqlCall(null, headersLogin, 'Login', QUERY_LOGIN, {
     input: { username, password },
   });
-  if (!data?.login?.token) {
-    throw new Error(
-      `Login sin token en la respuesta (HTTP ${status}). set-cookie: ${setCookie || '(ninguno)'}. ` +
-      `headers respuesta: ${volcarHeaders(resHeaders)}. data: ${JSON.stringify(data).slice(0, 300)}`
-    );
-  }
-  // El server manda authToken/refreshToken por Set-Cookie — se arman a mano
-  // acá porque fetch en Node no gestiona cookies solo como un navegador.
-  const cookieHeader = `authToken=${data.login.token}; refreshToken=${data.login.refreshToken}`;
+  // OJO: data.login.token/refreshToken vienen null a propósito (el server los
+  // manda por Set-Cookie HttpOnly, no en el cuerpo JSON, por seguridad) —
+  // los reales hay que sacarlos de ahí, no de "data".
+  const authToken = extraerCookie(setCookies, 'authToken');
+  const refreshToken = extraerCookie(setCookies, 'refreshToken');
+  if (!authToken) throw new Error(`Login sin cookie authToken en la respuesta. set-cookie recibidas: ${JSON.stringify(setCookies)}`);
+  const cookieHeader = `authToken=${authToken}; refreshToken=${refreshToken}`;
   const headers = { usuario: username, displayname: data.login.displayName || '', language: 'es', sessionid };
   return { cookieHeader, headers };
 }
