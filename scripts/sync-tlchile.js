@@ -127,6 +127,14 @@ const VENTANA_ESTACIONADO_MS = 20 * 60 * 60 * 1000;
 // algún día, va a ir a esa velocidad y se sigue detectando igual).
 const VELOCIDAD_MINIMA_PORTICO = { P10: 40 };
 
+// Techo de velocidad IMPLÍCITA entre dos puntos GPS consecutivos del mismo
+// vehículo (distancia/tiempo) — no la velocidad que reporta el punto (esa
+// la mide el dispositivo directo, esto es un cálculo propio). 180 km/h es
+// muy por sobre el límite real de cualquier autopista chilena (~120 km/h),
+// da margen a imprecisión GPS normal, y solo descarta lecturas que
+// impliquen un salto físicamente imposible entre dos lecturas.
+const VELOCIDAD_MAX_PLAUSIBLE_KMH = 180;
+
 const PORTICOS = [
   { codigo: 'P3',   concesionaria: 'Costanera Norte',   tramo: 'Puente Lo Saldes – Vivaceta',                lat: -33.4240, lon: -70.6220 },
   { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
@@ -1104,6 +1112,16 @@ async function main() {
     unitIds,
   });
   console.log(`[travel] ${rows.length} posiciones GPS recibidas (todas las unidades)`);
+  // Diagnóstico temporal 2026-09-03: se detectaron pasadas falsas para
+  // VVJG-14 (Vespucio Norte + AVO + Túnel San Cristóbal + Costanera Norte en
+  // 35 min, con el auto ya estacionado en casa según el reporte de
+  // posiciones de TrackGTS, que sí trae un campo "Guardado" vs "OK" para
+  // indicar si es un fix GPS real o una posición en caché). reportTravel no
+  // expone ese campo con los nombres que ya leemos (unitIdA0/latC12/etc) —
+  // esto vuelca TODAS las claves de la primera fila para ver si hay una
+  // columna de calidad/estado de GPS sin usar (ej. C0-C7, C9, C10, C16+).
+  // Quitar una vez identificado el campo o descartada la hipótesis.
+  if (rows.length) console.log('[travel][diagnóstico] claves de una fila:', JSON.stringify(rows[0]));
 
   // --- Santa Marta -----------------------------------------------------------
   const porUnitIdSantaMarta = new Map(UNIDADES_SANTAMARTA.map((u) => [u.unitId, u]));
@@ -1232,9 +1250,31 @@ async function main() {
     const detecciones = [];
     let ultimoPortico = null;
     let ultimoTs = null;
+    let ultimoPuntoValido = null;
     for (let i = 0; i < puntos.length; i++) {
       const p = puntos[i];
-      const anterior = puntos[i - 1];
+      // Salto de posición imposible: si el tramo desde el último punto que sí
+      // pasó este chequeo implica una velocidad irreal, esta lectura es
+      // sospechosa (dato corrupto/cacheado de TrackGTS, no necesariamente un
+      // tránsito real) y se descarta ENTERA — no solo se ignora contra el
+      // pórtico más cercano, para no arrastrar el punto malo como "anterior"
+      // del siguiente. Confirmado 2026-08-02: VVJG-14 registró 6 pórticos de
+      // 4 concesionarias distintas en 35 min con el auto ya estacionado en
+      // casa según el reporte de posiciones real — este filtro no habría
+      // agarrado ESE caso puntual (el salto ahí implicaba una velocidad
+      // creíble, ~40 km/h en línea recta), pero sí cubre el caso más simple
+      // de una lectura suelta con coordenada corrupta.
+      const anterior = ultimoPuntoValido;
+      if (anterior) {
+        const distanciaKm = haversineMetros(anterior.lat, anterior.lon, p.lat, p.lon) / 1000;
+        const horas = (p.time.getTime() - anterior.time.getTime()) / 3_600_000;
+        const kmh = horas > 0 ? distanciaKm / horas : (distanciaKm > 0.05 ? Infinity : 0);
+        if (kmh > VELOCIDAD_MAX_PLAUSIBLE_KMH) {
+          console.log(`[porticos] ⚠️ ${vehiculo.patente}: salto GPS descartado (${distanciaKm.toFixed(1)}km en ${(horas * 60).toFixed(1)}min ≈ ${kmh === Infinity ? '∞' : kmh.toFixed(0)} km/h) entre ${fmtTL(anterior.time)} y ${fmtTL(p.time)} — no se usa para detectar pórticos.`);
+          continue;
+        }
+      }
+      ultimoPuntoValido = p;
       for (const portico of PORTICOS) {
         const d = anterior
           ? distanciaPuntoASegmentoMetros(portico.lat, portico.lon, anterior.lat, anterior.lon, p.lat, p.lon)
