@@ -209,6 +209,15 @@ async function emparejarYActualizar(filas) {
   let sinPasada = 0;
 
   for (const fila of filas) {
+    // Defensivo: se vio en producción una fila sin "portico"/"auto_nombre"
+    // (con solo 1 fila en el rango pedido, probablemente algún tipo de fila
+    // de resumen/placeholder que ReportTagMultas mezcla en la lista) — se
+    // loguea para diagnosticar en vez de reventar toda la corrida.
+    if (!fila.portico || !fila.auto_nombre || !fila.patente || !fila.rpt_fecha || fila.tarifa == null) {
+      console.log(`[smartreport] Fila con campos faltantes, se omite: ${JSON.stringify(fila)}`);
+      sinMapear++;
+      continue;
+    }
     const codigo = codigoInterno(fila.auto_nombre, fila.portico);
     if (!codigo) { sinMapear++; continue; }
 
