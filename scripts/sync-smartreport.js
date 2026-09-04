@@ -197,11 +197,22 @@ function codigoInterno(concesion, portico) {
   if (c === 'VESPUCIO SUR') return MAP_VS[primerToken] || null;
   if (c.startsWith('TUNEL SAN CRISTOBAL')) return MAP_SK[primerToken] || null;
   if (c.startsWith('AUTOPISTA CENTRAL')) return primerToken; // PA19, PA37, etc — mismo nombre
-  // VESPUCIO ORIENTE (AVO) queda afuera a propósito: factura por tramo
-  // completo (ej. "P202 - P210"), no por pórtico individual — no hay forma
-  // limpia de emparejarlo 1 a 1 contra nuestras detecciones por gantry.
+  // VESPUCIO ORIENTE (AVO) no tiene código 1 a 1: factura por TRAMO completo
+  // (ej. "P202 - P211 Tobalaba"), no por pórtico individual — se maneja
+  // aparte en emparejarYActualizar (ver EsVespucioOriente más abajo).
   return null;
 }
+
+function esVespucioOriente(concesion) {
+  return concesion.trim().toUpperCase() === 'VESPUCIO ORIENTE';
+}
+
+// Ventana ancha para AVO: un trayecto real por el túnel hasta Tobalaba (u
+// otro tramo) puede tomar bastante más que los ±10 min que alcanzan para un
+// pórtico puntual — confirmado 2026-09-04 con 3 trayectos reales seguidos
+// (1, 2 y 3 de sept) que el usuario tuvo que confirmar a mano porque el
+// sistema los había descartado por error.
+const VENTANA_AVO_MS = 40 * 60 * 1000;
 
 // --- Emparejamiento contra porticos_pasadas_reales --------------------------
 
@@ -221,8 +232,9 @@ async function emparejarYActualizar(filas) {
       sinMapear++;
       continue;
     }
-    const codigo = codigoInterno(fila.auto_nombre, fila.portico);
-    if (!codigo) { sinMapear++; continue; }
+    const esAVO = esVespucioOriente(fila.auto_nombre);
+    const codigo = esAVO ? null : codigoInterno(fila.auto_nombre, fila.portico);
+    if (!esAVO && !codigo) { sinMapear++; continue; }
 
     if (!vehiculoIdPorPatente.has(fila.patente)) {
       const { data: vehiculo, error } = await supabase.from('porticos_vehiculos').select('id').eq('patente', fila.patente).maybeSingle();
@@ -235,22 +247,42 @@ async function emparejarYActualizar(filas) {
     // rpt_fecha ya viene en ISO UTC real (ej. "2026-09-03T11:43:24.000Z") —
     // a diferencia del Excel, acá no hace falta convertir desde hora Chile.
     const tsReporte = new Date(fila.rpt_fecha);
-    const { data: candidatas, error: errCand } = await supabase
+    let query = supabase
       .from('porticos_pasadas_reales')
       .select('id, ts')
       .eq('vehiculo_id', vehiculoId)
-      .eq('portico_codigo', codigo)
       .eq('confirmado', true)
-      .gte('ts', new Date(tsReporte.getTime() - VENTANA_EMPAREJAR_MS).toISOString())
-      .lte('ts', new Date(tsReporte.getTime() + VENTANA_EMPAREJAR_MS).toISOString());
-    if (errCand) throw new Error(`Error buscando pasada ${fila.patente}/${codigo}: ${errCand.message}`);
+      .is('monto_smartreport', null);
+    if (esAVO) {
+      // AVO cobra por TRAMO completo (entrada→salida), no por pórtico — se
+      // toma cualquier pasada de esa concesionaria en una ventana ancha (ver
+      // VENTANA_AVO_MS) y, de todas las candidatas, se elige la MÁS TARDÍA:
+      // suele ser el pórtico de salida (ej. "Tobalaba"), el que mejor
+      // representa el cierre real del tramo cobrado.
+      query = query
+        .eq('concesionaria', 'Vespucio Oriente (AVO)')
+        .gte('ts', new Date(tsReporte.getTime() - VENTANA_AVO_MS).toISOString())
+        .lte('ts', new Date(tsReporte.getTime() + VENTANA_AVO_MS).toISOString());
+    } else {
+      query = query
+        .eq('portico_codigo', codigo)
+        .gte('ts', new Date(tsReporte.getTime() - VENTANA_EMPAREJAR_MS).toISOString())
+        .lte('ts', new Date(tsReporte.getTime() + VENTANA_EMPAREJAR_MS).toISOString());
+    }
+    const { data: candidatas, error: errCand } = await query;
+    if (errCand) throw new Error(`Error buscando pasada ${fila.patente}/${esAVO ? 'AVO' : codigo}: ${errCand.message}`);
     if (!candidatas || !candidatas.length) { sinPasada++; continue; }
 
-    let mejor = candidatas[0];
-    let mejorDiff = Math.abs(new Date(mejor.ts).getTime() - tsReporte.getTime());
-    for (const c of candidatas.slice(1)) {
-      const diff = Math.abs(new Date(c.ts).getTime() - tsReporte.getTime());
-      if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
+    let mejor;
+    if (esAVO) {
+      mejor = candidatas.reduce((a, b) => (new Date(b.ts) > new Date(a.ts) ? b : a));
+    } else {
+      mejor = candidatas[0];
+      let mejorDiff = Math.abs(new Date(mejor.ts).getTime() - tsReporte.getTime());
+      for (const c of candidatas.slice(1)) {
+        const diff = Math.abs(new Date(c.ts).getTime() - tsReporte.getTime());
+        if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
+      }
     }
 
     const { error: errUpdate } = await supabase.from('porticos_pasadas_reales').update({ monto_smartreport: fila.tarifa }).eq('id', mejor.id);
