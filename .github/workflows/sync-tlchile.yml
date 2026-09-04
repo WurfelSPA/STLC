@@ -39,14 +39,24 @@ jobs:
       # como causa de varias corridas fallidas por timeout de 5 min en este
       # paso cuando la red de GitHub estaba lenta. Con caché, una vez
       # instalado una vez, las corridas siguientes ni siquiera llaman a npm.
+      #
+      # OJO: puppeteer instala el binario de Chrome AFUERA de node_modules,
+      # en ~/.cache/puppeteer — cachear solo node_modules (como quedó en el
+      # primer intento) hacía que la corrida saltara "npm install" (cache-hit)
+      # pero SIN Chrome descargado, reventando con "Could not find Chrome"
+      # (bug real encontrado 2026-09-04, mismo día). Hay que cachear las dos
+      # rutas juntas.
+      #
       # Si se necesita forzar una reinstalación (ej. al subir de versión
       # puppeteer/supabase-js), cambiar el sufijo "-v1" de la key.
       - name: Cachear node_modules
         id: cache-node-modules
         uses: actions/cache@v4
         with:
-          path: node_modules
-          key: node-modules-tlchile-v1
+          path: |
+            node_modules
+            ~/.cache/puppeteer
+          key: node-modules-tlchile-v2
 
       - name: Instalar dependencias
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
