@@ -29,7 +29,18 @@ jobs:
         with:
           node-version: '22'
 
+      # Mismo fix que sync-tlchile.yml (2026-09-04): cachear node_modules
+      # para no depender de que npm/la red de GitHub respondan rápido en
+      # cada corrida. Cambiar el sufijo "-v1" si hay que forzar reinstalar.
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-smartreport-v1
+
       - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm install @supabase/supabase-js
         timeout-minutes: 5
 

@@ -34,7 +34,22 @@ jobs:
         with:
           node-version: '22'
 
+      # Sin esto, cada corrida (cada 30 min) volvía a descargar Chromium de
+      # cero (~150-300MB, lo que instala puppeteer) — encontrado 2026-09-04
+      # como causa de varias corridas fallidas por timeout de 5 min en este
+      # paso cuando la red de GitHub estaba lenta. Con caché, una vez
+      # instalado una vez, las corridas siguientes ni siquiera llaman a npm.
+      # Si se necesita forzar una reinstalación (ej. al subir de versión
+      # puppeteer/supabase-js), cambiar el sufijo "-v1" de la key.
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-tlchile-v1
+
       - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm install puppeteer @supabase/supabase-js
         timeout-minutes: 5
 
