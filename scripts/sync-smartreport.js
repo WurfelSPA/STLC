@@ -214,24 +214,75 @@ function esVespucioOriente(concesion) {
 // sistema los había descartado por error.
 const VENTANA_AVO_MS = 40 * 60 * 1000;
 
+// Bug real encontrado 2026-09-08: Smart Report reporta un mismo trayecto AVO
+// con VARIAS filas — una por cada pórtico intermedio del tramo (ej. "P201",
+// "P202"...), todas con la MISMA tarifa final del tramo completo (AVO cobra
+// por tramo, no por pórtico individual). Sin agrupar, cada fila consumía una
+// pasada GPS CONFIRMADA distinta (P201, P110, P202...) como si fueran 3
+// cobros reales separados, cuando era uno solo — inflaba el total mostrado y
+// dejaba "monto_smartreport" pegado a pasadas que en realidad correspondían
+// al mismo viaje. Se agrupan las filas AVO de una misma patente que caen
+// dentro de la misma ventana de tiempo (VENTANA_AVO_MS) en un solo viaje
+// antes de emparejar, y se usa la de fecha más tardía como representante
+// (mismo criterio que ya se usaba para elegir la pasada, ver más abajo).
+function agruparViajesAVO(filasAVO) {
+  const porPatente = new Map();
+  for (const f of filasAVO) {
+    if (!porPatente.has(f.patente)) porPatente.set(f.patente, []);
+    porPatente.get(f.patente).push(f);
+  }
+  const viajes = [];
+  for (const filas of porPatente.values()) {
+    filas.sort((a, b) => new Date(a.rpt_fecha) - new Date(b.rpt_fecha));
+    let grupoActual = null;
+    for (const f of filas) {
+      const ts = new Date(f.rpt_fecha).getTime();
+      if (grupoActual && ts - grupoActual.ultimoTs <= VENTANA_AVO_MS) {
+        if (ts > grupoActual.ultimoTs) grupoActual.representante = f;
+        grupoActual.ultimoTs = ts;
+      } else {
+        grupoActual = { representante: f, ultimoTs: ts };
+        viajes.push(grupoActual);
+      }
+    }
+  }
+  return viajes.map((v) => v.representante);
+}
+
 // --- Emparejamiento contra porticos_pasadas_reales --------------------------
 
-async function emparejarYActualizar(filas) {
+async function emparejarYActualizar(filasCrudas) {
   const vehiculoIdPorPatente = new Map();
   let actualizadas = 0;
   let sinMapear = 0;
   let sinPasada = 0;
 
-  for (const fila of filas) {
-    // Defensivo: se vio en producción una fila sin "portico"/"auto_nombre"
-    // (con solo 1 fila en el rango pedido, probablemente algún tipo de fila
-    // de resumen/placeholder que ReportTagMultas mezcla en la lista) — se
-    // loguea para diagnosticar en vez de reventar toda la corrida.
+  // Defensivo primero: se vio en producción una fila sin "portico"/
+  // "auto_nombre" (con solo 1 fila en el rango pedido, probablemente algún
+  // tipo de fila de resumen/placeholder que ReportTagMultas mezcla en la
+  // lista) — se loguea para diagnosticar en vez de reventar toda la corrida.
+  const filasValidas = [];
+  for (const fila of filasCrudas) {
     if (!fila.portico || !fila.auto_nombre || !fila.patente || !fila.rpt_fecha || fila.tarifa == null) {
       console.log(`[smartreport] Fila con campos faltantes, se omite: ${JSON.stringify(fila)}`);
       sinMapear++;
       continue;
     }
+    filasValidas.push(fila);
+  }
+
+  // Agrupar ANTES de emparejar: varias filas AVO del mismo viaje real (ver
+  // agruparViajesAVO) se colapsan a una sola, para que un solo cobro real no
+  // termine consumiendo 3 pasadas GPS distintas como si fueran 3 cobros.
+  const filasAVO = filasValidas.filter((f) => esVespucioOriente(f.auto_nombre));
+  const filasNoAVO = filasValidas.filter((f) => !esVespucioOriente(f.auto_nombre));
+  const viajesAVO = agruparViajesAVO(filasAVO);
+  if (filasAVO.length !== viajesAVO.length) {
+    console.log(`[smartreport] AVO: ${filasAVO.length} filas agrupadas en ${viajesAVO.length} viaje(s) real(es) antes de emparejar.`);
+  }
+  const filas = [...filasNoAVO, ...viajesAVO];
+
+  for (const fila of filas) {
     const esAVO = esVespucioOriente(fila.auto_nombre);
     const codigo = esAVO ? null : codigoInterno(fila.auto_nombre, fila.portico);
     if (!esAVO && !codigo) { sinMapear++; continue; }
@@ -285,12 +336,68 @@ async function emparejarYActualizar(filas) {
       }
     }
 
-    const { error: errUpdate } = await supabase.from('porticos_pasadas_reales').update({ monto_smartreport: fila.tarifa }).eq('id', mejor.id);
+    // sin_respaldo_smartreport:false — por si esta pasada ya había quedado
+    // marcada como "sin respaldo" en una corrida anterior y recién ahora,
+    // más tarde de lo normal, aparece su cobro real.
+    const { error: errUpdate } = await supabase
+      .from('porticos_pasadas_reales')
+      .update({ monto_smartreport: fila.tarifa, sin_respaldo_smartreport: false })
+      .eq('id', mejor.id);
     if (errUpdate) throw new Error(`Error actualizando pasada ${mejor.id}: ${errUpdate.message}`);
     actualizadas++;
   }
 
   console.log(`[smartreport] ${actualizadas} pasadas actualizadas, ${sinPasada} sin pasada confirmada cercana, ${sinMapear} filas sin código mapeado (AVO u otro código nuevo).`);
+}
+
+// Capa 4: validación contra facturación real ya ingerida. Una pasada
+// CONFIRMADA (por GPS) de una concesionaria que Smart Report SÍ cubre, sin
+// ningún cobro real que le haya calzado después de varios días, es evidencia
+// fuerte de que fue una detección falsa — no una aproximación de posición,
+// sino la ausencia de un cobro real donde sí debería haber aparecido uno.
+// Caso real que motivó esto (2026-09-08): en el nudo El Salto, Costanera
+// Norte + Vespucio Oriente + Túnel San Cristóbal quedan mapeados a metros de
+// distancia — un solo tránsito real disparó 6 códigos distintos, y de esos,
+// el Túnel San Cristóbal (PC101/PC102) nunca tuvo ningún cobro real detrás
+// pese a que sí hubo cobros reales para los otros 2 ese mismo día.
+//
+// Solo aplica a concesionarias que este script sabe mapear (ver
+// codigoInterno/esVespucioOriente) — Ruta 5 interurbano y Acceso Vial AMB no
+// tienen cobertura de Smart Report, así que la ausencia de match ahí no dice
+// nada (no es que se revisó y no calzó, es que nunca se pudo revisar).
+//
+// Margen de SMARTREPORT_DIAS_ATRAS+2 días: el propio feed de Smart Report
+// solo cubre los últimos SMARTREPORT_DIAS_ATRAS días en cada corrida, así
+// que pasado ese margen ya no hay ninguna corrida futura que vuelva a
+// intentar emparejar esta pasada — el "sin match" es definitivo, no
+// "todavía pendiente".
+//
+// Puramente informativo por ahora (no oculta nada del dashboard ni de
+// /api/pasadas) — se evalúa unos días antes de decidir si se usa para algo
+// más que mostrarlo.
+const CONCESIONARIAS_CUBIERTAS_SMARTREPORT = [
+  'Vespucio Norte', 'Costanera Norte', 'Vespucio Sur', 'Autopista Central',
+  'Vespucio Oriente (AVO)', 'Túnel San Cristóbal',
+];
+const DIAS_MARGEN_SIN_RESPALDO = SMARTREPORT_DIAS_ATRAS + 2;
+
+async function marcarSinRespaldo() {
+  const corte = new Date(Date.now() - DIAS_MARGEN_SIN_RESPALDO * 24 * 3600 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('porticos_pasadas_reales')
+    .update({ sin_respaldo_smartreport: true })
+    .eq('confirmado', true)
+    .is('monto_smartreport', null)
+    .eq('sin_respaldo_smartreport', false)
+    .in('concesionaria', CONCESIONARIAS_CUBIERTAS_SMARTREPORT)
+    .lt('ts', corte)
+    .select('id, portico_codigo, ts');
+  if (error) throw new Error(`Error marcando pasadas sin respaldo: ${error.message}`);
+  if (data && data.length) {
+    console.log(`[smartreport][sin-respaldo] ${data.length} pasada(s) marcadas sin respaldo real tras ${DIAS_MARGEN_SIN_RESPALDO} días: ${data.map((d) => `${d.portico_codigo}@${d.ts}`).join(', ')}`);
+  } else {
+    console.log('[smartreport][sin-respaldo] Ninguna pasada nueva sin respaldo.');
+  }
 }
 
 // --- main --------------------------------------------------------------------
@@ -313,6 +420,7 @@ async function main() {
   const filas = await obtenerPasesTag(cookieHeader, headers, cuenta, dateIni, dateEnd);
   console.log(`[smartreport] ${filas.length} filas de cobro recibidas.`);
   await emparejarYActualizar(filas);
+  await marcarSinRespaldo();
 }
 
 main().catch((err) => {
