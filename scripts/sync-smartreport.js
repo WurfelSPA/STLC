@@ -380,16 +380,40 @@ const CONCESIONARIAS_CUBIERTAS_SMARTREPORT = [
   'Vespucio Oriente (AVO)', 'Túnel San Cristóbal',
 ];
 const DIAS_MARGEN_SIN_RESPALDO = SMARTREPORT_DIAS_ATRAS + 2;
+const PISO_COBERTURA_KEY = 'smartreport_piso_cobertura';
 
-async function marcarSinRespaldo() {
+// Bug real encontrado 2026-09-08: este script no corre con checkpoint
+// incremental — cada corrida solo pide los últimos SMARTREPORT_DIAS_ATRAS
+// días "hacia atrás desde hoy" (ver obtenerPasesTag). Eso significa que
+// cualquier pasada con ts ANTERIOR a la primera vez que este script corrió
+// menos ese margen NUNCA tuvo la posibilidad real de ser revisada — no es
+// que se revisó y no calzó un cobro real, es que jamás se pudo revisar. Sin
+// este piso, marcarSinRespaldo() marcaba como "sin respaldo" pasadas de
+// antes del 30 de agosto (la primera corrida fue el 3 de septiembre) que
+// en realidad eran reales y confirmadas a mano por el usuario — 16 de las
+// 88 marcadas la primera vez tenían monto_real verificado en pantalla.
+// Se guarda una sola vez (la primera corrida exitosa) y nunca se sobreescribe.
+async function obtenerPisoCobertura(desde) {
+  const { data, error } = await supabase.from('SyncCheckpoints').select('value').eq('key', PISO_COBERTURA_KEY).maybeSingle();
+  if (error) throw new Error(`Error leyendo piso de cobertura: ${error.message}`);
+  if (data?.value) return new Date(data.value);
+  const { error: errGuardar } = await supabase.from('SyncCheckpoints').upsert({ key: PISO_COBERTURA_KEY, value: desde.toISOString() });
+  if (errGuardar) throw new Error(`Error guardando piso de cobertura: ${errGuardar.message}`);
+  console.log(`[smartreport] Piso de cobertura fijado por primera vez: ${desde.toISOString()} (nada anterior a esto se marcará "sin respaldo").`);
+  return desde;
+}
+
+async function marcarSinRespaldo(piso) {
   const corte = new Date(Date.now() - DIAS_MARGEN_SIN_RESPALDO * 24 * 3600 * 1000).toISOString();
   const { data, error } = await supabase
     .from('porticos_pasadas_reales')
     .update({ sin_respaldo_smartreport: true })
     .eq('confirmado', true)
     .is('monto_smartreport', null)
+    .is('monto_real', null) // monto_real verificado a mano pesa más que la ausencia de Smart Report
     .eq('sin_respaldo_smartreport', false)
     .in('concesionaria', CONCESIONARIAS_CUBIERTAS_SMARTREPORT)
+    .gte('ts', piso.toISOString()) // antes de esto, Smart Report nunca tuvo la posibilidad de revisar
     .lt('ts', corte)
     .select('id, portico_codigo, ts');
   if (error) throw new Error(`Error marcando pasadas sin respaldo: ${error.message}`);
@@ -397,6 +421,20 @@ async function marcarSinRespaldo() {
     console.log(`[smartreport][sin-respaldo] ${data.length} pasada(s) marcadas sin respaldo real tras ${DIAS_MARGEN_SIN_RESPALDO} días: ${data.map((d) => `${d.portico_codigo}@${d.ts}`).join(', ')}`);
   } else {
     console.log('[smartreport][sin-respaldo] Ninguna pasada nueva sin respaldo.');
+  }
+
+  // Corrección retroactiva: filas ya marcadas por la corrida de ayer (antes
+  // de este fix) que en realidad quedan fuera de la ventana real de
+  // cobertura, o que sí tienen monto_real — se desmarcan.
+  const { data: corregidas, error: errCorregir } = await supabase
+    .from('porticos_pasadas_reales')
+    .update({ sin_respaldo_smartreport: false })
+    .eq('sin_respaldo_smartreport', true)
+    .or(`ts.lt.${piso.toISOString()},monto_real.not.is.null`)
+    .select('id, portico_codigo, ts');
+  if (errCorregir) throw new Error(`Error corrigiendo marcas previas: ${errCorregir.message}`);
+  if (corregidas && corregidas.length) {
+    console.log(`[smartreport][sin-respaldo] ${corregidas.length} marca(s) previa(s) corregidas (fuera de la ventana real de cobertura o con monto_real): ${corregidas.map((d) => `${d.portico_codigo}@${d.ts}`).join(', ')}`);
   }
 }
 
@@ -420,7 +458,8 @@ async function main() {
   const filas = await obtenerPasesTag(cookieHeader, headers, cuenta, dateIni, dateEnd);
   console.log(`[smartreport] ${filas.length} filas de cobro recibidas.`);
   await emparejarYActualizar(filas);
-  await marcarSinRespaldo();
+  const piso = await obtenerPisoCobertura(desde);
+  await marcarSinRespaldo(piso);
 }
 
 main().catch((err) => {
