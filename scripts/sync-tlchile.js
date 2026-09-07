@@ -30,6 +30,8 @@
 
 const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
+const { haversineMetros, puntoMasCercanoEnSegmento } = require('./geo-utils');
+const { distanciaCalzada } = require('./map-matching');
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY');
@@ -328,6 +330,36 @@ const PORTICOS = [
   { codigo: 'AMB', concesionaria: 'Acceso Vial AMB', tramo: 'Peaje Acceso Vial AMB', lat: -33.416596, lon: -70.792727 },
 ];
 
+// Grupo de geometría real (OSM, ver scripts/geometria-corredores/) que le
+// corresponde a cada pórtico — para el método NUEVO de detección (map-
+// matching contra la calzada real, en paralelo al radio de 150m mientras se
+// valida, ver comparacionesMetodos más abajo). En Santiago un mismo corredor
+// (ej. Vespucio Sur completo) comparte una sola geometría cacheada; los
+// peajes interurbanos de Ruta 5 NO comparten corredor entre sí (el backbone
+// recorre cientos de km) — cada uno es su propia plaza aislada con su propia
+// geometría.
+const GRUPO_GEOMETRIA_POR_CONCESIONARIA = {
+  'Costanera Norte': 'costanera-norte',
+  'Vespucio Norte': 'vespucio-norte',
+  'Autopista Central': 'autopista-central',
+  'Vespucio Sur': 'vespucio-sur',
+  'Vespucio Oriente (AVO)': 'avo',
+  'Túnel San Cristóbal': 'tunel-san-cristobal',
+  'Acceso Vial AMB': 'amb',
+};
+const GRUPO_GEOMETRIA_POR_CODIGO_INTERURBANO = {
+  LAMPA: 'lampa', LASVEGAS: 'lasvegas', PICHIDANGUI: 'pichidangui',
+  TRONCALSUR: 'troncalsur', TONGOY: 'tongoy', GUANAQUEROS: 'guanaqueros',
+  PTACOLORADA: 'ptacolorada', TOTORAL: 'totoral', PTOVIEJO: 'ptoviejo',
+};
+function grupoGeometriaPara(portico) {
+  return (
+    GRUPO_GEOMETRIA_POR_CODIGO_INTERURBANO[portico.codigo] ||
+    GRUPO_GEOMETRIA_POR_CONCESIONARIA[portico.concesionaria] ||
+    null
+  );
+}
+
 // Algunos pares de pórticos de Vespucio Sur comparten prácticamente la
 // misma posición física (las dos calzadas — ida y vuelta — quedan lo
 // bastante cerca como para caer en el mismo radio de 150m), pero el código
@@ -574,38 +606,6 @@ function dedupePorClave(filas, claveDe) {
   return Array.from(porClave.values());
 }
 
-function haversineMetros(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// Distancia mínima entre un punto (el pórtico) y el TRAMO RECTO entre dos
-// lecturas GPS consecutivas — no solo la distancia a cada lectura suelta.
-// Con GPS que reporta cada 30-60+ segundos, un auto a velocidad de autopista
-// puede cruzar un círculo de 150m ENTRE dos lecturas sin que ninguna caiga
-// adentro; revisando el tramo se detecta igual. Aproximación plana (válida
-// para segmentos de unos pocos km, muy por sobre la distancia real entre
-// dos puntos GPS consecutivos de un mismo vehículo).
-function distanciaPuntoASegmentoMetros(latP, lonP, latA, lonA, latB, lonB) {
-  const R = 6371000;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const cosRef = Math.cos(toRad(latP));
-  const ax = toRad(lonA - lonP) * cosRef * R;
-  const ay = toRad(latA - latP) * R;
-  const bx = toRad(lonB - lonP) * cosRef * R;
-  const by = toRad(latB - latP) * R;
-  const dx = bx - ax, dy = by - ay;
-  const lenCuadrado = dx * dx + dy * dy;
-  let t = lenCuadrado === 0 ? 0 : (-ax * dx - ay * dy) / lenCuadrado;
-  t = Math.max(0, Math.min(1, t));
-  const cx = ax + t * dx, cy = ay + t * dy;
-  return Math.hypot(cx, cy);
-}
-
 // Un tránsito real SIGUE de largo después del pórtico; un vehículo que
 // termina su viaje (se estaciona) justo dentro del radio de una geocerca
 // real nunca vuelve a aparecer fuera de ella. Antes de dar una pasada por
@@ -748,6 +748,49 @@ async function obtenerVehiculosPorticos() {
   const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa');
   if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
   return data || [];
+}
+
+// Método nuevo, capa 2: en vez de confiar en la coordenada tipeada a mano o
+// en la geometría genérica de OSM (que en un nudo de entradas/salidas no
+// distingue la vía tarificada de la rampa/colectora vecina — confirmado
+// 2026-09-08 con el caso 4.2/Vicuña Mackenna), se usa como ancla el punto
+// de cruce REAL de la pasada CONFIRMADA (con monto_real verificado a mano)
+// más precisa que exista para cada pórtico — la que tenga menor
+// distancia_m, o sea la que más cerca pasó del pórtico entre todas las
+// confirmaciones humanas acumuladas. Se auto-mejora solo con el tiempo (más
+// usuarios/cruces confirmados = ancla más precisa), sin depender de que
+// una fuente externa (OSM) tenga cada rampa bien tageada.
+//
+// Requiere el fix de puntoMasCercanoEnSegmento (ver geo-utils.js): antes de
+// 2026-09-08 lat/lon guardaba el PING crudo, no el punto de cruce
+// interpolado — dos confirmaciones del mismo pórtico con distancia_m<30
+// podían quedar guardadas a >400m entre sí. Los anclajes construidos con
+// filas anteriores a ese fix pueden traer ese mismo ruido; se corrige solo
+// a medida que entran filas nuevas (ya con el fix) con menor distancia_m.
+async function obtenerGatesEmpiricos() {
+  const { data, error } = await supabase
+    .from('porticos_pasadas_reales')
+    .select('portico_codigo, lat, lon, distancia_m')
+    .not('monto_real', 'is', null)
+    .not('lat', 'is', null)
+    .not('lon', 'is', null);
+  if (error) throw new Error(`Error leyendo gates empíricos: ${error.message}`);
+
+  const porCodigo = new Map();
+  for (const fila of data || []) {
+    const actual = porCodigo.get(fila.portico_codigo);
+    if (!actual) {
+      porCodigo.set(fila.portico_codigo, { lat: fila.lat, lon: fila.lon, distancia_m: fila.distancia_m, n: 1 });
+    } else {
+      actual.n += 1;
+      if (fila.distancia_m != null && (actual.distancia_m == null || fila.distancia_m < actual.distancia_m)) {
+        actual.lat = fila.lat;
+        actual.lon = fila.lon;
+        actual.distancia_m = fila.distancia_m;
+      }
+    }
+  }
+  return porCodigo;
 }
 
 // El alias del vehículo en Tracklink puede cambiar (ej. "DEMOGV58LAU" ->
@@ -1184,6 +1227,10 @@ async function main() {
   // contar si pasaron menos de VENTANA_MISMA_PASADA_MS desde esa última vez.
   const VENTANA_MISMA_PASADA_MS = 3 * 60 * 60 * 1000; // 3 horas
 
+  // Se lee una sola vez por corrida (no por vehículo) — no cambia entre
+  // vehículos y no vale la pena una consulta repetida por cada uno.
+  const gatesEmpiricos = await obtenerGatesEmpiricos();
+
   let totalDetecciones = 0;
   for (const vehiculo of vehiculosPorticos) {
     const puntosTotales = puntosPorVehiculo.get(vehiculo.id) || [];
@@ -1259,7 +1306,37 @@ async function main() {
       }
     }
 
+    // Método nuevo, capa 3 (trayectoria, no posición): velocidad mínima en
+    // los VENTANA_VELOCIDAD_PREVIA_MS previos al candidato. Una autopista
+    // tarificada es de flujo libre/segregado (sin semáforos ni cruces) — un
+    // tránsito real debería mantenerse en rango de autopista todo ese tramo.
+    // Una calle local o rampa de acceso muestra baches de velocidad baja por
+    // intersecciones aunque geométricamente pase muy cerca del pórtico (caso
+    // real 4.2/Vicuña Mackenna, 2026-09-08: 82km/h sostenido en el cruce real
+    // vs 20-25km/h en la caletera, con la posición casi idéntica entre
+    // ambos — ninguna de las capas 1/2 por sí sola distingue este caso).
+    // Puramente observacional por ahora, igual que capas 1 y 2.
+    const VENTANA_VELOCIDAD_PREVIA_MS = 2 * 60 * 1000;
+    function velocidadMinimaEnVentana(puntosDelVehiculo, indice) {
+      const tsActual = puntosDelVehiculo[indice].time.getTime();
+      let min = null;
+      let n = 0;
+      for (let j = indice; j >= 0; j--) {
+        if (tsActual - puntosDelVehiculo[j].time.getTime() > VENTANA_VELOCIDAD_PREVIA_MS) break;
+        min = min == null ? puntosDelVehiculo[j].speed : Math.min(min, puntosDelVehiculo[j].speed);
+        n++;
+      }
+      return n > 0 ? min : null;
+    }
+
     const detecciones = [];
+    // Método NUEVO en paralelo (ver map-matching.js): por cada candidato
+    // dentro del radio de 150m, se registra ADEMÁS la distancia real a la
+    // calzada del corredor (map-matching contra geometría OSM) — sin
+    // cambiar en nada la detección actual. Se guarda en una tabla aparte
+    // (porticos_comparacion_metodos) solo para comparar los dos métodos
+    // antes de que el nuevo reemplace al de radio.
+    const comparaciones = [];
     let ultimoPortico = null;
     let ultimoTs = null;
     let ultimoPuntoValido = null;
@@ -1288,9 +1365,19 @@ async function main() {
       }
       ultimoPuntoValido = p;
       for (const portico of PORTICOS) {
-        const d = anterior
-          ? distanciaPuntoASegmentoMetros(portico.lat, portico.lon, anterior.lat, anterior.lon, p.lat, p.lon)
-          : haversineMetros(p.lat, p.lon, portico.lat, portico.lon);
+        // puntoCruce: el punto de máxima cercanía sobre el TRAMO GPS
+        // anterior→actual, no la lectura p cruda — dos pasadas confirmadas
+        // del mismo pórtico pueden tener su lectura p a >400m entre sí (dos
+        // pings de 30-60s a velocidad de autopista) aunque ambas hayan
+        // pasado igual de cerca del pórtico. Guardar el punto interpolado en
+        // vez del ping crudo es lo que hace que lat/lon sirvan como ancla
+        // empírica del pórtico (ver empirical gates, capa 2 del map-matching).
+        const { d, puntoCruce } = anterior
+          ? (() => {
+              const r = puntoMasCercanoEnSegmento(portico.lat, portico.lon, anterior.lat, anterior.lon, p.lat, p.lon);
+              return { d: r.distancia, puntoCruce: { lat: r.lat, lon: r.lon } };
+            })()
+          : { d: haversineMetros(p.lat, p.lon, portico.lat, portico.lon), puntoCruce: { lat: p.lat, lon: p.lon } };
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
           const resuelto = resolverCodigoDireccional(portico, anterior, p);
@@ -1308,6 +1395,34 @@ async function main() {
           const esFalsoPositivoConocido = FALSOS_POSITIVOS_CONOCIDOS.has(`${vehiculo.patente}|${resuelto.codigo}`);
           const velocidadMinima = VELOCIDAD_MINIMA_PORTICO[resuelto.codigo];
           const cumpleVelocidadMinima = velocidadMinima == null || p.speed >= velocidadMinima;
+
+          // Método nuevo en paralelo: se registra para TODO candidato dentro
+          // del radio de 150m, incluso los que el método actual descarta por
+          // velocidad/falso-positivo-conocido — así se puede comparar contra
+          // esos mismos casos ya investigados a mano (P10, P11, PA17, etc).
+          if (esNuevoEnEstaCorrida) {
+            comparaciones.push({
+              vehiculo_id: vehiculo.id,
+              ts: p.time.toISOString(),
+              portico_codigo: resuelto.codigo,
+              concesionaria: portico.concesionaria,
+              distancia_punto_m: Math.round(d),
+              distancia_calzada_m: (() => {
+                const dc = distanciaCalzada(grupoGeometriaPara(portico), puntoCruce.lat, puntoCruce.lon);
+                return dc == null ? null : Math.round(dc);
+              })(),
+              distancia_gate_empirico_m: (() => {
+                const gate = gatesEmpiricos.get(resuelto.codigo);
+                if (!gate) return null;
+                return Math.round(haversineMetros(gate.lat, gate.lon, puntoCruce.lat, puntoCruce.lon));
+              })(),
+              n_confirmaciones_empiricas: gatesEmpiricos.get(resuelto.codigo)?.n ?? 0,
+              velocidad_minima_ventana_previa_kmh: velocidadMinimaEnVentana(puntos, i),
+              velocidad_kmh: p.speed,
+              metodo_actual_habria_confirmado: esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima,
+            });
+          }
+
           if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima) {
             // confirmado: ¿hay ya, en esta misma corrida, algún punto GPS
             // posterior que muestre al vehículo fuera del radio? Un tránsito
@@ -1323,8 +1438,8 @@ async function main() {
               tramo: resuelto.tramo,
               distancia_m: Math.round(d),
               velocidad_kmh: p.speed,
-              lat: p.lat,
-              lon: p.lon,
+              lat: puntoCruce.lat,
+              lon: puntoCruce.lon,
               confirmado: hayPuntoFueraDelRadio(puntos.slice(i + 1), p.lat, p.lon),
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
@@ -1340,6 +1455,18 @@ async function main() {
     const deteccionesSinDuplicar = dedupePorClave(detecciones, (d) => `${d.vehiculo_id}|${d.ts}|${d.portico_codigo}`);
     console.log(`[porticos] ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas nuevas detectadas`);
     totalDetecciones += deteccionesSinDuplicar.length;
+
+    // Guardar SIEMPRE las comparaciones del método nuevo, sin importar si
+    // este vehículo notifica por Telegram — antes del `continue` de más
+    // abajo para que nunca se salte esta parte.
+    const comparacionesSinDuplicar = dedupePorClave(comparaciones, (c) => `${c.vehiculo_id}|${c.ts}|${c.portico_codigo}`);
+    if (comparacionesSinDuplicar.length) {
+      const { error: errComparacion } = await supabase
+        .from('porticos_comparacion_metodos')
+        .upsert(comparacionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo' });
+      if (errComparacion) console.log(`[porticos][comparacion] Error guardando comparación de ${vehiculo.patente}: ${errComparacion.message}`);
+      else console.log(`[porticos][comparacion] ${vehiculo.patente}: ${comparacionesSinDuplicar.length} comparaciones guardadas`);
+    }
 
     if (deteccionesSinDuplicar.length) {
       const { error } = await supabase
