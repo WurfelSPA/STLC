@@ -573,15 +573,34 @@ async function notificarTelegram(texto) {
   if (!res.ok) console.log(`[telegram] Error enviando mensaje: HTTP ${res.status} ${await res.text()}`);
 }
 
+// Partes de una fecha en hora de Chile REAL (con horario de verano incluido)
+// — reemplaza los "±4 horas fijas" que tenía todo este archivo. Bug real
+// 2026-09-09: Chile pasó a UTC-3 el 6 de septiembre y todo lo que
+// sumaba/restaba 4h quedó atrasado 1 hora desde esa fecha (Telegram mostró
+// "06:07" para un cruce real de las 07:07, y bandaHeuristica clasificaba mal
+// la banda horaria — el error de negocio más serio posible acá). Con Intl +
+// el nombre de la zona horaria (no un número fijo) esto no se rompe en el
+// próximo cambio de horario.
+function partesChile(fecha) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const p = {};
+  for (const parte of fmt.formatToParts(fecha)) p[parte.type] = parte.value;
+  if (p.hour === '24') p.hour = '00';
+  return p;
+}
+
 function fmtFechaHoraChile(iso) {
-  const d = new Date(new Date(iso).getTime() - 4 * 3600 * 1000);
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getUTCDate())}-${p(d.getUTCMonth() + 1)}-${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+  const p = partesChile(new Date(iso));
+  return `${p.day}-${p.month}-${p.year} ${p.hour}:${p.minute}`;
 }
 
 function diaChile(date) {
-  const d = new Date(date.getTime() - 4 * 3600 * 1000);
-  return d.toISOString().slice(0, 10);
+  const p = partesChile(date);
+  return `${p.year}-${p.month}-${p.day}`;
 }
 
 function clp(n) {
@@ -688,9 +707,10 @@ const VENTANAS_SATURACION_PORTICO = {
 // vuelta en la heurística genérica (no es la ventana exacta de las
 // concesionarias que aún no hemos investigado).
 function bandaHeuristica(fecha, porticoCodigo) {
-  const dow = fecha.getDay();
-  const h = fecha.getHours();
-  const min = fecha.getMinutes();
+  const p = partesChile(fecha);
+  const dow = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day))).getUTCDay();
+  const h = Number(p.hour);
+  const min = Number(p.minute);
   if (dow === 0 || dow === 6) return 'TBFP';
   const minutosDia = h * 60 + min;
 
@@ -711,7 +731,7 @@ function bandaHeuristica(fecha, porticoCodigo) {
 // toque (mismo lote de puntos) como al confirmar una pasada que quedó
 // pendiente de una corrida anterior (ver "Confirmación diferida" abajo).
 function mensajePasada(patente, pasada) {
-  const banda = bandaHeuristica(new Date(new Date(pasada.ts).getTime() - 4 * 3600 * 1000), pasada.portico_codigo);
+  const banda = bandaHeuristica(new Date(pasada.ts), pasada.portico_codigo);
   // Un código sin TARIFAS cargada (ej. AVO — cobra por distancia recorrida
   // entrada/salida, no por pórtico individual, no encaja en este modelo) no
   // debe tirar el sync entero — antes esto reventaba con "Cannot read

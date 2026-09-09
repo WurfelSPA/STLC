@@ -440,9 +440,19 @@ async function marcarSinRespaldo(piso) {
 
 // --- main --------------------------------------------------------------------
 
+// d.getDate()/getMonth() usan la zona horaria del PROCESO (UTC en GitHub
+// Actions), no la de Chile — cerca de la medianoche Chile eso podía pedirle
+// a Smart Report el rango de fechas equivocado (un día de más o de menos).
+// Con Intl + America/Santiago se pide siempre el día calendario real de
+// Chile, sin depender de dónde corra el script ni de si hay horario de
+// verano (bug de offset fijo encontrado 2026-09-09 en el resto del sistema).
 function fmtSR(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const p = {};
+  for (const parte of fmt.formatToParts(d)) p[parte.type] = parte.value;
+  return `${p.day}/${p.month}/${p.year}`;
 }
 
 async function main() {
