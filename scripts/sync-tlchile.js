@@ -74,7 +74,9 @@ const SANTAMARTA_CHECKPOINT_KEY = 'santamarta_pull';
 
 // --- Pórticos ------------------------------------------------------------
 const PORTICOS_CHECKPOINT_KEY = 'porticos_pull';
-const PATENTES_NOTIFICAR_TELEGRAM = ['VVJG-14'];
+// Notificaciones desactivadas a pedido (2026-09-09) — se reactivan agregando
+// de vuelta la patente acá, sin tocar el resto del código de notificación.
+const PATENTES_NOTIFICAR_TELEGRAM = [];
 // "patente|codigo" conocidos como falso positivo — el radio de 150m alcanza
 // a rozar el pórtico pero el vehículo nunca lo cruza de verdad. La regla de
 // "confirmado" (¿salió del radio después?) no alcanza a distinguir esto en
