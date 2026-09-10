@@ -31,7 +31,7 @@
 const puppeteer = require('puppeteer');
 const { createClient } = require('@supabase/supabase-js');
 const { haversineMetros, puntoMasCercanoEnSegmento } = require('./geo-utils');
-const { distanciaCalzada } = require('./map-matching');
+const { distanciaCalzada, distanciasPorClase } = require('./map-matching');
 
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
   throw new Error('Falta la variable de entorno SUPABASE_SERVICE_ROLE_KEY');
@@ -641,6 +641,35 @@ function dedupePorClave(filas, claveDe) {
 // generaba una "pasada" y una notificación falsas, sin ningún cruce real.
 function hayPuntoFueraDelRadio(puntos, lat, lon) {
   return puntos.some((p) => haversineMetros(p.lat, p.lon, lat, lon) > RADIO_GEOCERCA_M);
+}
+
+// Una RAMPA de acceso (motorway_link/trunk_link) nace pegada a la vía local
+// de la que se desprende — justo antes de separarse, ambas quedan a los
+// mismos pocos metros. Por eso "¿hay alguna vía tarificada cerca?" no
+// alcanza para distinguir "iba en la caletera paralela" de "iba tomando la
+// rampa real": hace falta exigir que el vehículo efectivamente llegue a la
+// calzada PRINCIPAL (la autopista misma, no la rampa) para confirmar. Caso
+// real 2026-09-10: VVJG-14 midió 6m contra la geometría cacheada del
+// pórtico 4.2 (Vespucio Sur) yendo por "Av. Américo Vespucio" a 70km/h,
+// sin haber tomado la rampa — lo más cercano ahí era la rampa, no la
+// autopista. Si el pórtico no tiene geometría de clase cargada (grupo sin
+// vías "principal"/"rampa" cerca, ej. plazas interurbanas aisladas), esto
+// no aplica y se sigue confiando en el radio como siempre.
+const UMBRAL_CALZADA_PRINCIPAL_M = 30;
+const VENTANA_CONFIRMACION_RAMPA_MS = 3 * 60 * 1000;
+function requiereConfirmarCalzadaPrincipal(grupo, lat, lon) {
+  const d = distanciasPorClase(grupo, lat, lon);
+  if (d.principal == null && d.rampa == null) return false;
+  if (d.principal != null && d.principal <= UMBRAL_CALZADA_PRINCIPAL_M) return false;
+  return d.rampa != null && d.rampa <= UMBRAL_CALZADA_PRINCIPAL_M;
+}
+function hayPuntoCercaDeCalzadaPrincipal(puntos, grupo, tsBaseMs) {
+  for (const p of puntos) {
+    if (p.time.getTime() - tsBaseMs > VENTANA_CONFIRMACION_RAMPA_MS) break;
+    const d = distanciasPorClase(grupo, p.lat, p.lon).principal;
+    if (d != null && d <= UMBRAL_CALZADA_PRINCIPAL_M) return true;
+  }
+  return false;
 }
 
 // Ventanas oficiales de banda punta CONFIRMADAS por pórtico (hora Chile, L-V,
@@ -1381,6 +1410,11 @@ async function main() {
       if (errPendientes) throw new Error(`Error leyendo pasadas pendientes de ${vehiculo.patente}: ${errPendientes.message}`);
       for (const pendiente of pendientes || []) {
         if (!hayPuntoFueraDelRadio(puntos, pendiente.lat, pendiente.lon)) continue;
+        const grupoPendiente = GRUPO_GEOMETRIA_POR_CODIGO_INTERURBANO[pendiente.portico_codigo] || GRUPO_GEOMETRIA_POR_CONCESIONARIA[pendiente.concesionaria] || null;
+        if (
+          requiereConfirmarCalzadaPrincipal(grupoPendiente, pendiente.lat, pendiente.lon) &&
+          !hayPuntoCercaDeCalzadaPrincipal(puntos, grupoPendiente, new Date(pendiente.ts).getTime())
+        ) continue; // todavía no hay un punto que confirme que llegó a la calzada principal — reintentar la próxima corrida
         const { error: errConfirmar } = await supabase
           .from('porticos_pasadas_reales')
           .update({ confirmado: true })
@@ -1517,6 +1551,12 @@ async function main() {
             // 30-60s después); si no, queda pendiente y se reintenta en la
             // próxima corrida contra los puntos nuevos (ver "Confirmación
             // diferida" más arriba) — nunca se notifica hasta confirmarse.
+            const grupo = grupoGeometriaPara(portico);
+            const confirmadoPorRadio = hayPuntoFueraDelRadio(puntos.slice(i + 1), p.lat, p.lon);
+            const confirmadoPorCalzada = confirmadoPorRadio
+              ? !requiereConfirmarCalzadaPrincipal(grupo, puntoCruce.lat, puntoCruce.lon) ||
+                hayPuntoCercaDeCalzadaPrincipal(puntos.slice(i + 1), grupo, tsMs)
+              : false; // si ni siquiera salió del radio, ni vale la pena chequear la calzada
             detecciones.push({
               vehiculo_id: vehiculo.id,
               ts: p.time.toISOString(),
@@ -1527,7 +1567,7 @@ async function main() {
               velocidad_kmh: p.speed,
               lat: puntoCruce.lat,
               lon: puntoCruce.lon,
-              confirmado: hayPuntoFueraDelRadio(puntos.slice(i + 1), p.lat, p.lon),
+              confirmado: confirmadoPorRadio && confirmadoPorCalzada,
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
           }

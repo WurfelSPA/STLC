@@ -83,6 +83,24 @@ async function consultarOverpass(query, intentos = 3) {
   throw new Error('Overpass no respondió JSON válido tras reintentar');
 }
 
+// Se guarda la clase de vía (highway=motorway/trunk vs. motorway_link/
+// trunk_link) además de los puntos — antes se descartaba. Sin esto,
+// map-matching.js no puede distinguir la calzada PRINCIPAL de una rampa de
+// acceso, y una rampa (que por definición nace pegada a la vía local de la
+// que se desprende) puede quedar a los mismos pocos metros que esa vía local
+// justo antes de separarse — caso real 2026-09-10: un vehículo en la
+// caletera "Av. Américo Vespucio" a 70km/h, sin haber tomado la rampa,
+// midió 6m contra la geometría cacheada del pórtico 4.2 porque lo más
+// cercano en ese punto era la rampa de acceso (motorway_link), no la
+// autopista misma — la caletera queda excluida del filtro estricto, pero la
+// rampa no, y ahí conviven.
+function claseVia(tags) {
+  const h = tags && tags.highway;
+  if (h === 'motorway' || h === 'trunk') return 'principal';
+  if (h === 'motorway_link' || h === 'trunk_link') return 'rampa';
+  return 'otra';
+}
+
 function comprimir(json) {
   const elementos = json.elements || [];
   const segmentos = [];
@@ -93,7 +111,7 @@ function comprimir(json) {
     // Redondeo a 6 decimales (~11cm) — de sobra para esta tolerancia, evita
     // arrastrar ruido de precisión de punto flotante en el archivo cacheado.
     const pts = geom.map((p) => [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lon * 1e6) / 1e6]);
-    segmentos.push({ pts, oneway });
+    segmentos.push({ pts, oneway, clase: claseVia(e.tags) });
   }
   return segmentos;
 }

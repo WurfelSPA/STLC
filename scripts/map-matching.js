@@ -33,7 +33,7 @@ function cargarGrupo(grupo) {
     segmentos = [];
     for (const s of datos.segmentos || []) {
       for (let i = 0; i < s.pts.length - 1; i++) {
-        segmentos.push({ a: s.pts[i], b: s.pts[i + 1] });
+        segmentos.push({ a: s.pts[i], b: s.pts[i + 1], clase: s.clase || 'otra' });
       }
     }
   }
@@ -42,8 +42,9 @@ function cargarGrupo(grupo) {
 }
 
 // Distancia mínima (metros) desde (lat, lon) a la calzada real cacheada del
-// grupo. null si no hay geometría cacheada para ese grupo — el llamador
-// decide qué hacer con "sin dato" (nunca bloquea la detección actual).
+// grupo, sin distinguir clase de vía. null si no hay geometría cacheada para
+// ese grupo — el llamador decide qué hacer con "sin dato" (nunca bloquea la
+// detección actual).
 function distanciaCalzada(grupo, lat, lon) {
   if (!grupo) return null;
   const segmentos = cargarGrupo(grupo);
@@ -56,4 +57,29 @@ function distanciaCalzada(grupo, lat, lon) {
   return min;
 }
 
-module.exports = { distanciaCalzada };
+// Igual que distanciaCalzada, pero separado por clase de vía (principal =
+// motorway/trunk, la calzada tarificada real; rampa = motorway_link/
+// trunk_link, un acceso que por definición nace pegado a la vía local de la
+// que se desprende). Una rampa puede quedar a los mismos pocos metros que
+// una calle/caletera paralela justo antes de separarse de ella — por eso
+// "distancia a CUALQUIER vía tarificada" (distanciaCalzada de arriba) no
+// alcanza para distinguir "iba en la caletera" de "iba tomando la rampa"; la
+// distancia a la calzada PRINCIPAL sí, porque la autopista misma no corre
+// pegada a la caletera. Devuelve null por clase sin segmentos de esa clase.
+function distanciasPorClase(grupo, lat, lon) {
+  if (!grupo) return { principal: null, rampa: null, otra: null };
+  const segmentos = cargarGrupo(grupo);
+  if (!segmentos || !segmentos.length) return { principal: null, rampa: null, otra: null };
+  const min = { principal: Infinity, rampa: Infinity, otra: Infinity };
+  for (const { a, b, clase } of segmentos) {
+    const d = distanciaPuntoASegmentoMetros(lat, lon, a[0], a[1], b[0], b[1]);
+    if (d < min[clase]) min[clase] = d;
+  }
+  return {
+    principal: min.principal === Infinity ? null : min.principal,
+    rampa: min.rampa === Infinity ? null : min.rampa,
+    otra: min.otra === Infinity ? null : min.otra,
+  };
+}
+
+module.exports = { distanciaCalzada, distanciasPorClase };
