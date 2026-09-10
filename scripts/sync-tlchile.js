@@ -1050,29 +1050,56 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
       .select('id, monto, ts_ingreso')
       .eq('vehiculo_id', vehiculo.id)
       .is('pasada_id', null)
-      .gte('ts_ingreso', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
+      .gte('ts_ingreso', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString())
+      .order('ts_ingreso', { ascending: true });
     if (errPendientes) { console.log(`[lecturas] Error leyendo pendientes de ${vehiculo.patente}: ${errPendientes.message}`); continue; }
     if (!pendientes || !pendientes.length) continue;
 
+    // Un solo pool de candidatas para TODAS las lecturas pendientes de este
+    // vehículo (no una consulta nueva por lectura) — cubre desde la primera
+    // lectura menos la ventana hasta la última más la ventana, y de ahí se
+    // va consumiendo. Bug real 2026-09-10: al buscar candidatas por lectura
+    // de forma independiente y por cercanía absoluta en el tiempo, sin
+    // exigir que el orden cronológico de lecturas↔pasadas se mantenga, una
+    // lectura podía "robarle" la pasada a la lectura siguiente cuando dos
+    // pórticos quedaban muy seguidos (Vespucio Sur/Autopista Central, unos
+    // pocos minutos entre sí) — el monto_real de la pasada 1 terminaba en la
+    // pasada 2, el de la 2 en la 3, y así en cadena, todo desalineado en 1.
+    const desde = new Date(new Date(pendientes[0].ts_ingreso).getTime() - VENTANA_EMPAREJAR_LECTURA_MS).toISOString();
+    const hasta = new Date(new Date(pendientes[pendientes.length - 1].ts_ingreso).getTime() + VENTANA_EMPAREJAR_LECTURA_MS).toISOString();
+    const { data: candidatas, error: errCandidatas } = await supabase
+      .from('porticos_pasadas_reales')
+      .select('id, ts')
+      .eq('vehiculo_id', vehiculo.id)
+      .eq('confirmado', true)
+      .is('monto_real', null)
+      .gte('ts', desde)
+      .lte('ts', hasta)
+      .order('ts', { ascending: true });
+    if (errCandidatas) { console.log(`[lecturas] Error buscando pasadas para ${vehiculo.patente}: ${errCandidatas.message}`); continue; }
+    if (!candidatas || !candidatas.length) continue;
+
+    // Emparejamiento secuencial: se recorren lecturas y candidatas en orden
+    // cronológico, sin poder retroceder — el pórtico asignado a la lectura N
+    // siempre queda antes (en el tiempo) que el asignado a la lectura N+1.
+    // Así se preserva el orden real en que se pasó por los pórticos en vez
+    // de solo mirar "cuál está más cerca en el tiempo" lectura por lectura.
+    let cursor = 0;
     for (const lectura of pendientes) {
       const tsIngresoMs = new Date(lectura.ts_ingreso).getTime();
-      const { data: candidatas, error: errCandidatas } = await supabase
-        .from('porticos_pasadas_reales')
-        .select('id, ts')
-        .eq('vehiculo_id', vehiculo.id)
-        .eq('confirmado', true)
-        .is('monto_real', null)
-        .gte('ts', new Date(tsIngresoMs - VENTANA_EMPAREJAR_LECTURA_MS).toISOString())
-        .lte('ts', new Date(tsIngresoMs + VENTANA_EMPAREJAR_LECTURA_MS).toISOString());
-      if (errCandidatas) { console.log(`[lecturas] Error buscando pasada para lectura ${lectura.id}: ${errCandidatas.message}`); continue; }
-      if (!candidatas || !candidatas.length) continue;
-
-      let mejor = candidatas[0];
-      let mejorDiff = Math.abs(new Date(mejor.ts).getTime() - tsIngresoMs);
-      for (const c of candidatas.slice(1)) {
-        const diff = Math.abs(new Date(c.ts).getTime() - tsIngresoMs);
-        if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
+      let mejorIdx = -1;
+      let mejorDiff = Infinity;
+      for (let i = cursor; i < candidatas.length; i++) {
+        const diff = Math.abs(new Date(candidatas[i].ts).getTime() - tsIngresoMs);
+        if (diff > VENTANA_EMPAREJAR_LECTURA_MS) {
+          if (new Date(candidatas[i].ts).getTime() > tsIngresoMs) break; // ya nos pasamos de la ventana, el resto es peor
+          continue; // todavía no llegamos a la ventana de esta lectura
+        }
+        if (diff < mejorDiff) { mejorDiff = diff; mejorIdx = i; }
       }
+      if (mejorIdx === -1) continue;
+      const mejor = candidatas[mejorIdx];
+      cursor = mejorIdx + 1; // las siguientes lecturas solo pueden emparejar con pasadas posteriores a esta
 
       const { error: errUpdatePasada } = await supabase
         .from('porticos_pasadas_reales')
