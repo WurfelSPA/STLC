@@ -1069,7 +1069,7 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
     const hasta = new Date(new Date(pendientes[pendientes.length - 1].ts_ingreso).getTime() + VENTANA_EMPAREJAR_LECTURA_MS).toISOString();
     const { data: candidatas, error: errCandidatas } = await supabase
       .from('porticos_pasadas_reales')
-      .select('id, ts')
+      .select('id, ts, portico_codigo')
       .eq('vehiculo_id', vehiculo.id)
       .eq('confirmado', true)
       .is('monto_real', null)
@@ -1079,6 +1079,31 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
     if (errCandidatas) { console.log(`[lecturas] Error buscando pasadas para ${vehiculo.patente}: ${errCandidatas.message}`); continue; }
     if (!candidatas || !candidatas.length) continue;
 
+    // El monto ingresado es más confiable que el reloj para desempatar entre
+    // pórticos vecinos: el usuario aprieta "Guardar" justo al pasar bajo el
+    // pórtico (casi al mismo tiempo que suena el TAG), pero cuando dos
+    // pórticos quedan a pocos minutos entre sí (Vespucio Sur/Autopista
+    // Central) esa lectura puede terminar objetivamente más cerca en el
+    // reloj del pórtico VECINO que del propio — sin la app enterarse. Bug
+    // real 2026-09-10: 4 lecturas quedaron desplazadas en 1 (4.1→4.2,
+    // PA21→PA19, PA23→PA21, PA25→PA23) porque el pórtico "equivocado" caía
+    // más cerca en el tiempo, aunque el monto delataba cuál era el correcto
+    // (ej. $311 calza con la tarifa de 4.1, $312, no con la de 4.2, $266).
+    // Por eso ahora se compara el monto contra CUALQUIERA de las tarifas
+    // conocidas del pórtico (TBFP/TBP/TS, sin depender de bandaHeuristica —
+    // hay pórticos como 2.2 donde la banda TS se activa por congestión real,
+    // no por horario fijo, así que la banda "correcta" para ese instante ni
+    // siquiera es la que bandaHeuristica habría elegido) y, si algún
+    // candidato calza dentro de la tolerancia, se prefiere por sobre uno
+    // solo más cercano en el reloj.
+    function montosPosiblesPortico(codigo) {
+      const tarifa = TARIFAS[codigo];
+      return tarifa ? [...new Set(Object.values(tarifa))] : [];
+    }
+    function toleranciaMonto(monto) {
+      return Math.max(5, monto * 0.02); // $5 o 2%, lo que sea mayor — cubre redondeo de centavos sin aceptar un pórtico distinto
+    }
+
     // Emparejamiento secuencial: se recorren lecturas y candidatas en orden
     // cronológico, sin poder retroceder — el pórtico asignado a la lectura N
     // siempre queda antes (en el tiempo) que el asignado a la lectura N+1.
@@ -1087,18 +1112,31 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
     let cursor = 0;
     for (const lectura of pendientes) {
       const tsIngresoMs = new Date(lectura.ts_ingreso).getTime();
-      let mejorIdx = -1;
-      let mejorDiff = Infinity;
+      let mejorIdxTiempo = -1, mejorDiffTiempo = Infinity;
+      let mejorIdxMonto = -1, mejorDiffMonto = Infinity;
       for (let i = cursor; i < candidatas.length; i++) {
-        const diff = Math.abs(new Date(candidatas[i].ts).getTime() - tsIngresoMs);
-        if (diff > VENTANA_EMPAREJAR_LECTURA_MS) {
+        const diffTiempo = Math.abs(new Date(candidatas[i].ts).getTime() - tsIngresoMs);
+        if (diffTiempo > VENTANA_EMPAREJAR_LECTURA_MS) {
           if (new Date(candidatas[i].ts).getTime() > tsIngresoMs) break; // ya nos pasamos de la ventana, el resto es peor
           continue; // todavía no llegamos a la ventana de esta lectura
         }
-        if (diff < mejorDiff) { mejorDiff = diff; mejorIdx = i; }
+        if (diffTiempo < mejorDiffTiempo) { mejorDiffTiempo = diffTiempo; mejorIdxTiempo = i; }
+
+        const posibles = montosPosiblesPortico(candidatas[i].portico_codigo);
+        if (posibles.length) {
+          const diffMonto = Math.min(...posibles.map((v) => Math.abs(v - lectura.monto)));
+          if (diffMonto <= toleranciaMonto(lectura.monto) && diffMonto < mejorDiffMonto) {
+            mejorDiffMonto = diffMonto; mejorIdxMonto = i;
+          }
+        }
       }
+      // El monto manda si algún candidato calzó dentro de la tolerancia;
+      // si no (pórtico sin tarifa cargada, ej. AVO, o ningún calce), se cae
+      // de vuelta al criterio de solo cercanía en el tiempo.
+      const mejorIdx = mejorIdxMonto !== -1 ? mejorIdxMonto : mejorIdxTiempo;
       if (mejorIdx === -1) continue;
       const mejor = candidatas[mejorIdx];
+      const criterio = mejorIdxMonto !== -1 ? `monto, Δ$${mejorDiffMonto.toFixed(0)}` : `tiempo, Δ${Math.round(mejorDiffTiempo / 1000)}s`;
       cursor = mejorIdx + 1; // las siguientes lecturas solo pueden emparejar con pasadas posteriores a esta
 
       const { error: errUpdatePasada } = await supabase
@@ -1112,7 +1150,7 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
         .update({ pasada_id: mejor.id, emparejado_en: new Date().toISOString() })
         .eq('id', lectura.id);
       if (errUpdateLectura) console.log(`[lecturas] Error marcando lectura ${lectura.id} como emparejada: ${errUpdateLectura.message}`);
-      else console.log(`[lecturas] ✅ ${vehiculo.patente}: $${lectura.monto} emparejado con pasada ${mejor.id} (Δ${Math.round(mejorDiff / 1000)}s)`);
+      else console.log(`[lecturas] ✅ ${vehiculo.patente}: $${lectura.monto} emparejado con pasada ${mejor.id} (por ${criterio})`);
     }
   }
 }
