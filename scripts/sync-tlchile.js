@@ -139,7 +139,12 @@ const VELOCIDAD_MINIMA_PORTICO = { P10: 40 };
 // impliquen un salto físicamente imposible entre dos lecturas.
 const VELOCIDAD_MAX_PLAUSIBLE_KMH = 180;
 
-const PORTICOS = [
+// Copia de emergencia — usada SOLO si cargarCatalogoPorticos() no puede leer
+// la tabla porticos_catalogo de Supabase (fuente real desde 2026-09-11, ver
+// [[project_agp_tracklink_integration]] en memoria). No hace falta mantener
+// esto sincronizado a mano nunca más: para agregar/corregir un pórtico edita
+// la tabla, no este archivo. Ver cargarCatalogoPorticos() más abajo.
+const PORTICOS_FALLBACK = [
   { codigo: 'P3',   concesionaria: 'Costanera Norte',   tramo: 'Puente Lo Saldes – Vivaceta',                lat: -33.4240, lon: -70.6220 },
   { codigo: 'P8',   concesionaria: 'Vespucio Norte',    tramo: 'Ruta 5 Norte – Condell',                     lat: -33.3730, lon: -70.7113 },
   { codigo: 'P11',  concesionaria: 'Vespucio Norte',    tramo: 'Pedro Fontova – Ruta 5 Norte',                lat: -33.3658, lon: -70.6951 },
@@ -331,6 +336,11 @@ const PORTICOS = [
   // grueso hasta confirmar con una pasada real.
   { codigo: 'AMB', concesionaria: 'Acceso Vial AMB', tramo: 'Peaje Acceso Vial AMB', lat: -33.416596, lon: -70.792727 },
 ];
+// Bindings mutables reales que usa el resto del archivo (bandaHeuristica,
+// grupoGeometriaPara, mensajePasada, etc. las leen como closure sobre el
+// scope del módulo) — arrancan en el fallback y cargarCatalogoPorticos() las
+// reemplaza al inicio de main() si Supabase responde bien.
+let PORTICOS = PORTICOS_FALLBACK;
 
 // Grupo de geometría real (OSM, ver scripts/geometria-corredores/) que le
 // corresponde a cada pórtico — para el método NUEVO de detección (map-
@@ -412,7 +422,8 @@ function resolverCodigoDireccional(portico, anterior, actual) {
   return { codigo: portico.codigo, tramo: portico.tramo };
 }
 
-const TARIFAS = {
+// Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
+const TARIFAS_FALLBACK = {
   // P3 (Costanera Norte, Puente Lo Saldes) corregido 2026-09-02: el valor
   // anterior (719/1384/2097) venía de un PDF tarifario "confirmado por dos
   // fuentes independientes", pero el historial de transacciones REALES de
@@ -554,6 +565,7 @@ const TARIFAS = {
   // para 2026), sin tarifario oficial detallado por banda encontrado.
   AMB:   { TBFP: 1000, TBP: 1000, TS: 1000 },
 };
+let TARIFAS = TARIFAS_FALLBACK;
 
 // --- HealthCheck (Tracklink / MZDConnect) -----------------------------------
 const HEALTHCHECK_CUSTOMERS = [
@@ -678,7 +690,8 @@ function hayPuntoCercaDeCalzadaPrincipal(puntos, grupo, tsBaseMs) {
 // en que la heurística genérica de abajo habría dicho erróneamente TBP).
 // Pórticos no listados acá siguen usando la heurística genérica 07-09/18-21
 // hasta que se confirme su ventana oficial real.
-const VENTANAS_PUNTA_PORTICO = {
+// Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
+const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   '4.1': null,
   // Confirmado 2026-08-28: lectura real de 2.2 en pantalla fue $251,22 tanto
   // a la ida (07:24, dentro de la ventana genérica 07-09h que habría dado
@@ -710,6 +723,7 @@ const VENTANAS_PUNTA_PORTICO = {
   // a las 14:52 (fuera de esta ventana) mostró $512 (TBFP), como corresponde.
   PA29: [[17 * 60, 20 * 60 + 30]],
 };
+let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 
 // Ventanas oficiales de SATURACIÓN (TS) confirmadas — hora Chile, L-V, en
 // minutos desde medianoche. Agregado 2026-09-02: el sistema nunca había
@@ -724,7 +738,8 @@ const VENTANAS_PUNTA_PORTICO = {
 // Vespucio Sur pese a una lectura real de $753,87 en banda TS el mismo
 // día — sugiere que ahí la saturación se activa por congestión real, no
 // por horario fijo, y no se puede modelar con esta heurística.
-const VENTANAS_SATURACION_PORTICO = {
+// Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
+const VENTANAS_SATURACION_PORTICO_FALLBACK = {
   '3.1': [[7 * 60 + 30, 8 * 60 + 30]],
   '3.3': [[7 * 60 + 30, 8 * 60 + 30]],
   PA28: [[7 * 60 + 30, 8 * 60 + 30]],
@@ -732,6 +747,42 @@ const VENTANAS_SATURACION_PORTICO = {
   PA13: [[8 * 60 + 30, 9 * 60]],
   PA24: [[18 * 60 + 30, 19 * 60]],
 };
+let VENTANAS_SATURACION_PORTICO = VENTANAS_SATURACION_PORTICO_FALLBACK;
+
+// Carga el catálogo real desde Supabase (tabla porticos_catalogo). Se llama
+// una vez al inicio de main(), ANTES de la sección Pórticos — nunca puede
+// tumbar Santa Marta: cualquier error acá se atrapa y se sigue con el
+// fallback hardcodeado de arriba (ver feedback_cuidado_santa_marta_sync_tlchile
+// en memoria: aislar cambios de pórticos de la sección Santa Marta).
+async function cargarCatalogoPorticos() {
+  const { data, error } = await supabase.from('porticos_catalogo').select('*');
+  if (error) throw error;
+  if (!data || !data.length) throw new Error('porticos_catalogo devolvió 0 filas');
+
+  const porticos = data.map((fila) => ({
+    codigo: fila.codigo,
+    concesionaria: fila.concesionaria,
+    tramo: fila.tramo,
+    lat: fila.lat,
+    lon: fila.lon,
+  }));
+
+  const tarifas = {};
+  const ventanasPunta = {};
+  const ventanasSaturacion = {};
+  for (const fila of data) {
+    if (fila.tbfp !== null) {
+      tarifas[fila.codigo] = { TBFP: Number(fila.tbfp), TBP: Number(fila.tbp), TS: Number(fila.tarifa_ts) };
+    }
+    if (fila.ventana_punta_confirmada) {
+      ventanasPunta[fila.codigo] = fila.ventana_punta ?? null;
+    }
+    if (fila.ventana_saturacion) {
+      ventanasSaturacion[fila.codigo] = fila.ventana_saturacion;
+    }
+  }
+  return { porticos, tarifas, ventanasPunta, ventanasSaturacion };
+}
 
 // HEURÍSTICA de banda horaria: TS confirmada > TBP confirmada/genérica >
 // TBFP. La ventana oficial del pórtico manda si existe; si no, cae de
@@ -1247,6 +1298,20 @@ async function main() {
   if (!tlchileDisponible) {
     console.log('⏭️  Omitido: la cuenta tlchile fue usada hace menos de 20 min (candado activo).');
     return;
+  }
+
+  // Catálogo de pórticos/tarifas — lectura independiente a la sesión TL, no
+  // afecta Santa Marta ni el resto de este bloque si falla (usa el fallback
+  // hardcodeado de arriba y sigue).
+  try {
+    const catalogo = await cargarCatalogoPorticos();
+    PORTICOS = catalogo.porticos;
+    TARIFAS = catalogo.tarifas;
+    VENTANAS_PUNTA_PORTICO = catalogo.ventanasPunta;
+    VENTANAS_SATURACION_PORTICO = catalogo.ventanasSaturacion;
+    console.log(`[catálogo] cargado desde Supabase (${PORTICOS.length} pórticos)`);
+  } catch (err) {
+    console.warn('[catálogo] no se pudo cargar porticos_catalogo desde Supabase, uso fallback hardcodeado:', err.message);
   }
 
   // --- 1) Una sola sesión clásica: Santa Marta + Pórticos juntos -----------
