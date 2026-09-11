@@ -95,7 +95,13 @@ const PATENTES_NOTIFICAR_TELEGRAM = [];
 // justamente esa razón: es un pórtico real que el usuario sí podría cruzar
 // (ej. de vuelta), y una fila pendiente sin confirmar no le genera ningún
 // falso positivo visible (no notifica, no aparece en el dashboard).
-const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17']);
+// P5CN agregado 2026-09-11: cruce real de PA16 (Autopista Central, ancla
+// empírica 13m/2 confirmaciones) detectado también en P5CN (Costanera
+// Norte, ancla empírica más débil 89m/1 confirmación) 48s después — mismo
+// nudo de Puente Manuel Rodríguez donde ambos corredores corren muy cerca.
+// Confirmado por el usuario contra su propio recorrido real (no tomó
+// Costanera Norte ese tramo).
+const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17', 'VVJG-14|P5CN']);
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
 // Un tránsito real de un pórtico de flujo libre puede tener velocidad baja
@@ -722,6 +728,12 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // PA29 (vuelta): TBP 17:00-20:30, sin TS. Confirmado 2026-08-28: cruce real
   // a las 14:52 (fuera de esta ventana) mostró $512 (TBFP), como corresponde.
   PA29: [[17 * 60, 20 * 60 + 30]],
+  // Confirmado 2026-09-11: cruce real de PA10 a las 07:26 Chile (dentro de
+  // la ventana genérica 07-09h que habría dado TBP/$572) mostró $286 (TBFP)
+  // en pantalla, registrado a mano por el usuario y emparejado en
+  // porticos_pasadas_reales.monto_real. Mismo patrón de evidencia que
+  // 4.1/2.2/1.1/4.2 arriba.
+  PA10: null,
 };
 let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 
