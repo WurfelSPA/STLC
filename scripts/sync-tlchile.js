@@ -1340,6 +1340,102 @@ async function actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo) {
   }
 }
 
+// --- Estimación de cobro AVO por km recorrido -------------------------------
+// AVO (Vespucio Oriente) no cobra por pórtico individual sino por distancia
+// recorrida entre el pórtico de entrada y el de salida real — a diferencia
+// del resto del sistema, acá SÍ hace falta reconstruir el viaje completo.
+// Tarifario oficial 2026 (avo.cl/contenido/95/tarifas-2026), Área 1 (el
+// tramo que cubren nuestros códigos P101-P212, El Salto–Príncipe de Gales):
+// $232/km fuera de punta, $464/km punta. La ventana horaria oficial de
+// punta no está publicada en el sitio — se usa la heurística genérica
+// 07-09/18-21 (mismo criterio que el resto de pórticos sin ventana
+// confirmada) hasta que se confirme con una lectura real. El usuario
+// estima ~$436/km en sus tránsitos habituales (probablemente hora punta,
+// $464/km oficial) — dato de calibración, no una lectura real verificada
+// todavía.
+//
+// Requiere el odómetro real (r.odometerC14, viene en "puntos") de la MISMA
+// corrida donde se detectó el viaje — no se puede reconstruir después con
+// datos ya guardados (porticos_odometro_diario solo guarda inicio/fin del
+// DÍA completo, no por tramo). Si un viaje AVO queda partido justo en el
+// borde de un checkpoint entre corridas, esta estimación se pierde para
+// ese viaje — caso raro dado que un tránsito por AVO dura muchos menos que
+// los 30 min entre corridas, pero no imposible.
+const AVO_TARIFA_KM = { TBFP: 232, TBP: 464, TS: 464 }; // TS no definido oficialmente en el tarifario, se usa el mismo valor que TBP
+const VENTANA_AVO_MS = 40 * 60 * 1000; // mismo criterio que sync-smartreport.js (agruparViajesAVO)
+const KM_AVO_MAX_PLAUSIBLE = 60; // el corredor completo mide ~10km — un valor mucho mayor indica odómetro corrupto/reset, se descarta
+
+function agruparViajesAVO(pasadasOrdenadas) {
+  const viajes = [];
+  let actual = null;
+  for (const p of pasadasOrdenadas) {
+    const ts = new Date(p.ts).getTime();
+    if (actual && ts - actual.ultimoTs <= VENTANA_AVO_MS) {
+      actual.salida = p;
+      actual.ultimoTs = ts;
+    } else {
+      actual = { entrada: p, salida: p, ultimoTs: ts };
+      viajes.push(actual);
+    }
+  }
+  return viajes;
+}
+
+// Punto con odómetro más cercano a tsMs (antes o después) — no exige que sea
+// exactamente el punto que generó la pasada, porque ese punto puede no traer
+// odómetro en todas las lecturas.
+function odometroEnTs(puntosConOdometro, tsMs) {
+  let mejor = null, mejorDiff = Infinity;
+  for (const p of puntosConOdometro) {
+    const diff = Math.abs(p.time.getTime() - tsMs);
+    if (diff < mejorDiff) { mejor = p; mejorDiff = diff; }
+  }
+  return mejor ? mejor.odometro : null;
+}
+
+async function estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo) {
+  for (const vehiculo of vehiculosPorticos) {
+    const puntosConOdometro = (puntosPorVehiculo.get(vehiculo.id) || [])
+      .filter((p) => p.odometro != null && !isNaN(p.time));
+    if (!puntosConOdometro.length) continue;
+
+    const { data: pendientes, error } = await supabase
+      .from('porticos_pasadas_reales')
+      .select('id, ts')
+      .eq('vehiculo_id', vehiculo.id)
+      .eq('concesionaria', 'Vespucio Oriente (AVO)')
+      .eq('confirmado', true)
+      .is('km_estimado', null)
+      .order('ts');
+    if (error) { console.log(`[avo-km] Error leyendo pendientes de ${vehiculo.patente}: ${error.message}`); continue; }
+    if (!pendientes || !pendientes.length) continue;
+
+    const viajes = agruparViajesAVO(pendientes);
+    for (const viaje of viajes) {
+      const tsEntrada = new Date(viaje.entrada.ts).getTime();
+      const tsSalida = new Date(viaje.salida.ts).getTime();
+      const odoEntrada = odometroEnTs(puntosConOdometro, tsEntrada);
+      const odoSalida = odometroEnTs(puntosConOdometro, tsSalida);
+      if (odoEntrada == null || odoSalida == null) continue;
+
+      const km = Math.round((odoSalida - odoEntrada) * 100) / 100;
+      if (km <= 0 || km > KM_AVO_MAX_PLAUSIBLE) {
+        console.log(`[avo-km] ${vehiculo.patente}: km sospechoso (${km}) entre ${viaje.entrada.ts} y ${viaje.salida.ts}, se omite.`);
+        continue;
+      }
+
+      const banda = bandaHeuristica(new Date(viaje.salida.ts), null);
+      const monto = Math.round(km * AVO_TARIFA_KM[banda]);
+      const { error: errUpdate } = await supabase
+        .from('porticos_pasadas_reales')
+        .update({ km_estimado: km, monto_avo_estimado: monto })
+        .eq('id', viaje.salida.id);
+      if (errUpdate) { console.log(`[avo-km] Error actualizando ${viaje.salida.id}: ${errUpdate.message}`); continue; }
+      console.log(`[avo-km] ${vehiculo.patente}: viaje AVO ${viaje.entrada.ts} → ${viaje.salida.ts}, ${km}km, banda ${banda}, $${monto} estimado.`);
+    }
+  }
+}
+
 async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
@@ -1736,6 +1832,7 @@ async function main() {
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
   await emparejarLecturasManuales(vehiculosPorticos);
   await actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo);
+  await estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo);
   await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
 
   // --- 2) HealthCheck (API REST) — Tracklink / MZDConnect ---------------------
