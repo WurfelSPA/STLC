@@ -101,6 +101,18 @@ const PATENTES_NOTIFICAR_TELEGRAM = [];
 // nudo de Puente Manuel Rodríguez donde ambos corredores corren muy cerca.
 // Confirmado por el usuario contra su propio recorrido real (no tomó
 // Costanera Norte ese tramo).
+//
+// NO reemplazar esto por un umbral de distancia a la calzada (capa 2 de
+// map-matching, ver esCandidatoValidoPorCalzada en map-matching.js) sin
+// antes revisar porticos_comparacion_metodos: se intentó 2026-09-15 y los
+// datos reales lo descartan — el ruido GPS de VVJG-14 estacionado junto a
+// P11 produce distancia_calzada_m de apenas 2-9m (prácticamente idéntico a
+// un cruce real confirmado de otro vehículo por ese mismo pórtico, 1-7m),
+// mientras que cruces reales confirmados en OTROS pórticos (PA18, P3,
+// P101, PA16, PA21) llegan a 44-112m por imprecisión del mapeo OSM del
+// corredor. Un umbral de calzada no habría filtrado el falso positivo de
+// P11 y sí habría arriesgado ocultar cruces reales en otros pórticos. Ver
+// [[project_agp_tracklink_integration]] en memoria para el detalle completo.
 const FALSOS_POSITIVOS_CONOCIDOS = new Set(['VVJG-14|P11', 'VVJG-14|PA17', 'VVJG-14|P5CN']);
 const RADIO_GEOCERCA_M = 150;
 const MIN_GAP_MS = 2 * 60 * 1000;
@@ -250,7 +262,16 @@ const PORTICOS_FALLBACK = [
   { codigo: 'PA16', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – 14 de la Fama',                 lat: -33.417186, lon: -70.678723 },
   { codigo: 'PA17', concesionaria: 'Autopista Central', tramo: '14 de la Fama – Américo Vespucio Norte',      lat: -33.368582, lon: -70.699104 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
+  // 5.1 (alterno de 5.2, mismo punto físico, sentido contrario — ver
+  // PARES_DIRECCIONALES) y 5.4 (nuevo, ~230m al norte de 5.2 en el mismo
+  // corredor) — agregados 2026-09-15. Antes ambos colapsaban en "5.2" al
+  // no tener geocerca propia (bug real: el usuario vio $122 y $1.149 reales
+  // en pantalla, tarifas de 5.1/5.4, mientras el sistema calculaba con la
+  // tarifa de 5.2 — ver [[project_agp_tracklink_integration]] en memoria).
+  // Coordenadas del track GPS real de VVJG-14, confirmadas porque el monto
+  // coincide EXACTO con la tarifa oficial (TBFP 5.1=$122, TS 5.4=$1.149).
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
+  { codigo: '5.4',  concesionaria: 'Vespucio Sur',      tramo: 'Las Torres – Quilín',                         lat: -33.478990, lon: -70.578187 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
   // propio track GPS real de VVJG-14 (frenada/parada del vehículo justo en
   // ese punto), confirmadas porque el monto coincide EXACTO con la tarifa
@@ -397,6 +418,15 @@ const PARES_DIRECCIONALES = {
   '4.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '4.3',  tramoAlterno: 'Coronel – Santa Julia' },
   '3.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.4',  tramoAlterno: 'Ruta 5 – Gran Avenida' },
   '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
+  // 5.2/5.4 — tramo oriente de Vespucio Sur (Quilín/Grecia/Las Torres, La
+  // Reina-Peñalolén), donde el anillo corre N-S en vez de E-O como el resto
+  // de Vespucio Sur — por eso usa la MISMA convención que Autopista Central
+  // (eje lat, positivoEsAlterno false), no la de 4.1/3.1/3.3 de arriba.
+  // Agregado 2026-09-15, confirmado con track GPS real: $122 real (TBFP de
+  // 5.1) yendo hacia el sur, $1.149 real (TS de 5.4→alterno 5.3) — ver
+  // PORTICOS arriba y [[project_agp_tracklink_integration]] en memoria.
+  '5.2': { eje: 'lat', positivoEsAlterno: false, alterno: '5.1', tramoAlterno: 'Grecia – Quilín' },
+  '5.4': { eje: 'lat', positivoEsAlterno: false, alterno: '5.3', tramoAlterno: 'Quilín – Las Torres' },
   PA23:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA24', tramoAlterno: 'Alameda – Carlos Valdovinos' },
   PA25:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA26', tramoAlterno: 'Río Mapocho – Alameda' },
   PA19:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA20', tramoAlterno: 'Américo Vespucio – Ruta 5 Sur' },
@@ -519,6 +549,14 @@ const TARIFAS_FALLBACK = {
   PA18: { TBFP: 462, TBP: 925,  TS: 1387 },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
+  // 5.1/5.3/5.4 agregados 2026-09-15 (ver PORTICOS y PARES_DIRECCIONALES
+  // arriba) — mismos valores que el catálogo de referencia de dashboard.html
+  // (CONCESIONARIAS_TARIFARIO), ahora confirmados con cruces reales: 5.1
+  // TBFP=$122 y 5.4 TS=$1.149 coinciden exactos con lo visto en pantalla.
+  // 5.3 (alterno de 5.4) sin cruce real todavía, misma fuente que el resto.
+  '5.1':{ TBFP: 122, TBP: 243,  TS: 365  },
+  '5.3':{ TBFP: 552, TBP: 1103, TS: 1655 },
+  '5.4':{ TBFP: 383, TBP: 766,  TS: 1149 },
   // 1.1/4.2 — ver PORTICOS arriba (fuente y confirmación).
   '1.1':{ TBFP: 533, TBP: 1065, TS: 1065 },
   '4.2':{ TBFP: 266, TBP: 533,  TS: 799  },

@@ -82,4 +82,31 @@ function distanciasPorClase(grupo, lat, lon) {
   };
 }
 
-module.exports = { distanciaCalzada, distanciasPorClase };
+const UMBRAL_CALZADA_DEFAULT_M = 30;
+
+// Valida si un punto GPS interpolado pertenece geométricamente a la calzada del
+// grupo/corredor especificado dentro del umbral dado. Si el grupo no tiene
+// geometría cacheada, se considera válido como fallback seguro (para no romper
+// pórticos rurales o interurbanos aislados que aún no tienen geometría OSM).
+//
+// NO CONECTADA a sync-tlchile.js todavía (definida acá para uso futuro, si se
+// logra calibrar un umbral confiable). Se intentó usarla 2026-09-15 para
+// reemplazar FALSOS_POSITIVOS_CONOCIDOS y los datos reales de
+// porticos_comparacion_metodos lo descartaron: el ruido GPS de un vehículo
+// ESTACIONADO junto a un pórtico (caso P11, oficina del usuario en Conchalí)
+// produce distancia_calzada_m de 2-9m — indistinguible de un cruce real
+// confirmado por otro vehículo en el mismo pórtico (1-7m) — mientras que
+// cruces reales confirmados en otros pórticos (PA18, P3, P101, PA16, PA21)
+// llegan a 44-112m por imprecisión del mapeo OSM de esos corredores. Un
+// umbral fijo no habría filtrado el falso positivo que se buscaba resolver
+// y sí habría arriesgado rechazar cruces reales en corredores con geometría
+// menos precisa. Ver FALSOS_POSITIVOS_CONOCIDOS en sync-tlchile.js y
+// [[project_agp_tracklink_integration]] en memoria.
+function esCandidatoValidoPorCalzada(grupo, lat, lon, umbral = UMBRAL_CALZADA_DEFAULT_M) {
+  if (!grupo) return { valido: true, distancia: null };
+  const d = distanciaCalzada(grupo, lat, lon);
+  if (d === null) return { valido: true, distancia: null };
+  return { valido: d <= umbral, distancia: d };
+}
+
+module.exports = { distanciaCalzada, distanciasPorClase, esCandidatoValidoPorCalzada, UMBRAL_CALZADA_DEFAULT_M };
