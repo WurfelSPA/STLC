@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: descarga diaria de la API de AGP "tránsitos no facturados"
+# (ambiente de prueba, ver correo 2026-09-15) y carga sus montos reales en
+# porticos_pasadas_reales.monto_agp — tercera fuente de verdad independiente
+# (Real=manual, Smart Report=tercero, AGP=directo de la concesionaria).
+#
+# Empieza en no-op: PATENTES_AGP en sync-agp-transitos.js está vacío hasta
+# que se instale el primer dispositivo FTC en un vehículo que sea cliente
+# real de AGP (Renting Lucano) — ver [[project_agp_tracklink_integration]]
+# en memoria. Agregar la patente ahí activa este workflow sin más cambios.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Sync AGP Transitos
+
+on:
+  schedule:
+    - cron: '20 4 * * *' # 00:20 hora Chile aprox., desfasado de sync-tlchile (min 5/35) y sync-smartreport (04:00 UTC)
+
+  workflow_dispatch:
+
+jobs:
+  sync-agp-transitos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-agp-transitos-v1
+
+      - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install @supabase/supabase-js
+        timeout-minutes: 5
+
+      - name: Sync AGP Transitos
+        env:
+          AGP_TRANSITOS_TOKEN: ${{ secrets.AGP_TRANSITOS_TOKEN }}
+          AGP_TRANSITOS_ID_SUCURSAL: ${{ secrets.AGP_TRANSITOS_ID_SUCURSAL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/sync-agp-transitos.js
