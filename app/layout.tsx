@@ -1,3 +1,4 @@
+// Desarrollado por Ing. Alex Meléndez — Patagónica Inmobiliaria, con la asistencia de Claude AI (Anthropic).
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
