@@ -809,13 +809,31 @@ async function cargarCatalogoPorticos() {
   if (error) throw error;
   if (!data || !data.length) throw new Error('porticos_catalogo devolvió 0 filas');
 
-  const porticos = data.map((fila) => ({
-    codigo: fila.codigo,
-    concesionaria: fila.concesionaria,
-    tramo: fila.tramo,
-    lat: fila.lat,
-    lon: fila.lon,
-  }));
+  // BUG REAL 2026-09-16: los códigos "alterno" (ver PARES_DIRECCIONALES) NO
+  // deben tener su propia geocerca física — comparten coordenada con su
+  // código base y se resuelven en tiempo real por dirección de viaje
+  // (resolverCodigoDireccional). Ya se había encontrado y arreglado este
+  // mismo bug el 2026-08-29 (ver comentario histórico más abajo en
+  // PARES_DIRECCIONALES), pero se reintrodujo sin querer el 2026-09-11 al
+  // migrar el catálogo a Supabase: se agregó una fila propia por cada
+  // alterno pensando solo en que necesitaban su propia TARIFA — sí, pero NO
+  // su propia geocerca. Efecto real confirmado 2026-09-16: cada cruce de un
+  // pórtico con alterno (4.1/4.3, PA10/PA11, PA13/PA14, etc.) generaba DOS
+  // pasadas confirmadas idénticas (mismo ts, misma distancia) en vez de una
+  // sola resuelta por dirección — el total facturado del día salía
+  // duplicado. Los alterno SIGUEN en la tabla (TARIFAS los necesita por
+  // código), por eso se filtran acá en vez de borrarse de la DB.
+  const codigosAlterno = new Set(Object.values(PARES_DIRECCIONALES).map((par) => par.alterno));
+
+  const porticos = data
+    .filter((fila) => !codigosAlterno.has(fila.codigo))
+    .map((fila) => ({
+      codigo: fila.codigo,
+      concesionaria: fila.concesionaria,
+      tramo: fila.tramo,
+      lat: fila.lat,
+      lon: fila.lon,
+    }));
 
   const tarifas = {};
   const ventanasPunta = {};
