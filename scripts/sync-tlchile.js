@@ -915,9 +915,31 @@ async function guardarCheckpoint(key, fecha) {
 }
 
 async function obtenerVehiculosPorticos() {
-  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa');
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa, unit_id_ftc927, imei_ftc927');
   if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
   return data || [];
+}
+
+// Comparación de precisión GV58LAU vs FTC927 (VVJG-14, 2026-09-18): un mismo
+// vehículo puede traer un segundo dispositivo GPS (unit_id_ftc927/imei_ftc927
+// en porticos_vehiculos) instalado en paralelo al principal, para comparar
+// falsos positivos entre ambos. La detección de geocercas corre una vez por
+// cada dispositivo presente ("unidad de detección"), cada una aislada por la
+// columna `dispositivo` ('principal'/'secundario') en porticos_pasadas_reales
+// y porticos_comparacion_metodos — así no se mezclan ni se hacen dedup
+// cruzado entre los dos tracks del mismo vehículo. Para cualquier vehículo
+// sin unit_id_ftc927 (todos, hoy, salvo VVJG-14) esto arma exactamente 1
+// unidad igual a como era antes de este cambio — cero diferencia de
+// comportamiento para el resto del sistema.
+function obtenerUnidadesDeteccion(vehiculosPorticos) {
+  const unidades = [];
+  for (const vehiculo of vehiculosPorticos) {
+    unidades.push({ vehiculo, dispositivo: 'principal', unitId: vehiculo.unit_id, imei: vehiculo.imei });
+    if (vehiculo.unit_id_ftc927) {
+      unidades.push({ vehiculo, dispositivo: 'secundario', unitId: vehiculo.unit_id_ftc927, imei: vehiculo.imei_ftc927 });
+    }
+  }
+  return unidades;
 }
 
 // Método nuevo, capa 2: en vez de confiar en la coordenada tipeada a mano o
@@ -1191,16 +1213,36 @@ async function sincronizarHealthCheck(TL_USER, TL_PASSWORD, TL_DOMAIN, customer,
 // lecturas pendientes es de 24h, igual que VENTANA_ESTACIONADO_MS.
 const VENTANA_EMPAREJAR_LECTURA_MS = 20 * 60 * 1000; // ±20 min entre el ingreso a mano y la pasada real
 
-async function emparejarLecturasManuales(vehiculosPorticos) {
-  for (const vehiculo of vehiculosPorticos) {
-    const { data: pendientes, error: errPendientes } = await supabase
+// Comparación GV58LAU/FTC927 (2026-09-18): esta función corre una vez por
+// UNIDAD de detección (vehículo+dispositivo, ver obtenerUnidadesDeteccion),
+// no una vez por vehículo — así el mismo monto anotado a mano termina
+// comparado contra la pasada detectada por CADA dispositivo, no solo una.
+//
+// El dispositivo "principal" mantiene EXACTAMENTE el comportamiento de
+// siempre: usa lectura.pasada_id como gate de "ya emparejada" y lo actualiza
+// al emparejar (para cualquier vehículo de un solo dispositivo, esto es la
+// única unidad que existe → cero cambio). El "secundario" NO puede usar ese
+// mismo campo (ya lo ocupa el principal) — en su lugar se apoya solo en que
+// `candidatas` ya viene filtrado por `monto_real IS NULL` de su propio
+// dispositivo, y no toca pasada_id/emparejado_en de la lectura.
+async function emparejarLecturasManuales(unidadesDeteccion) {
+  for (const unidad of unidadesDeteccion) {
+    const vehiculo = unidad.vehiculo;
+    const dispositivo = unidad.dispositivo;
+    const esPrincipal = dispositivo === 'principal';
+
+    let queryPendientes = supabase
       .from('porticos_lecturas_manuales')
       .select('id, monto, ts_ingreso')
       .eq('vehiculo_id', vehiculo.id)
-      .is('pasada_id', null)
       .gte('ts_ingreso', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString())
       .order('ts_ingreso', { ascending: true });
-    if (errPendientes) { console.log(`[lecturas] Error leyendo pendientes de ${vehiculo.patente}: ${errPendientes.message}`); continue; }
+    // Solo el principal se filtra por pasada_id (ver nota arriba) — el
+    // secundario reintenta SIEMPRE todas las lecturas del rango, ya que su
+    // propio progreso lo controla monto_real en `candidatas`, no pasada_id.
+    if (esPrincipal) queryPendientes = queryPendientes.is('pasada_id', null);
+    const { data: pendientes, error: errPendientes } = await queryPendientes;
+    if (errPendientes) { console.log(`[lecturas] Error leyendo pendientes de ${vehiculo.patente} (${dispositivo}): ${errPendientes.message}`); continue; }
     if (!pendientes || !pendientes.length) continue;
 
     // Un solo pool de candidatas para TODAS las lecturas pendientes de este
@@ -1219,12 +1261,13 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
       .from('porticos_pasadas_reales')
       .select('id, ts, portico_codigo')
       .eq('vehiculo_id', vehiculo.id)
+      .eq('dispositivo', dispositivo)
       .eq('confirmado', true)
       .is('monto_real', null)
       .gte('ts', desde)
       .lte('ts', hasta)
       .order('ts', { ascending: true });
-    if (errCandidatas) { console.log(`[lecturas] Error buscando pasadas para ${vehiculo.patente}: ${errCandidatas.message}`); continue; }
+    if (errCandidatas) { console.log(`[lecturas] Error buscando pasadas para ${vehiculo.patente} (${dispositivo}): ${errCandidatas.message}`); continue; }
     if (!candidatas || !candidatas.length) continue;
 
     // El monto ingresado es más confiable que el reloj para desempatar entre
@@ -1291,14 +1334,19 @@ async function emparejarLecturasManuales(vehiculosPorticos) {
         .from('porticos_pasadas_reales')
         .update({ monto_real: lectura.monto })
         .eq('id', mejor.id);
-      if (errUpdatePasada) { console.log(`[lecturas] Error guardando monto_real en pasada ${mejor.id}: ${errUpdatePasada.message}`); continue; }
+      if (errUpdatePasada) { console.log(`[lecturas] Error guardando monto_real en pasada ${mejor.id} (${dispositivo}): ${errUpdatePasada.message}`); continue; }
 
-      const { error: errUpdateLectura } = await supabase
-        .from('porticos_lecturas_manuales')
-        .update({ pasada_id: mejor.id, emparejado_en: new Date().toISOString() })
-        .eq('id', lectura.id);
-      if (errUpdateLectura) console.log(`[lecturas] Error marcando lectura ${lectura.id} como emparejada: ${errUpdateLectura.message}`);
-      else console.log(`[lecturas] ✅ ${vehiculo.patente}: $${lectura.monto} emparejado con pasada ${mejor.id} (por ${criterio})`);
+      // Solo el principal actualiza pasada_id/emparejado_en de la lectura —
+      // ese campo es un FK singular, ya lo usa el emparejamiento del
+      // dispositivo principal (ver nota al inicio de la función).
+      if (esPrincipal) {
+        const { error: errUpdateLectura } = await supabase
+          .from('porticos_lecturas_manuales')
+          .update({ pasada_id: mejor.id, emparejado_en: new Date().toISOString() })
+          .eq('id', lectura.id);
+        if (errUpdateLectura) console.log(`[lecturas] Error marcando lectura ${lectura.id} como emparejada: ${errUpdateLectura.message}`);
+      }
+      console.log(`[lecturas] ✅ ${vehiculo.patente} (${dispositivo}): $${lectura.monto} emparejado con pasada ${mejor.id} (por ${criterio})`);
     }
   }
 }
@@ -1487,12 +1535,14 @@ async function main() {
   const startMs = Math.min(santamartaCheckpoint.getTime(), porticosCheckpoint.getTime()) - OVERLAP_MS;
   const start = new Date(startMs);
 
+  const unidadesDeteccion = obtenerUnidadesDeteccion(vehiculosPorticos);
+
   const unitIds = [
     ...UNIDADES_SANTAMARTA.map((u) => u.unitId),
-    ...vehiculosPorticos.map((v) => v.unit_id),
+    ...unidadesDeteccion.map((u) => u.unitId),
   ].join(',');
 
-  console.log(`=== Sync tlchile: ${fmtTL(start)} → ${fmtTL(ahora)} (${UNIDADES_SANTAMARTA.length} Santa Marta + ${vehiculosPorticos.length} pórticos) ===`);
+  console.log(`=== Sync tlchile: ${fmtTL(start)} → ${fmtTL(ahora)} (${UNIDADES_SANTAMARTA.length} Santa Marta + ${unidadesDeteccion.length} pórticos [${vehiculosPorticos.length} vehículos]) ===`);
 
   const rows = await loginYConsultarTravel({
     TL_USER, TL_PASSWORD, TL_DOMAIN,
@@ -1550,16 +1600,29 @@ async function main() {
   await guardarCheckpoint(SANTAMARTA_CHECKPOINT_KEY, ahora);
 
   // --- Pórticos --------------------------------------------------------------
-  const porUnitIdPorticos = new Map(vehiculosPorticos.map((v) => [v.unit_id, v]));
+  const porUnitIdPorticos = new Map(unidadesDeteccion.map((u) => [u.unitId, u]));
+  // Puntos por (vehiculo, dispositivo) — aísla los dos tracks de un mismo
+  // vehículo cuando tiene dispositivo secundario (ver obtenerUnidadesDeteccion).
+  const puntosPorUnidad = new Map();
+  // Puntos SOLO del dispositivo principal, igual que antes de este cambio —
+  // lo siguen usando actualizarOdometroDiario/estimarCobroAVO más abajo, que
+  // no tienen ningún concepto de "dispositivo secundario" (odómetro/AVO son
+  // del vehículo, no de cada GPS, así que se calculan una sola vez).
   const puntosPorVehiculo = new Map();
   for (const r of rows) {
-    const vehiculo = porUnitIdPorticos.get(r.unitIdA0);
-    if (!vehiculo) continue;
-    if (!puntosPorVehiculo.has(vehiculo.id)) puntosPorVehiculo.set(vehiculo.id, []);
-    puntosPorVehiculo.get(vehiculo.id).push({
+    const unidad = porUnitIdPorticos.get(r.unitIdA0);
+    if (!unidad) continue;
+    const claveUnidad = `${unidad.vehiculo.id}|${unidad.dispositivo}`;
+    if (!puntosPorUnidad.has(claveUnidad)) puntosPorUnidad.set(claveUnidad, []);
+    const punto = {
       time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
       lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0, odometro: r.odometerC14, hdop: r.hdopC7,
-    });
+    };
+    puntosPorUnidad.get(claveUnidad).push(punto);
+    if (unidad.dispositivo === 'principal') {
+      if (!puntosPorVehiculo.has(unidad.vehiculo.id)) puntosPorVehiculo.set(unidad.vehiculo.id, []);
+      puntosPorVehiculo.get(unidad.vehiculo.id).push(punto);
+    }
   }
 
   // Si el vehículo queda estacionado/detenido cerca de un pórtico (ej. su
@@ -1577,8 +1640,10 @@ async function main() {
   const gatesEmpiricos = await obtenerGatesEmpiricos();
 
   let totalDetecciones = 0;
-  for (const vehiculo of vehiculosPorticos) {
-    const puntosTotales = puntosPorVehiculo.get(vehiculo.id) || [];
+  for (const unidad of unidadesDeteccion) {
+    const vehiculo = unidad.vehiculo;
+    const dispositivo = unidad.dispositivo;
+    const puntosTotales = puntosPorUnidad.get(`${vehiculo.id}|${dispositivo}`) || [];
     // hdop=0 = posición "Guardado" (caché de TrackGTS, no un fix GPS real) —
     // misma convención que usa su propio reporte de historial de posiciones
     // para pintar "Guardado" vs "OK" (ver getGPSStatus en su código fuente,
@@ -1589,11 +1654,11 @@ async function main() {
     // (!== 0 deja pasar undefined), así que esto no rompe nada si la
     // hipótesis resulta incorrecta, solo deja de proteger.
     const puntosDescartadosPorHdop = puntosTotales.filter((p) => p.hdop === 0).length;
-    if (puntosDescartadosPorHdop) console.log(`[porticos] ${vehiculo.patente}: ${puntosDescartadosPorHdop} puntos descartados por hdop=0 (posición en caché, no GPS real).`);
+    if (puntosDescartadosPorHdop) console.log(`[porticos] ${vehiculo.patente} (${dispositivo}): ${puntosDescartadosPorHdop} puntos descartados por hdop=0 (posición en caché, no GPS real).`);
     const puntos = puntosTotales
       .filter((p) => p.lat && p.lon && !isNaN(p.time) && p.hdop !== 0)
       .sort((a, b) => a.time - b.time);
-    console.log(`[porticos] ${vehiculo.patente}: ${puntos.length} puntos GPS válidos`);
+    console.log(`[porticos] ${vehiculo.patente} (${dispositivo}): ${puntos.length} puntos GPS válidos`);
 
     // OJO: el lookback de esta consulta tiene que ser al MENOS tan largo como
     // la ventana más larga que se usa más abajo (VENTANA_ESTACIONADO_MS, 20h),
@@ -1611,6 +1676,7 @@ async function main() {
       .from('porticos_pasadas_reales')
       .select('portico_codigo, ts')
       .eq('vehiculo_id', vehiculo.id)
+      .eq('dispositivo', dispositivo)
       .gte('ts', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
     if (errPrevias) throw new Error(`Error leyendo pasadas previas de ${vehiculo.patente}: ${errPrevias.message}`);
     const ultimaPasadaPorPortico = new Map();
@@ -1634,6 +1700,7 @@ async function main() {
         .from('porticos_pasadas_reales')
         .select('*')
         .eq('vehiculo_id', vehiculo.id)
+        .eq('dispositivo', dispositivo)
         .eq('confirmado', false)
         .gte('ts', new Date(Date.now() - VENTANA_ESTACIONADO_MS).toISOString());
       if (errPendientes) throw new Error(`Error leyendo pasadas pendientes de ${vehiculo.patente}: ${errPendientes.message}`);
@@ -1649,8 +1716,9 @@ async function main() {
           .update({ confirmado: true })
           .eq('id', pendiente.id);
         if (errConfirmar) { console.log(`[porticos] Error confirmando pasada pendiente de ${vehiculo.patente}: ${errConfirmar.message}`); continue; }
-        console.log(`[porticos] ✅ ${vehiculo.patente}: pasada pendiente de ${pendiente.portico_codigo} (${fmtTL(new Date(pendiente.ts))}) confirmada esta corrida.`);
-        if (PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) {
+        console.log(`[porticos] ✅ ${vehiculo.patente} (${dispositivo}): pasada pendiente de ${pendiente.portico_codigo} (${fmtTL(new Date(pendiente.ts))}) confirmada esta corrida.`);
+        // Telegram solo para el dispositivo principal (ver mismo criterio más abajo).
+        if (dispositivo === 'principal' && PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) {
           await notificarTelegram(mensajePasada(vehiculo.patente, pendiente));
         }
       }
@@ -1753,6 +1821,7 @@ async function main() {
           if (esNuevoEnEstaCorrida) {
             comparaciones.push({
               vehiculo_id: vehiculo.id,
+              dispositivo,
               ts: p.time.toISOString(),
               portico_codigo: resuelto.codigo,
               concesionaria: portico.concesionaria,
@@ -1788,6 +1857,7 @@ async function main() {
               : false; // si ni siquiera salió del radio, ni vale la pena chequear la calzada
             detecciones.push({
               vehiculo_id: vehiculo.id,
+              dispositivo,
               ts: p.time.toISOString(),
               portico_codigo: resuelto.codigo,
               concesionaria: portico.concesionaria,
@@ -1808,20 +1878,20 @@ async function main() {
     // Dedupe defensivo por si el mismo punto GPS (mismo ts) aparece dos veces
     // en la respuesta de reportTravel — evita el mismo error de Postgres que
     // rompía Santa Marta, y de paso evita notificar dos veces por Telegram.
-    const deteccionesSinDuplicar = dedupePorClave(detecciones, (d) => `${d.vehiculo_id}|${d.ts}|${d.portico_codigo}`);
-    console.log(`[porticos] ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas nuevas detectadas`);
+    const deteccionesSinDuplicar = dedupePorClave(detecciones, (d) => `${d.vehiculo_id}|${d.dispositivo}|${d.ts}|${d.portico_codigo}`);
+    console.log(`[porticos] ${vehiculo.patente} (${dispositivo}): ${deteccionesSinDuplicar.length} pasadas nuevas detectadas`);
     totalDetecciones += deteccionesSinDuplicar.length;
 
     // Guardar SIEMPRE las comparaciones del método nuevo, sin importar si
     // este vehículo notifica por Telegram — antes del `continue` de más
     // abajo para que nunca se salte esta parte.
-    const comparacionesSinDuplicar = dedupePorClave(comparaciones, (c) => `${c.vehiculo_id}|${c.ts}|${c.portico_codigo}`);
+    const comparacionesSinDuplicar = dedupePorClave(comparaciones, (c) => `${c.vehiculo_id}|${c.dispositivo}|${c.ts}|${c.portico_codigo}`);
     if (comparacionesSinDuplicar.length) {
       const { error: errComparacion } = await supabase
         .from('porticos_comparacion_metodos')
-        .upsert(comparacionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo' });
-      if (errComparacion) console.log(`[porticos][comparacion] Error guardando comparación de ${vehiculo.patente}: ${errComparacion.message}`);
-      else console.log(`[porticos][comparacion] ${vehiculo.patente}: ${comparacionesSinDuplicar.length} comparaciones guardadas`);
+        .upsert(comparacionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo,dispositivo' });
+      if (errComparacion) console.log(`[porticos][comparacion] Error guardando comparación de ${vehiculo.patente} (${dispositivo}): ${errComparacion.message}`);
+      else console.log(`[porticos][comparacion] ${vehiculo.patente} (${dispositivo}): ${comparacionesSinDuplicar.length} comparaciones guardadas`);
     }
 
     if (deteccionesSinDuplicar.length) {
@@ -1832,10 +1902,15 @@ async function main() {
         // haberse insertado con una versión anterior del código) pero le faltaba
         // lat/lon u otro campo, esta corrida la completa sola — sin depender de
         // un rescate manual ni de un login extra a TrackGTS.
-        .upsert(deteccionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo' });
-      if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente}: ${error.message}`);
-      console.log(`[porticos] ✅ ${vehiculo.patente}: ${deteccionesSinDuplicar.length} pasadas insertadas/verificadas`);
+        .upsert(deteccionesSinDuplicar, { onConflict: 'vehiculo_id,ts,portico_codigo,dispositivo' });
+      if (error) throw new Error(`Error guardando pasadas de ${vehiculo.patente} (${dispositivo}): ${error.message}`);
+      console.log(`[porticos] ✅ ${vehiculo.patente} (${dispositivo}): ${deteccionesSinDuplicar.length} pasadas insertadas/verificadas`);
 
+      // Telegram solo para el dispositivo principal — si no, cada pasada real
+      // notificaría dos veces (una por dispositivo) mientras dure la
+      // comparación GV58LAU/FTC927. El secundario queda igual de completo en
+      // la base, solo no duplica el aviso.
+      if (dispositivo !== 'principal') continue;
       if (!PATENTES_NOTIFICAR_TELEGRAM.includes(vehiculo.patente)) continue;
       // Solo se notifica lo YA confirmado en esta misma corrida (el vehículo
       // ya mostró un punto posterior fuera del radio). Lo que quedó
@@ -1848,7 +1923,7 @@ async function main() {
     }
   }
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
-  await emparejarLecturasManuales(vehiculosPorticos);
+  await emparejarLecturasManuales(unidadesDeteccion);
   await actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo);
   await estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo);
   await guardarCheckpoint(PORTICOS_CHECKPOINT_KEY, ahora);
