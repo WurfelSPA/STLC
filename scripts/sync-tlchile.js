@@ -458,6 +458,31 @@ function resolverCodigoDireccional(portico, anterior, actual) {
   return { codigo: portico.codigo, tramo: portico.tramo };
 }
 
+// Método nuevo EN PARALELO, solo observacional por ahora (2026-09-21) --
+// mismo patrón que el map-matching de calzada (ver nota de "Método NUEVO"
+// más abajo): no cambia en nada resolverCodigoDireccional todavía, solo
+// registra en el log cuándo el rumbo real del dispositivo (headingC9,
+// confirmado que TrackGTS lo manda) habría resuelto la dirección distinto
+// que el método actual (delta entre dos puntos GPS consecutivos, ruidoso a
+// baja velocidad -- justo donde más importa, en nudos con pórticos muy
+// juntos como P10/P11). Sirve para juntar evidencia de cuál es más
+// confiable antes de reemplazar nada que afecte tarifas reales.
+function diferenciaAngular(a, b) {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
+function resolverCodigoDireccionalPorRumbo(portico, heading) {
+  const par = PARES_DIRECCIONALES[portico.codigo];
+  if (!par || heading == null) return null;
+  // eje='lat': avanzar en +lat es rumbo ~0° (norte), -lat ~180° (sur).
+  // eje='lon': avanzar en +lon es rumbo ~90° (este), -lon ~270° (oeste).
+  const rumboPositivo = par.eje === 'lat' ? 0 : 90;
+  const vaEnSentidoPositivo = diferenciaAngular(heading, rumboPositivo) < 90;
+  const esAlterno = par.positivoEsAlterno ? vaEnSentidoPositivo : !vaEnSentidoPositivo;
+  return esAlterno ? { codigo: par.alterno, tramo: par.tramoAlterno } : { codigo: portico.codigo, tramo: portico.tramo };
+}
+
 // Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
 const TARIFAS_FALLBACK = {
   // P3 (Costanera Norte, Puente Lo Saldes) corregido 2026-09-02: el valor
@@ -719,12 +744,19 @@ function hayPuntoFueraDelRadio(puntos, lat, lon) {
 // lugar totalmente distinto (ej. el destino final del viaje).
 const VENTANA_APAGADO_MS = 10 * 60_000;
 
+// Actualizado 2026-09-21: además del mensaje de transición IGF, se chequea
+// ignState directo (booleano, viene en CADA punto, no solo en la
+// transición) -- más robusto: si el motor ya estaba apagado ANTES de que
+// empezara el rango consultado en esta corrida, nunca va a aparecer un
+// mensaje IGF dentro de la ventana, pero el estado "false" en cualquier
+// lectura periódica (POS-T/POS-H) igual lo delata.
 function hayApagadoCercaDelPortico(puntosDesde, portico) {
   if (!puntosDesde.length) return false;
   const t0 = puntosDesde[0].time.getTime();
   for (const p of puntosDesde) {
     if (p.time.getTime() - t0 > VENTANA_APAGADO_MS) break;
-    if (p.msgType === 'IGF' && haversineMetros(p.lat, p.lon, portico.lat, portico.lon) <= RADIO_GEOCERCA_M) {
+    const motorApagado = p.msgType === 'IGF' || p.ignState === false;
+    if (motorApagado && haversineMetros(p.lat, p.lon, portico.lat, portico.lon) <= RADIO_GEOCERCA_M) {
       return true;
     }
   }
@@ -1654,6 +1686,21 @@ async function main() {
       // acá. Se usa para el filtro genérico de "se apagó el motor cerca de
       // este pórtico" (ver hayApagadoCercaDelPortico más abajo).
       msgType: r.msgTypeC0,
+      // ignState (booleano, viene en TODOS los puntos, no solo en el evento
+      // de transición IGN/IGF) -- confirmado 2026-09-21 vía el diagnóstico
+      // de claves crudas (ignStateC41). Más robusto que depender solo del
+      // mensaje IGF: si el mensaje de transición no cae dentro de la
+      // ventana de esta corrida (ej. el motor ya estaba apagado antes del
+      // inicio del rango consultado), el estado sigue disponible en cada
+      // lectura periódica igual.
+      ignState: r.ignStateC41,
+      // heading (rumbo real del dispositivo, 0-360°) -- confirmado
+      // 2026-09-21 (headingC9). Capturado pero TODAVÍA NO USADO en la
+      // detección; sirve para reforzar resolverCodigoDireccional (hoy
+      // infiere dirección solo del delta entre dos puntos GPS, ruidoso a
+      // baja velocidad) una vez validado en paralelo contra pasadas ya
+      // confirmadas.
+      heading: r.headingC9,
     };
     puntosPorUnidad.get(claveUnidad).push(punto);
     if (unidad.dispositivo === 'principal') {
@@ -1837,6 +1884,12 @@ async function main() {
           const tsMs = p.time.getTime();
           const resuelto = resolverCodigoDireccional(portico, anterior, p);
           const esNuevoEnEstaCorrida = resuelto.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
+          if (esNuevoEnEstaCorrida) {
+            const resueltoPorRumbo = resolverCodigoDireccionalPorRumbo(portico, p.heading);
+            if (resueltoPorRumbo && resueltoPorRumbo.codigo !== resuelto.codigo) {
+              console.log(`[porticos][rumbo] ⚠️ ${vehiculo.patente} (${dispositivo}): delta-posición dice ${resuelto.codigo}, rumbo (${p.heading}°) dice ${resueltoPorRumbo.codigo} -- ${fmtTL(p.time)}, velocidad ${p.speed} km/h.`);
+            }
+          }
           const ultimaConocida = ultimaPasadaPorPortico.get(resuelto.codigo);
           // Ventana de "misma pasada" extendida si el punto actual sugiere
           // vehículo estacionado (velocidad baja) — evita recontar como
