@@ -458,6 +458,36 @@ function resolverCodigoDireccional(portico, anterior, actual) {
   return { codigo: portico.codigo, tramo: portico.tramo };
 }
 
+// Distinto de PARES_DIRECCIONALES: estos pórticos son UN SOLO código físico
+// (no dos códigos/geocercas separadas) cuya TARIFA cambia según el sentido
+// de viaje -- confirmado 2026-09-21 con la calculadora oficial de Costanera
+// Norte (P3 en sentido Poniente→Oriente tiene TS de 07:00 a 14:00 seguidas;
+// en sentido contrario son 3 ventanas cortas totalmente distintas). Mismo
+// mecanismo de eje/tendencia que PARES_DIRECCIONALES, pero el resultado se
+// guarda en porticos_pasadas_reales.sentido para que bandaHeuristica elija
+// la ventana correcta -- no cambia qué código se guarda, solo con qué
+// horario se factura.
+const EJE_SENTIDO_PORTICO = {
+  // Corredor Costanera Norte, orientación E-O: +lon (menos negativo) =
+  // yendo al oriente = "PO". Mismo eje que P6/P17 en PARES_DIRECCIONALES,
+  // que están en este mismo corredor.
+  P3:    { eje: 'lon', positivoEsPO: true },
+  P4CN:  { eje: 'lon', positivoEsPO: true },
+  P5CN:  { eje: 'lon', positivoEsPO: true },
+  'P6.1': { eje: 'lon', positivoEsPO: true },
+  'P6.2': { eje: 'lon', positivoEsPO: true },
+  P9CN:  { eje: 'lon', positivoEsPO: true },
+};
+
+function calcularSentido(porticoCodigo, anterior, actual) {
+  const cfg = EJE_SENTIDO_PORTICO[porticoCodigo];
+  if (!cfg || !anterior) return null;
+  const tendencia = cfg.eje === 'lat' ? actual.lat - anterior.lat : actual.lon - anterior.lon;
+  if (tendencia === 0) return null; // sin movimiento neto en el eje, no se puede afirmar sentido
+  const esPO = cfg.positivoEsPO ? tendencia > 0 : tendencia < 0;
+  return esPO ? 'PO' : 'OP';
+}
+
 // Método nuevo EN PARALELO, solo observacional por ahora (2026-09-21) --
 // mismo patrón que el map-matching de calzada (ver nota de "Método NUEVO"
 // más abajo): no cambia en nada resolverCodigoDireccional todavía, solo
@@ -916,27 +946,77 @@ async function cargarCatalogoPorticos() {
   return { porticos, tarifas, ventanasPunta, ventanasSaturacion };
 }
 
+// Resuelve si minutosDia cae dentro de alguna ventana confirmada, en 3
+// formatos posibles de ventana_punta/ventana_saturacion (porticos_catalogo),
+// del más viejo al más nuevo -- retrocompatible con todo lo cargado antes
+// de 2026-09-21:
+//   1. null / undefined                -> nunca aplica
+//   2. [[ini,fin], ...]                -> formato de siempre, aplica SOLO
+//      día hábil (L-V) -- fin de semana sigue TBFP para estos códigos,
+//      exactamente como antes.
+//   3. { PO: <2 o 4>, OP: <2 o 4> }     -> el pórtico tiene horario
+//      distinto por sentido de viaje (confirmado real: P3/P4CN/P5CN/
+//      P6.1/P6.2/P9CN, Costanera Norte -- ver [[project_agp_tracklink_integration]]).
+//      Si la pasada no tiene sentido resuelto (o no calza PO/OP), NO se
+//      aplica ninguna ventana -- mejor no adivinar que aplicar la del
+//      sentido equivocado.
+//   4. { habil: [[...]], sabado: [[...]], domingo: [[...]] } -- dentro de
+//      un sentido (o directo, sin sentido), cuando el horario TAMBIÉN
+//      cambia por tipo de día (confirmado real: P9CN sábado tiene TS de
+//      11:30 a 14:59, algo que la heurística vieja nunca podía ver porque
+//      colapsaba TODO fin de semana a TBFP antes de mirar cualquier ventana).
+function ventanaAplica(ventanaData, sentido, diaTipo, minutosDia) {
+  if (!ventanaData) return false;
+  if (Array.isArray(ventanaData)) {
+    if (diaTipo !== 'habil') return false;
+    return ventanaData.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin);
+  }
+  let nivel = ventanaData;
+  if (sentido && Object.prototype.hasOwnProperty.call(nivel, sentido)) {
+    nivel = nivel[sentido];
+  } else if (nivel.PO || nivel.OP) {
+    return false; // tiene desglose por sentido pero esta pasada no lo tiene resuelto
+  }
+  if (Array.isArray(nivel)) {
+    if (diaTipo !== 'habil') return false;
+    return nivel.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin);
+  }
+  const rangos = nivel[diaTipo];
+  if (!rangos) return false;
+  return rangos.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin);
+}
+
 // HEURÍSTICA de banda horaria: TS confirmada > TBP confirmada/genérica >
 // TBFP. La ventana oficial del pórtico manda si existe; si no, cae de
 // vuelta en la heurística genérica (no es la ventana exacta de las
 // concesionarias que aún no hemos investigado).
-function bandaHeuristica(fecha, porticoCodigo) {
+//
+// `sentido` (2026-09-21, ver ventanaAplica arriba): PO/OP/null, solo se usa
+// cuando el pórtico tiene horario confirmado distinto por dirección.
+function bandaHeuristica(fecha, porticoCodigo, sentido) {
   const p = partesChile(fecha);
   const dow = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day))).getUTCDay();
   const h = Number(p.hour);
   const min = Number(p.minute);
-  if (dow === 0 || dow === 6) return 'TBFP';
   const minutosDia = h * 60 + min;
+  const diaTipo = dow === 0 ? 'domingo' : dow === 6 ? 'sabado' : 'habil';
 
   const ventanasTS = porticoCodigo ? VENTANAS_SATURACION_PORTICO[porticoCodigo] : null;
-  if (ventanasTS && ventanasTS.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin)) return 'TS';
+  if (ventanaAplica(ventanasTS, sentido, diaTipo, minutosDia)) return 'TS';
 
   if (porticoCodigo && Object.prototype.hasOwnProperty.call(VENTANAS_PUNTA_PORTICO, porticoCodigo)) {
     const ventanas = VENTANAS_PUNTA_PORTICO[porticoCodigo];
-    if (!ventanas) return 'TBFP';
-    return ventanas.some(([ini, fin]) => minutosDia >= ini && minutosDia < fin) ? 'TBP' : 'TBFP';
+    if (ventanaAplica(ventanas, sentido, diaTipo, minutosDia)) return 'TBP';
+    // Antes: dow===0||dow===6 devolvía TBFP de inmediato ANTES de mirar
+    // ninguna ventana -- eso escondía el caso real de P9CN sábado (arriba).
+    // Ahora se sigue devolviendo TBFP en fin de semana salvo que exista una
+    // ventana confirmada que diga lo contrario para ESE día específico --
+    // mismo comportamiento de siempre para todo lo no confirmado, corregido
+    // solo donde hay evidencia real.
+    return 'TBFP';
   }
 
+  if (dow === 0 || dow === 6) return 'TBFP';
   if ((h >= 7 && h < 9) || (h >= 18 && h < 21)) return 'TBP';
   return 'TBFP';
 }
@@ -945,7 +1025,7 @@ function bandaHeuristica(fecha, porticoCodigo) {
 // toque (mismo lote de puntos) como al confirmar una pasada que quedó
 // pendiente de una corrida anterior (ver "Confirmación diferida" abajo).
 function mensajePasada(patente, pasada) {
-  const banda = bandaHeuristica(new Date(pasada.ts), pasada.portico_codigo);
+  const banda = bandaHeuristica(new Date(pasada.ts), pasada.portico_codigo, pasada.sentido);
   // Un código sin TARIFAS cargada (ej. AVO — cobra por distancia recorrida
   // entrada/salida, no por pórtico individual, no encaja en este modelo) no
   // debe tirar el sync entero — antes esto reventaba con "Cannot read
@@ -1890,6 +1970,7 @@ async function main() {
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
           const resuelto = resolverCodigoDireccional(portico, anterior, p);
+          const sentido = calcularSentido(resuelto.codigo, anterior, p);
           const esNuevoEnEstaCorrida = resuelto.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
           if (esNuevoEnEstaCorrida) {
             const resueltoPorRumbo = resolverCodigoDireccionalPorRumbo(portico, p.heading);
@@ -1974,6 +2055,7 @@ async function main() {
               lat: puntoCruce.lat,
               lon: puntoCruce.lon,
               confirmado: confirmadoPorRadio && confirmadoPorCalzada,
+              sentido,
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
           }
