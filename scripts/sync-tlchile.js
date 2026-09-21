@@ -1614,16 +1614,23 @@ async function main() {
     unitIds,
   });
   console.log(`[travel] ${rows.length} posiciones GPS recibidas (todas las unidades)`);
-  // Diagnóstico temporal 2026-09-03: se detectaron pasadas falsas para
-  // VVJG-14 (Vespucio Norte + AVO + Túnel San Cristóbal + Costanera Norte en
-  // 35 min, con el auto ya estacionado en casa según el reporte de
-  // posiciones de TrackGTS, que sí trae un campo "Guardado" vs "OK" para
-  // indicar si es un fix GPS real o una posición en caché). reportTravel no
-  // expone ese campo con los nombres que ya leemos (unitIdA0/latC12/etc) —
-  // esto vuelca TODAS las claves de la primera fila para ver si hay una
-  // columna de calidad/estado de GPS sin usar (ej. C0-C7, C9, C10, C16+).
-  // Quitar una vez identificado el campo o descartada la hipótesis.
+  // Diagnóstico temporal 2026-09-03, ampliado 2026-09-21: rows[0] es
+  // cualquier unidad al azar (la primera cronológicamente entre TODAS las
+  // de Santa Marta + pórticos mezcladas) -- para confirmar qué campos
+  // manda TrackGTS específicamente por CADA dispositivo de un vehículo con
+  // comparación GV58LAU/FTC927 (no alcanza con una muestra genérica, un
+  // modelo de tracker puede no soportar un campo que otro sí), se busca
+  // una fila de ejemplo por cada unitId de unidadesDeteccion. Quitar (o
+  // dejar solo rows[0]) una vez que se confirme que ambos dispositivos
+  // mandan lo mismo de forma consistente.
   if (rows.length) console.log('[travel][diagnóstico] claves de una fila:', JSON.stringify(rows[0]));
+  for (const unidad of unidadesDeteccion) {
+    const fila = rows.find((r) => r.unitIdA0 === unidad.unitId);
+    console.log(
+      `[travel][diagnóstico] ${unidad.vehiculo.patente} (${unidad.dispositivo}, unitId ${unidad.unitId}):`,
+      fila ? JSON.stringify(fila) : 'sin posiciones en este rango'
+    );
+  }
 
   // --- Santa Marta -----------------------------------------------------------
   const porUnitIdSantaMarta = new Map(UNIDADES_SANTAMARTA.map((u) => [u.unitId, u]));
