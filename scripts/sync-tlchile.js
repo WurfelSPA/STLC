@@ -699,6 +699,38 @@ function hayPuntoFueraDelRadio(puntos, lat, lon) {
   return puntos.some((p) => haversineMetros(p.lat, p.lon, lat, lon) > RADIO_GEOCERCA_M);
 }
 
+// Filtro genérico de "se estacionó acá" (2026-09-21) -- a diferencia de
+// FALSOS_POSITIVOS_CONOCIDOS (curada a mano, patente+pórtico, no escala a
+// clientes nuevos), esta señal no depende de qué vehículo ni de qué
+// pórtico sea: usa el propio dispositivo Tracklink, no solo la trazada GPS.
+// Motivación real: el candidato de P11/P10 (oficina de VVJG-14) cae dentro
+// del radio justo cuando el motor se apaga (evento IGF) y el auto no
+// vuelve a moverse -- nunca pasa así en un cruce real de autopista
+// tarificada (nadie apaga el motor en medio de la vía). distancia_calzada_m
+// ya se probó y no sirve para este caso (2-9m, igual a un cruce real
+// confirmado, ver nota de P11 en FALSOS_POSITIVOS_CONOCIDOS) -- el apagado
+// de motor es una señal del vehículo mismo, no de su posición, así que no
+// tiene ese problema de ambigüedad geométrica.
+//
+// Ventana corta (10 min) a propósito: el IGF real ocurre segundos a pocos
+// minutos después de llegar (confirmado con el caso de P11: candidatos
+// 07:05:47-07:06:46, IGF a las 07:07:06) -- una ventana larga arriesgaría
+// silenciar un cruce real seguido, minutos después, de un apagado en un
+// lugar totalmente distinto (ej. el destino final del viaje).
+const VENTANA_APAGADO_MS = 10 * 60_000;
+
+function hayApagadoCercaDelPortico(puntosDesde, portico) {
+  if (!puntosDesde.length) return false;
+  const t0 = puntosDesde[0].time.getTime();
+  for (const p of puntosDesde) {
+    if (p.time.getTime() - t0 > VENTANA_APAGADO_MS) break;
+    if (p.msgType === 'IGF' && haversineMetros(p.lat, p.lon, portico.lat, portico.lon) <= RADIO_GEOCERCA_M) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Una RAMPA de acceso (motorway_link/trunk_link) nace pegada a la vía local
 // de la que se desprende — justo antes de separarse, ambas quedan a los
 // mismos pocos metros. Por eso "¿hay alguna vía tarificada cerca?" no
@@ -1617,6 +1649,11 @@ async function main() {
     const punto = {
       time: new Date(r.gpsUtcTimeC13.replace(' ', 'T') + 'Z'),
       lat: r.latC12, lon: r.lonC11, speed: r.speedC8 || 0, odometro: r.odometerC14, hdop: r.hdopC7,
+      // msgType (IGN=motor encendido, IGF=motor apagado, POS-T/POS-H=posición
+      // periódica) -- ya se traía para Santa Marta pero nunca se capturaba
+      // acá. Se usa para el filtro genérico de "se apagó el motor cerca de
+      // este pórtico" (ver hayApagadoCercaDelPortico más abajo).
+      msgType: r.msgTypeC0,
     };
     puntosPorUnidad.get(claveUnidad).push(punto);
     if (unidad.dispositivo === 'principal') {
@@ -1813,6 +1850,16 @@ async function main() {
           const esFalsoPositivoConocido = FALSOS_POSITIVOS_CONOCIDOS.has(`${vehiculo.patente}|${resuelto.codigo}`);
           const velocidadMinima = VELOCIDAD_MINIMA_PORTICO[resuelto.codigo];
           const cumpleVelocidadMinima = velocidadMinima == null || p.speed >= velocidadMinima;
+          // Filtro genérico de "se estacionó acá" (2026-09-21): distinto de
+          // FALSOS_POSITIVOS_CONOCIDOS (que es una lista curada a mano por
+          // patente+pórtico, no escala a clientes nuevos) -- este no depende
+          // de qué vehículo ni de qué pórtico sea. Confirmado con el caso
+          // real de P11/P10 (oficina de VVJG-14): el candidato cae dentro
+          // del radio justo cuando el motor se apaga (evento IGF) y el auto
+          // no vuelve a moverse — nunca ocurre así en un cruce real (nadie
+          // apaga el motor en medio de una autopista tarificada). Ver
+          // hayApagadoCercaDelPortico más abajo.
+          const seApagaElMotorAca = hayApagadoCercaDelPortico(puntos.slice(i), portico);
 
           // Método nuevo en paralelo: se registra para TODO candidato dentro
           // del radio de 150m, incluso los que el método actual descarta por
@@ -1838,11 +1885,11 @@ async function main() {
               n_confirmaciones_empiricas: gatesEmpiricos.get(resuelto.codigo)?.n ?? 0,
               velocidad_minima_ventana_previa_kmh: velocidadMinimaEnVentana(puntos, i),
               velocidad_kmh: p.speed,
-              metodo_actual_habria_confirmado: esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima,
+              metodo_actual_habria_confirmado: esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima && !seApagaElMotorAca,
             });
           }
 
-          if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima) {
+          if (esNuevoEnEstaCorrida && esNuevoVsHistorico && !esFalsoPositivoConocido && cumpleVelocidadMinima && !seApagaElMotorAca) {
             // confirmado: ¿hay ya, en esta misma corrida, algún punto GPS
             // posterior que muestre al vehículo fuera del radio? Un tránsito
             // real en autopista lo confirma casi al toque (siguiente lectura,
