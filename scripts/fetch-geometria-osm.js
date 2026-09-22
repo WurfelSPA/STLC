@@ -67,9 +67,19 @@ function construirQuery({ bbox, lat, lon, radio, filtro }) {
 
 async function consultarOverpass(query, intentos = 3) {
   for (let i = 1; i <= intentos; i++) {
+    // User-Agent explícito: Overpass empezó a devolver 406 (Apache,
+    // "Not Acceptable") sin él -- confirmado 2026-09-22, este mismo script
+    // funcionaba bien el 2026-09-07 (ver nota de cobertura arriba). Overpass
+    // pide identificar la app que consulta como buena práctica anti-abuso;
+    // el fetch nativo de Node no manda un User-Agent descriptivo por
+    // defecto y parece que ahora lo bloquean por eso.
     const res = await fetch(OVERPASS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'STLC-geometria-corredores/1.0 (github.com/WurfelSPA/STLC)',
+        'Accept': 'application/json, text/plain, */*',
+      },
       body: `data=${encodeURIComponent(query)}`,
     });
     const texto = await res.text();
