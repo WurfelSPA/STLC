@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: refresca scripts/geometria-corredores/*.json (geometría real
+# de OpenStreetMap para el map-matching de pórticos) llamando a Overpass API.
+#
+# Solo manual (workflow_dispatch) -- igual que dice el propio script
+# (fetch-geometria-osm.js): "Corre manualmente cuando haga falta (nunca en
+# el cron de sync-tlchile — Overpass es lento y con rate-limit propio)".
+# Se agregó porque el entorno de trabajo de Claude Code no tiene salida a
+# internet hacia Overpass (probado 2026-09-22, error 406/timeout contra
+# overpass-api.de y varios espejos) -- GitHub Actions sí.
+#
+# Motivo real (2026-09-22): 5.1/5.3 (Vespucio Sur, Grecia-Quilín-Las Torres,
+# agregados 2026-09-15) no tienen ninguna vía "principal"/"rampa" cacheada
+# cerca (solo "otra" a 8-13m) -- el chequeo de calzada principal contra
+# caletera queda completamente apagado para esos 4 pórticos (5.1/5.2/5.3/5.4)
+# desde que se agregaron, sin que nadie lo notara. Correr este workflow
+# refresca los 16 grupos completos (no solo Vespucio Sur) por si hay otros
+# corredores con el mismo problema.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Refrescar geometría OSM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  refrescar-geometria:
+    runs-on: ubuntu-latest
+    # 16 grupos x 25s de espera entre consultas + tiempo de cada consulta a
+    # Overpass -- con margen sobra harto.
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Refrescar geometría desde OpenStreetMap
+        run: node scripts/fetch-geometria-osm.js
+
+      - name: Commit y push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/geometria-corredores/
+          git diff --staged --quiet \
+            && echo "Sin cambios — nada que commitear." \
+            || git commit -m "chore: refrescar geometria-corredores desde OpenStreetMap (manual)"
+          git push
