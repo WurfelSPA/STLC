@@ -76,7 +76,8 @@ async function consultarOverpass(query, intentos = 3) {
     try {
       return JSON.parse(texto);
     } catch {
-      console.log(`  [!] Intento ${i}/${intentos} falló (respuesta no-JSON, probable rate-limit/timeout de Overpass). Reintentando...`);
+      console.log(`  [!] Intento ${i}/${intentos} falló (HTTP ${res.status} ${res.statusText}, respuesta no-JSON). Primeros 500 caracteres de la respuesta:`);
+      console.log(`  ${texto.slice(0, 500).replace(/\n/g, ' ')}`);
       if (i < intentos) await new Promise((r) => setTimeout(r, ESPERA_ENTRE_CONSULTAS_MS));
     }
   }
