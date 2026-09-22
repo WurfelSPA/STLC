@@ -23,6 +23,15 @@ name: Refrescar geometría OSM
 on:
   workflow_dispatch:
 
+# Sin esto, el GITHUB_TOKEN de esta corrida quedó solo-lectura y el push
+# final falló con 403 (confirmado real 2026-09-22) -- no se investigó por
+# qué sync-tlchile.yml no necesitó este bloque explícito (puede que el
+# default del repo haya cambiado, o alguna otra diferencia no identificada
+# todavía). Se deja explícito acá en vez de depender de un default que ya
+# demostró fallar una vez.
+permissions:
+  contents: write
+
 jobs:
   refrescar-geometria:
     runs-on: ubuntu-latest
