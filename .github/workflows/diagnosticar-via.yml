@@ -1,0 +1,44 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: diagnóstico puntual, no toca nada de producción -- corre
+# scripts/diagnosticar-via-cercana.js con la lat/lon que se le pase y
+# muestra en el log todas las vías reales de OpenStreetMap cerca de ese
+# punto (nombre, tag highway, si es de peaje, etc.), para depurar casos
+# como el de 5.1/5.3 (Vespucio Sur) donde el map-matching por clase
+# (principal/rampa/otra) no alcanza para saber si matcheó la vía correcta.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Diagnosticar vía cercana (OSM)
+
+on:
+  workflow_dispatch:
+    inputs:
+      lat:
+        description: 'Latitud'
+        required: true
+      lon:
+        description: 'Longitud'
+        required: true
+      radio:
+        description: 'Radio de búsqueda en metros (default 300)'
+        required: false
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Diagnosticar
+        run: node scripts/diagnosticar-via-cercana.js "${{ inputs.lat }}" "${{ inputs.lon }}" "${{ inputs.radio }}"
