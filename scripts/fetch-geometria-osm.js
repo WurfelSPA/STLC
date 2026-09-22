@@ -129,26 +129,42 @@ function comprimir(json) {
 
 async function main() {
   fs.mkdirSync(DEST, { recursive: true });
+  const fallidos = [];
   for (let i = 0; i < GRUPOS.length; i++) {
     const cfg = GRUPOS[i];
     if (i > 0) await new Promise((r) => setTimeout(r, ESPERA_ENTRE_CONSULTAS_MS));
     console.log(`[${cfg.grupo}] Consultando Overpass...`);
-    const query = construirQuery(cfg);
-    const json = await consultarOverpass(query);
-    const segmentos = comprimir(json);
-    const salida = {
-      grupo: cfg.grupo,
-      fuente: `OpenStreetMap (Overpass API), refrescado ${new Date().toISOString().slice(0, 10)}`,
-      ways: segmentos.length,
-      segmentos,
-    };
-    fs.writeFileSync(path.join(DEST, `${cfg.grupo}.json`), JSON.stringify(salida));
-    console.log(`[${cfg.grupo}] ✅ ${segmentos.length} vías guardadas.`);
+    // Un grupo que falla (ej. timeout puntual de Overpass en un bbox grande,
+    // confirmado real 2026-09-22 con "avo") no debe tirar abajo el resto de
+    // la corrida -- antes esto perdía el trabajo YA GUARDADO de los grupos
+    // anteriores porque el commit del workflow nunca corría si el proceso
+    // salía con error. Se sigue con el resto y se reporta al final cuáles
+    // quedaron pendientes para reintentar.
+    try {
+      const query = construirQuery(cfg);
+      const json = await consultarOverpass(query);
+      const segmentos = comprimir(json);
+      const salida = {
+        grupo: cfg.grupo,
+        fuente: `OpenStreetMap (Overpass API), refrescado ${new Date().toISOString().slice(0, 10)}`,
+        ways: segmentos.length,
+        segmentos,
+      };
+      fs.writeFileSync(path.join(DEST, `${cfg.grupo}.json`), JSON.stringify(salida));
+      console.log(`[${cfg.grupo}] ✅ ${segmentos.length} vías guardadas.`);
+    } catch (err) {
+      console.log(`[${cfg.grupo}] ❌ ${err.message} -- se sigue con el resto, este grupo queda con la geometría vieja (o sin geometría si nunca se había corrido).`);
+      fallidos.push(cfg.grupo);
+    }
   }
   console.log('=== Geometría OSM actualizada ===');
+  if (fallidos.length) {
+    console.log(`Grupos que fallaron y quedaron con la geometría anterior: ${fallidos.join(', ')} -- correr el workflow de nuevo para reintentarlos.`);
+    process.exitCode = 1; // igual marca la corrida en rojo para que se note, pero ya no bloquea el commit (ver "if: always()" en el workflow)
+  }
 }
 
 main().catch((err) => {
   console.error('ERROR FATAL:', err.message);
-  process.exit(1);
+  process.exitCode = 1;
 });

@@ -42,7 +42,12 @@ jobs:
       - name: Refrescar geometría desde OpenStreetMap
         run: node scripts/fetch-geometria-osm.js
 
+      # if: always() -- si un grupo puntual falla (ej. timeout de Overpass,
+      # confirmado real 2026-09-22 con "avo"), el script ya sigue con el
+      # resto y termina en rojo para que se note, pero lo que SÍ se alcanzó
+      # a refrescar no debe perderse por no llegar a este paso.
       - name: Commit y push
+        if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
