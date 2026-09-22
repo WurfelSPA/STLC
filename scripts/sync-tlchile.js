@@ -185,7 +185,9 @@ const PORTICOS_FALLBACK = [
   { codigo: 'P15',  concesionaria: 'Vespucio Norte', tramo: 'El Salto – Recoleta',                lat: -33.388664, lon: -70.632967 },
   { codigo: 'P14',  concesionaria: 'Vespucio Norte', tramo: 'Guanaco – El Salto',                 lat: -33.388604, lon: -70.633316 },
   { codigo: 'P12',  concesionaria: 'Vespucio Norte', tramo: 'Pedro Fontova – Guanaco',            lat: -33.373394, lon: -70.664973 },
-  { codigo: 'P10',  concesionaria: 'Vespucio Norte', tramo: 'Ruta 5 Norte – Pedro Fontova',       lat: -33.365948, lon: -70.696904 },
+  // P10 quitado como entrada física 2026-09-22 -- es el alterno de P11
+  // (mismo nudo, sentido contrario, ver PARES_DIRECCIONALES). Bug real
+  // confirmado con track GPS: P10/P11 disparaban juntos en cada cruce.
   { codigo: 'P9',   concesionaria: 'Vespucio Norte', tramo: 'Lo Echevers – Ruta 5 Norte',         lat: -33.368877, lon: -70.704343 },
   { codigo: 'P7',   concesionaria: 'Vespucio Norte', tramo: 'Condell – Lo Echevers',              lat: -33.381320, lon: -70.753937 },
   // P6/P5 y P17/P1 quedan a 30-60m entre sí — a diferencia del resto del
@@ -355,7 +357,9 @@ const PORTICOS_FALLBACK = [
   // 2026-09-01, tarifario oficial 2026 MOP. A diferencia de AVO, este SÍ es
   // un cobro fijo por pórtico (un solo túnel, dos sentidos).
   { codigo: 'PC101', concesionaria: 'Túnel San Cristóbal', tramo: 'El Salto – Kennedy', lat: -33.398616, lon: -70.615725 },
-  { codigo: 'PC102', concesionaria: 'Túnel San Cristóbal', tramo: 'Kennedy – El Salto', lat: -33.398800, lon: -70.615132 },
+  // PC102 quitado como entrada física 2026-09-22 -- es el alterno de PC101
+  // (mismo túnel, sentido contrario, ver PARES_DIRECCIONALES). Bug real
+  // confirmado con track GPS: PC101/PC102 disparaban juntos en cada cruce.
   // Acceso Vial AMB (camino al Aeropuerto A. Merino Benítez) — agregado
   // 2026-09-01. Un solo pórtico. Monto aproximado ("peaje a luca", ~$1.000
   // para categoría 1, anunciado por MOP para 2026) — sin tarifario oficial
@@ -444,6 +448,23 @@ const PARES_DIRECCIONALES = {
   // Vespucio Sur, misma convención de longitud.
   P6:    { eje: 'lon', positivoEsAlterno: true,  alterno: 'P5',   tramoAlterno: 'Costanera Norte – Condell' },
   P17:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P1',   tramoAlterno: 'Ruta 78 – Santa Elena' },
+  // P10/P11 (mismo corredor Vespucio Norte, mismo nudo con Ruta 5 Norte) —
+  // bug real confirmado 2026-09-22 con el track GPS de VVJG-14 (2026-09-21):
+  // los dos códigos disparaban juntos en cada cruce (mismo patrón que P6/P5)
+  // porque tenían geocerca propia en vez de resolverse por sentido. Misma
+  // convención de longitud que P6/P17 (mismo corredor E-O): positivo =
+  // longitud creciente = hacia Pedro Fontova (oriente) = alterno.
+  P11:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P10',  tramoAlterno: 'Ruta 5 Norte – Pedro Fontova' },
+  // PC101/PC102 (Túnel San Cristóbal, El Salto↔Kennedy) — mismo bug real,
+  // confirmado 2026-09-22 con el mismo track: los dos códigos del túnel
+  // disparaban juntos en cada cruce, con tarifas BIEN distintas (TBFP $565
+  // vs $452, ver TARIFAS) por lo que el doble conteo también inflaba el
+  // monto facturado, no solo la cantidad de pasadas. Corredor propio (no
+  // comparte convención con Vespucio Norte/Sur): positivo = longitud
+  // creciente = hacia Kennedy (oriente/sur) = código BASE (PC101, sentido
+  // real observado en el viaje de vuelta 2026-09-21); negativo = hacia El
+  // Salto = alterno (PC102).
+  PC101: { eje: 'lon', positivoEsAlterno: false, alterno: 'PC102', tramoAlterno: 'Kennedy – El Salto' },
 };
 
 // anterior/actual son los dos puntos GPS consecutivos que generaron la
