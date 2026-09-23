@@ -613,7 +613,10 @@ const TARIFAS_FALLBACK = {
   PA7:  { TBFP: 452, TBP: 904,  TS: 1356 },
   PA30: { TBFP: 393, TBP: 786,  TS: 1178 },
   PA9:  { TBFP: 393, TBP: 786,  TS: 1178 },
-  PA10: { TBFP: 286, TBP: 572,  TS: 857  },
+  // TS corregido 2026-09-23 (857→1143): era el multiplicador genérico 3x
+  // asumido para el corredor, la tabla oficial MOP confirma que este
+  // pórtico específico es 4x TBFP (285,79×4=1.143,16). Ver VENTANAS_PUNTA_PORTICO.
+  PA10: { TBFP: 286, TBP: 572,  TS: 1143 },
   PA11: { TBFP: 286, TBP: 572,  TS: 857  },
   PA31: { TBFP: 369, TBP: 738,  TS: 1107 },
   PA12: { TBFP: 369, TBP: 738,  TS: 1107 },
@@ -881,12 +884,18 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // PA29 (vuelta): TBP 17:00-20:30, sin TS. Confirmado 2026-08-28: cruce real
   // a las 14:52 (fuera de esta ventana) mostró $512 (TBFP), como corresponde.
   PA29: [[17 * 60, 20 * 60 + 30]],
-  // Confirmado 2026-09-11: cruce real de PA10 a las 07:26 Chile (dentro de
-  // la ventana genérica 07-09h que habría dado TBP/$572) mostró $286 (TBFP)
-  // en pantalla, registrado a mano por el usuario y emparejado en
-  // porticos_pasadas_reales.monto_real. Mismo patrón de evidencia que
-  // 4.1/2.2/1.1/4.2 arriba.
-  PA10: null,
+  // CORREGIDO 2026-09-23: el 2026-09-11 se puso `null` (sin ventana) a
+  // partir de UNA sola lectura real a las 07:26 que mostró TBFP ($286) en
+  // vez del TBP genérico ($572) -- conclusión apresurada con un solo dato,
+  // justo 4 minutos antes de que abriera la ventana real. Confirmado ahora
+  // con la tabla oficial MOP (concesiones.mop.gob.cl/uploads/sites/4/2026/03/AUTOPISTA-CENTRAL.pdf,
+  // fila PA10 Departamental-Carlos Valdovinos) Y dos cruces reales nuevos
+  // (2026-09-22 07:38 y 2026-09-23 07:41, ambos TBP/$572 en pantalla): la
+  // ventana real es 07:30-09:30 hábil y sábado (domingo TBFP todo el día,
+  // regla general de la concesionaria). TS oficial de este pórtico también
+  // se corrigió (857→1143, ver TARIFAS) -- no es el multiplicador genérico
+  // 3x de otros pórticos del corredor, este es 4x TBFP.
+  PA10: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]] },
 };
 let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 
