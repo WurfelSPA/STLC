@@ -909,6 +909,30 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // real es partida en 3 tramos, bastante más angosta/específica).
   PA31: { habil: [[6 * 60 + 30, 8 * 60 + 30], [9 * 60, 14 * 60], [17 * 60, 19 * 60]], sabado: [[10 * 60, 13 * 60]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
   PA13: { habil: [[6 * 60 + 30, 8 * 60 + 30], [9 * 60, 14 * 60], [17 * 60, 19 * 60]], sabado: [[10 * 60, 13 * 60]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  // Resto del corredor Eje Norte-Sur, cargado 2026-09-23 con la misma tabla
+  // oficial MOP -- antes corrían con la heurística genérica 07-09h/18-21h.
+  // Confianza alta: leído por coordenadas x/y del PDF Y confirmado
+  // visualmente renderizando la página a imagen (ver scratchpad de la
+  // sesión: render-pdf.mjs/crop-pdf.mjs), no solo texto plano (que pierde
+  // el orden de columnas cuando el horario de una celda es más largo que
+  // el de otra en la misma columna). PA8 (A. Vespucio-Las Acacias) NO se
+  // agrega -- no tiene geocerca propia en ningún lado del código, nunca
+  // estuvo trackeado, agregarla necesitaría coordenadas reales primero.
+  PA5:  { habil: [[6 * 60 + 30, 7 * 60], [8 * 60, 9 * 60 + 30]], domingo: [[18 * 60, 20 * 60]] },
+  PA7:  { habil: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  PA30: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  PA16: [[7 * 60 + 30, 9 * 60 + 30]],
+  PA17: [[7 * 60, 10 * 60], [10 * 60 + 30, 15 * 60], [16 * 60 + 30, 19 * 60 + 30]],
+  PA18: [[7 * 60, 8 * 60 + 30], [9 * 60 + 30, 10 * 60]],
+  PA15: [[7 * 60 + 30, 8 * 60], [8 * 60 + 30, 9 * 60], [18 * 60 + 30, 20 * 60 + 30]],
+  PA14: { habil: [[7 * 60, 8 * 60 + 30], [9 * 60, 9 * 60 + 30], [15 * 60, 15 * 60 + 30], [16 * 60, 16 * 60 + 30], [18 * 60 + 30, 19 * 60 + 30], [20 * 60, 20 * 60 + 30]], sabado: [[11 * 60, 15 * 60]] },
+  PA12: { habil: [[7 * 60, 8 * 60 + 30], [9 * 60, 9 * 60 + 30], [15 * 60, 15 * 60 + 30], [16 * 60, 16 * 60 + 30], [18 * 60 + 30, 19 * 60 + 30], [20 * 60, 20 * 60 + 30]], sabado: [[11 * 60, 15 * 60]] },
+  // PA11: sin ventana punta hábil (siempre TBFP en semana) -- solo sábado.
+  PA11: { sabado: [[11 * 60, 15 * 60]] },
+  PA9:  [[18 * 60, 20 * 60 + 30]],
+  PA32: [[18 * 60 + 30, 20 * 60 + 30]],
+  PA6:  [[10 * 60, 10 * 60 + 30], [19 * 60 + 30, 20 * 60 + 30]],
+  PA37: [[10 * 60, 10 * 60 + 30], [19 * 60 + 30, 20 * 60 + 30]],
 };
 let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 
@@ -933,6 +957,16 @@ const VENTANAS_SATURACION_PORTICO_FALLBACK = {
   PA31: [[8 * 60 + 30, 9 * 60]],
   PA13: [[8 * 60 + 30, 9 * 60]],
   PA24: [[18 * 60 + 30, 19 * 60]],
+  // Resto del corredor Eje Norte-Sur, cargado 2026-09-23 con la tabla
+  // oficial MOP (AUTOPISTA-CENTRAL.pdf) -- ver VENTANAS_PUNTA_PORTICO_FALLBACK
+  // para el detalle de cómo se leyó (extracción x/y + confirmación visual
+  // del PDF renderizado, no solo texto plano).
+  PA5: [[7 * 60, 8 * 60]],
+  PA18: [[17 * 60 + 30, 18 * 60]],
+  PA14: [[10 * 60, 10 * 60 + 30], [11 * 60, 11 * 60 + 30], [15 * 60 + 30, 16 * 60], [19 * 60 + 30, 20 * 60]],
+  PA12: [[10 * 60, 10 * 60 + 30], [11 * 60, 11 * 60 + 30], [15 * 60 + 30, 16 * 60], [19 * 60 + 30, 20 * 60]],
+  PA32: [[17 * 60 + 30, 19 * 60 + 30]],
+  PA6: [[17 * 60 + 30, 19 * 60 + 30]],
 };
 let VENTANAS_SATURACION_PORTICO = VENTANAS_SATURACION_PORTICO_FALLBACK;
 
