@@ -894,8 +894,21 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // ventana real es 07:30-09:30 hábil y sábado (domingo TBFP todo el día,
   // regla general de la concesionaria). TS oficial de este pórtico también
   // se corrigió (857→1143, ver TARIFAS) -- no es el multiplicador genérico
-  // 3x de otros pórticos del corredor, este es 4x TBFP.
-  PA10: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]] },
+  // 3x de otros pórticos del corredor, este es 4x TBFP. Domingo agregado
+  // el mismo día: se me había pasado en la primera lectura (columna con
+  // desfase de alineación distinto al resto de la tabla), confirmado con
+  // extracción de coordenadas x/y del PDF en vez de solo texto plano.
+  PA10: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  // PA31/PA13 (mismo corredor, agregados 2026-09-23 con la misma tabla
+  // oficial MOP): alta confianza porque la columna TS Laboral de esta
+  // misma fila (08:30-09:00) ya estaba cargada en VENTANAS_SATURACION_PORTICO
+  // desde antes y coincide exacto -- confirma que la lectura de columnas de
+  // esta fila específica es correcta. Antes: ventana_punta=null, corría con
+  // la heurística genérica 07-09h (que por casualidad coincidía con los
+  // cruces reales de 08:00/08:06/08:10 del 2026-08-31, pero la ventana
+  // real es partida en 3 tramos, bastante más angosta/específica).
+  PA31: { habil: [[6 * 60 + 30, 8 * 60 + 30], [9 * 60, 14 * 60], [17 * 60, 19 * 60]], sabado: [[10 * 60, 13 * 60]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  PA13: { habil: [[6 * 60 + 30, 8 * 60 + 30], [9 * 60, 14 * 60], [17 * 60, 19 * 60]], sabado: [[10 * 60, 13 * 60]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
 };
 let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 
