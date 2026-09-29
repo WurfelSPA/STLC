@@ -1233,7 +1233,13 @@ async function sincronizarAliasVehiculos(vehiculosPorticos) {
 }
 
 async function loginYConsultarTravel({ TL_USER, TL_PASSWORD, TL_DOMAIN, startDate, endDate, unitIds }) {
-  const MAX_ATTEMPTS = 2;
+  // MAX_ATTEMPTS subido de 2 a 3 el 2026-09-29 -- un glitch real de TrackGTS
+  // (reportTravel devolvió una respuesta con forma de "lista de unidades" en
+  // vez del reporte de viaje) agotó los 2 intentos seguidos y tiró abajo la
+  // corrida entera. El timeout del job (10 min, ver sync-tlchile.yml) tiene
+  // margen de sobra: 3 intentos con 90s de espera entre cada uno caben en
+  // ~5 min incluso en el peor caso.
+  const MAX_ATTEMPTS = 3;
   const RETRY_DELAY_MS = 90_000;
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -1765,11 +1771,30 @@ async function main() {
 
   console.log(`=== Sync tlchile: ${fmtTL(start)} → ${fmtTL(ahora)} (${UNIDADES_SANTAMARTA.length} Santa Marta + ${unidadesDeteccion.length} pórticos [${vehiculosPorticos.length} vehículos]) ===`);
 
-  const rows = await loginYConsultarTravel({
-    TL_USER, TL_PASSWORD, TL_DOMAIN,
-    startDate: fmtTL(start), endDate: fmtTL(ahora),
-    unitIds,
-  });
+  // Todo lo que sigue depende de `rows` -- si loginYConsultarTravel agota
+  // sus reintentos, NO hay nada útil que hacer este ciclo (ni Santa Marta ni
+  // pórticos). Antes esto tiraba la excepción hasta afuera y moría todo el
+  // proceso con exit 1 -- confirmado real 2026-09-29: TrackGTS devolvió una
+  // respuesta con forma de "lista de unidades" en vez del reporte de viaje
+  // (Forma inesperada) en los 2 intentos seguidos, glitch de su lado (no de
+  // nuestro código), se autorecuperó solo en la corrida siguiente 30 min
+  // después. Los checkpoints (santamartaCheckpoint/porticosCheckpoint) recién
+  // se guardan más abajo tras procesar `rows` -- no avanzan si este bloque
+  // falla, así que la corrida siguiente vuelve a pedir la misma ventana
+  // (ampliada) sin perder nada. Se captura acá para que el proceso termine
+  // limpio (exit 0) en vez de marcar la corrida entera en rojo por un
+  // problema transitorio de TrackGTS que no requiere ninguna acción nuestra.
+  let rows;
+  try {
+    rows = await loginYConsultarTravel({
+      TL_USER, TL_PASSWORD, TL_DOMAIN,
+      startDate: fmtTL(start), endDate: fmtTL(ahora),
+      unitIds,
+    });
+  } catch (err) {
+    console.warn(`[travel] ⚠️ No se pudo obtener el reporte de viaje tras reintentar (${err.message}) -- se salta este ciclo, la próxima corrida (30 min) reintenta con ventana ampliada. Sin acción nuestra pendiente salvo que se repita seguido.`);
+    return;
+  }
   console.log(`[travel] ${rows.length} posiciones GPS recibidas (todas las unidades)`);
   // Diagnóstico temporal 2026-09-03, ampliado 2026-09-21: rows[0] es
   // cualquier unidad al azar (la primera cronológicamente entre TODAS las
