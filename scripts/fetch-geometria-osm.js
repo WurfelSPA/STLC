@@ -25,17 +25,32 @@ const path = require('path');
 const DEST = path.join(__dirname, 'geometria-corredores');
 
 const FILTRO_ESTRICTO = 'motorway|trunk|motorway_link|trunk_link';
-const FILTRO_AMPLIO = 'motorway|trunk|motorway_link|trunk_link|primary|primary_link|secondary';
+// Ampliado 2026-09-29 (secondary_link|tertiary) tras el barrido de todo el
+// catálogo: la caletera/vía paralela de un mismo corredor NO siempre usa la
+// misma clasificación OSM en todo su largo -- "Av. Américo Vespucio", por
+// ejemplo, aparece como primary/secondary/tertiary en distintos tramos del
+// mismo corredor (confirmado con datos reales del barrido, ver memoria del
+// proyecto [[project_agp_tracklink_integration]]).
+const FILTRO_AMPLIO = 'motorway|trunk|motorway_link|trunk_link|primary|primary_link|secondary|secondary_link|tertiary';
 
 // bbox: [south, west, north, east]. radio: metros alrededor de un punto.
-// Un grupo trae bbox O (lat,lon,radio), no ambos.
+// Un grupo trae bbox O (lat,lon,radio), no ambos. `timeout` (segundos,
+// default 60 si no se especifica) es el timeout que se le pide a Overpass
+// en la query misma -- los 5 corredores urbanos de abajo pasaron a
+// FILTRO_AMPLIO el 2026-09-29 (ver esMasCercaDeCaleteraQueDeAutopista en
+// sync-tlchile.js: barrido real confirmó que el patrón "autopista con
+// caletera paralela pegada" no es el caso aislado de 5.1-5.4, es el caso
+// NORMAL en el 90% del catálogo urbano) -- con más tipos de vía en el mismo
+// bbox grande, cada consulta trae bastante más datos que antes, así que se
+// les subió el timeout a 120s de margen (antes 60s implícito) para no sumar
+// más 504 de los que ya de por sí da Overpass con el filtro estricto.
 const GRUPOS = [
   // --- Corredores metropolitanos (varios pórticos comparten la misma calzada) ---
-  { grupo: 'costanera-norte', bbox: [-33.4403, -70.8010, -33.3611, -70.5127], filtro: FILTRO_ESTRICTO },
-  { grupo: 'vespucio-norte', bbox: [-33.4929, -70.7949, -33.3558, -70.6230], filtro: FILTRO_ESTRICTO },
-  { grupo: 'autopista-central', bbox: [-33.6344, -70.7258, -33.3586, -70.6462], filtro: FILTRO_ESTRICTO },
-  { grupo: 'vespucio-sur', bbox: [-33.5515, -70.7225, -33.4710, -70.5688], filtro: FILTRO_ESTRICTO },
-  { grupo: 'avo', bbox: [-33.4425, -70.6298, -33.3816, -70.5645], filtro: FILTRO_ESTRICTO },
+  { grupo: 'costanera-norte', bbox: [-33.4403, -70.8010, -33.3611, -70.5127], filtro: FILTRO_AMPLIO, timeout: 120 },
+  { grupo: 'vespucio-norte', bbox: [-33.4929, -70.7949, -33.3558, -70.6230], filtro: FILTRO_AMPLIO, timeout: 120 },
+  { grupo: 'autopista-central', bbox: [-33.6344, -70.7258, -33.3586, -70.6462], filtro: FILTRO_AMPLIO, timeout: 120 },
+  { grupo: 'vespucio-sur', bbox: [-33.5515, -70.7225, -33.4710, -70.5688], filtro: FILTRO_AMPLIO, timeout: 120 },
+  { grupo: 'avo', bbox: [-33.4425, -70.6298, -33.3816, -70.5645], filtro: FILTRO_AMPLIO, timeout: 120 },
   { grupo: 'tunel-san-cristobal', lat: -33.398616, lon: -70.615725, radio: 1500, filtro: FILTRO_ESTRICTO },
   { grupo: 'amb', lat: -33.416596, lon: -70.792727, radio: 1500, filtro: FILTRO_ESTRICTO },
 
@@ -73,9 +88,9 @@ const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 // consultas devuelve "rate_limited" o "timeout" con esta misma API).
 const ESPERA_ENTRE_CONSULTAS_MS = 25_000;
 
-function construirQuery({ bbox, lat, lon, radio, filtro }) {
+function construirQuery({ bbox, lat, lon, radio, filtro, timeout }) {
   const alcance = bbox ? `(${bbox.join(',')})` : `(around:${radio},${lat},${lon})`;
-  return `[out:json][timeout:60];(way["highway"~"${filtro}"]${alcance};); out geom;`;
+  return `[out:json][timeout:${timeout || 60}];(way["highway"~"${filtro}"]${alcance};); out geom;`;
 }
 
 async function consultarOverpass(query, intentos = 3) {

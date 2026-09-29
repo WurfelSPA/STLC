@@ -890,10 +890,29 @@ function hayPuntoCercaDeCalzadaPrincipal(puntos, grupo, tsBaseMs) {
 // resolviendo BIEN, porque acá no se compara contra un número arbitrario
 // sino contra la otra calzada real).
 const MARGEN_CALETERA_M = 5;
+// Generalizado 2026-09-29 a los 5 corredores urbanos (antes solo 5.1-5.4)
+// tras un barrido real de todo el catálogo: 71 de 79 pórticos revisados
+// tienen una vía paralela a <40m, 66 con orientación casi idéntica a la
+// autopista -- NO es el caso aislado de Vespucio Sur, es el patrón normal
+// de este tipo de autopista urbana concesionada en Chile (casi siempre se
+// construyen con una vía colectora/lateral corriendo pegada a todo el
+// trazado). Ver [[project_agp_tracklink_integration]] en memoria.
+//
+// BUG evitado antes de generalizar: comparar solo contra `principal`
+// (motorway/trunk) rompe en AVO, donde varios pórticos están ubicados
+// justo en una RAMPA (motorway_link/trunk_link), no en la autopista
+// misma -- ahí `d.principal` puede salir lejano o null mientras la rampa
+// real está a 0m, y comparar contra la autopista lejana en vez de la
+// rampa cercana habría rechazado cruces reales por rampa (falso negativo
+// nuevo, peor que el problema que se está resolviendo). Se compara contra
+// la MÁS CERCANA entre autopista y rampa (ambas son "vía tarificada"),
+// nunca solo contra `principal`.
 function esMasCercaDeCaleteraQueDeAutopista(grupo, lat, lon) {
   const d = distanciasPorClase(grupo, lat, lon);
-  if (d.principal == null || d.otra == null) return false;
-  return d.otra < d.principal - MARGEN_CALETERA_M;
+  const distanciasTarificada = [d.principal, d.rampa].filter((x) => x != null);
+  if (!distanciasTarificada.length || d.otra == null) return false;
+  const distTarificadaMinima = Math.min(...distanciasTarificada);
+  return d.otra < distTarificadaMinima - MARGEN_CALETERA_M;
 }
 
 // Ventanas oficiales de banda punta CONFIRMADAS por pórtico (hora Chile, L-V,
