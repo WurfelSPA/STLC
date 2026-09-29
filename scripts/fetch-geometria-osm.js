@@ -52,6 +52,19 @@ const GRUPOS = [
   // filtro estricto no calzaban (>120m); con primary/secondary calzan a 2-3m.
   { grupo: 'tongoy', lat: -30.3517, lon: -71.4323, radio: 3000, filtro: FILTRO_AMPLIO },
   { grupo: 'guanaqueros', lat: -30.1974, lon: -71.3880, radio: 3000, filtro: FILTRO_AMPLIO },
+
+  // Grupo chico dedicado para 5.1/5.2/5.3/5.4 (Vespucio Sur, tramo Grecia–
+  // Quilín–Las Torres) -- confirmado real 2026-09-28/29: acá la caletera
+  // (Av. Américo Vespucio, highway=primary) corre a pocos metros de la
+  // autopista tarificada real (highway=motorway). El grupo "vespucio-sur" de
+  // arriba usa el filtro estricto (solo motorway/trunk), así que nunca
+  // descarga la caletera -- sin su geometría, map-matching no puede comparar
+  // "¿estoy más cerca de la autopista o de la caletera?" (ver
+  // esMasCercaDeCaleteraQueDeAutopista en sync-tlchile.js). Radio chico +
+  // filtro amplio SOLO acá, en vez de ampliar el filtro del grupo
+  // "vespucio-sur" completo (que traería primary/secondary de todo ese bbox
+  // -- mucho más lento en Overpass y más 504, sin necesidad).
+  { grupo: 'vespucio-sur-grecia-caletera', lat: -33.479995, lon: -70.578494, radio: 500, filtro: FILTRO_AMPLIO },
 ];
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';

@@ -390,10 +390,21 @@ const GRUPO_GEOMETRIA_POR_CONCESIONARIA = {
   'Túnel San Cristóbal': 'tunel-san-cristobal',
   'Acceso Vial AMB': 'amb',
 };
+// El nombre quedó de cuando esto era solo para plazas interurbanas
+// aisladas -- desde 2026-09-29 también sirve como override genérico de
+// grupo POR CÓDIGO (no por concesionaria) para 5.1/5.2/5.3/5.4, que
+// necesitan su propio grupo chico con la caletera cacheada (ver
+// esMasCercaDeCaleteraQueDeAutopista). Los 4 códigos apuntan al mismo grupo
+// porque es el mismo par de pórticos físicos (5.2 base/5.1 alterno,
+// 5.4 base/5.3 alterno) -- 5.1/5.3 hacen falta acá porque la cola de
+// "pendientes" más abajo busca por `portico_codigo` YA resuelto por
+// dirección (puede ser el alterno), no por el código base de PORTICOS.
 const GRUPO_GEOMETRIA_POR_CODIGO_INTERURBANO = {
   LAMPA: 'lampa', LASVEGAS: 'lasvegas', PICHIDANGUI: 'pichidangui',
   TRONCALSUR: 'troncalsur', TONGOY: 'tongoy', GUANAQUEROS: 'guanaqueros',
   PTACOLORADA: 'ptacolorada', TOTORAL: 'totoral', PTOVIEJO: 'ptoviejo',
+  '5.1': 'vespucio-sur-grecia-caletera', '5.2': 'vespucio-sur-grecia-caletera',
+  '5.3': 'vespucio-sur-grecia-caletera', '5.4': 'vespucio-sur-grecia-caletera',
 };
 function grupoGeometriaPara(portico) {
   return (
@@ -844,6 +855,45 @@ function hayPuntoCercaDeCalzadaPrincipal(puntos, grupo, tsBaseMs) {
     if (d != null && d <= UMBRAL_CALZADA_PRINCIPAL_M) return true;
   }
   return false;
+}
+
+// Capa 3 del map-matching (2026-09-29): distinto del caso rampa-vs-principal
+// de arriba (un umbral fijo SÍ sirve ahí, porque la autopista no corre
+// pegada a su propia rampa salvo justo en el empalme). Acá el problema es
+// otro: 5.1/5.2/5.3/5.4 (Vespucio Sur, Grecia–Quilín–Las Torres) tienen una
+// caletera (Av. Américo Vespucio, highway=primary) corriendo en paralelo a
+// pocos metros de la autopista real en un tramo largo -- confirmado real
+// 2026-09-28/29 con capturas de Google Maps y consulta directa a OSM (dos
+// vías bien etiquetadas, "motorway"+toll=yes vs "primary", no un error de
+// mapeo). Un umbral fijo no sirve: cualquier radio lo bastante ancho para
+// no perder cruces reales en curvas también agarra la caletera. En vez de
+// umbral fijo, comparación RELATIVA entre las dos calzadas reales: si el
+// punto está más cerca de la caletera que de la autopista, no es un cruce
+// real, sin importar la distancia absoluta a ninguna de las dos.
+// `otra` solo tiene datos reales para los grupos que cachean geometría
+// ampliada (ver GRUPO_GEOMETRIA_POR_CODIGO_INTERURBANO / fetch-geometria-osm.js)
+// -- en cualquier otro grupo (el filtro estricto nunca descarga vías
+// "otra") esto no hace nada, `d.otra` sale null y no se rechaza nada.
+// Límite conocido, comunicado explícitamente al usuario: en el punto exacto
+// de 5.1/5.3 las dos calzadas están a solo ~7m -- ahí el ruido normal de
+// GPS puede seguir siendo mayor que la separación real entre vías, así que
+// ni esta comparación relativa da 100% de certeza EN ESE punto puntual.
+// Margen de 5m en vez de comparar a secas -- probado con datos reales de OSM
+// antes de pushear: la propia coordenada catalogada de 5.4 (tomada de un
+// track GPS real, no estimada) da principal=4.4m/otra=3.8m, un empate
+// técnico donde comparar sin margen la habría rechazado a ella misma. Con
+// margen de 5m ese caso (diferencia de 0.6m) NO se rechaza, pero los puntos
+// realmente sobre la caletera (probados sobre la geometría real de Av.
+// Américo Vespucio) dan otra=0m vs principal=10-14m, muy por sobre el
+// margen -- sí se rechazan. El margen absorbe el ruido GPS normal (3-5m)
+// sin volver a caer en el mismo problema que un umbral fijo (que si sigue
+// resolviendo BIEN, porque acá no se compara contra un número arbitrario
+// sino contra la otra calzada real).
+const MARGEN_CALETERA_M = 5;
+function esMasCercaDeCaleteraQueDeAutopista(grupo, lat, lon) {
+  const d = distanciasPorClase(grupo, lat, lon);
+  if (d.principal == null || d.otra == null) return false;
+  return d.otra < d.principal - MARGEN_CALETERA_M;
 }
 
 // Ventanas oficiales de banda punta CONFIRMADAS por pórtico (hora Chile, L-V,
@@ -1984,6 +2034,10 @@ async function main() {
           requiereConfirmarCalzadaPrincipal(grupoPendiente, pendiente.lat, pendiente.lon) &&
           !hayPuntoCercaDeCalzadaPrincipal(puntos, grupoPendiente, new Date(pendiente.ts).getTime())
         ) continue; // todavía no hay un punto que confirme que llegó a la calzada principal — reintentar la próxima corrida
+        // Hecho espacial del punto ya guardado, no va a cambiar reintentando
+        // -- se queda pendiente para siempre (nunca se notifica/factura),
+        // igual que un falso positivo conocido. Ver esMasCercaDeCaleteraQueDeAutopista.
+        if (esMasCercaDeCaleteraQueDeAutopista(grupoPendiente, pendiente.lat, pendiente.lon)) continue;
         const { error: errConfirmar } = await supabase
           .from('porticos_pasadas_reales')
           .update({ confirmado: true })
@@ -2145,6 +2199,10 @@ async function main() {
               ? !requiereConfirmarCalzadaPrincipal(grupo, puntoCruce.lat, puntoCruce.lon) ||
                 hayPuntoCercaDeCalzadaPrincipal(puntos.slice(i + 1), grupo, tsMs)
               : false; // si ni siquiera salió del radio, ni vale la pena chequear la calzada
+            // Capa 3 (ver esMasCercaDeCaleteraQueDeAutopista): sin ventana de
+            // tiempo como la rampa -- es un hecho espacial del punto de cruce
+            // mismo, no algo que un punto posterior pueda todavía confirmar.
+            const noEsCaleteraCercana = !esMasCercaDeCaleteraQueDeAutopista(grupo, puntoCruce.lat, puntoCruce.lon);
             detecciones.push({
               vehiculo_id: vehiculo.id,
               dispositivo,
@@ -2156,7 +2214,7 @@ async function main() {
               velocidad_kmh: p.speed,
               lat: puntoCruce.lat,
               lon: puntoCruce.lon,
-              confirmado: confirmadoPorRadio && confirmadoPorCalzada,
+              confirmado: confirmadoPorRadio && confirmadoPorCalzada && noEsCaleteraCercana,
               sentido,
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
