@@ -1959,6 +1959,17 @@ async function main() {
       // baja velocidad) una vez validado en paralelo contra pasadas ya
       // confirmadas.
       heading: r.headingC9,
+      // altitud (metros, altitudeC10) -- confirmado que TrackGTS la manda
+      // desde 2026-09-21 pero nunca se había capturado. Caso real 2026-09-29
+      // (VVJG-14): PC101 (Túnel San Cristóbal) y P201 (AVO, ramal a Ciudad
+      // Empresarial) se dispararon como falsos positivos porque en ese nudo
+      // vial (Viaducto El Salto) la autopista AVO pasa por un viaducto
+      // ELEVADO justo por encima del túnel y de la rampa -- misma
+      // coordenada 2D, nivel físico distinto. Ninguna comparación de
+      // lat/lon (radio, calzada real, clase de vía) puede distinguir eso;
+      // la altitud sí debería, una vez calibrada con cruces reales. Ver
+      // altitudCoincideConNivel (pendiente, necesita datos para calibrar).
+      altitud: r.altitudeC10,
     };
     puntosPorUnidad.get(claveUnidad).push(punto);
     if (unidad.dispositivo === 'principal') {
@@ -2198,6 +2209,7 @@ async function main() {
                 if (!gate) return null;
                 return Math.round(haversineMetros(gate.lat, gate.lon, puntoCruce.lat, puntoCruce.lon));
               })(),
+              altitud_m: p.altitud ?? null,
               n_confirmaciones_empiricas: gatesEmpiricos.get(resuelto.codigo)?.n ?? 0,
               velocidad_minima_ventana_previa_kmh: velocidadMinimaEnVentana(puntos, i),
               velocidad_kmh: p.speed,
@@ -2235,6 +2247,7 @@ async function main() {
               lon: puntoCruce.lon,
               confirmado: confirmadoPorRadio && confirmadoPorCalzada && noEsCaleteraCercana,
               sentido,
+              altitud_m: p.altitud ?? null,
             });
             ultimaPasadaPorPortico.set(resuelto.codigo, tsMs);
           }

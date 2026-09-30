@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: diagnóstico puntual, no toca nada de producción -- corre
+# scripts/diagnosticar-altitud-nudo.js contra un rango de fechas PASADO,
+# para sacar la altitud real de posiciones ya registradas por TrackGTS cerca
+# de un punto dado. Motivo: el export manual de TrackGTS (xlsx) no incluye
+# altitud, así que la única forma de conseguir datos históricos es
+# consultando la API directo con las mismas credenciales que usa
+# sync-tlchile.js (secrets ya configurados, no hace falta nada nuevo).
+#
+# Caso que motivó esto (2026-09-30): PC101/P201 se disparan como falsos
+# positivos en el nudo "Viaducto El Salto" (AVO pasa elevado justo encima
+# del túnel San Cristóbal y de la rampa a Ciudad Empresarial) -- la altitud
+# debería distinguirlos, pero hace falta calibrar con cruces reales antes
+# de conectar cualquier fix.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Diagnosticar altitud en un nudo vial
+
+on:
+  workflow_dispatch:
+    inputs:
+      fechaInicio:
+        description: "Fecha inicio, formato 'YYYY/MM/DD HH:mm:ss' (hora Chile)"
+        required: true
+      fechaFin:
+        description: "Fecha fin, formato 'YYYY/MM/DD HH:mm:ss' (hora Chile)"
+        required: true
+      lat:
+        description: 'Latitud del punto a revisar'
+        required: true
+      lon:
+        description: 'Longitud del punto a revisar'
+        required: true
+      radio:
+        description: 'Radio de búsqueda en metros (default 300)'
+        required: false
+        default: '300'
+      unitIds:
+        description: 'unitIds separados por coma (default VVJG-14 principal+FTC927)'
+        required: false
+        default: '5969,6878'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnosticar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.cache/puppeteer
+          key: node-modules-tlchile-v2
+
+      - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install puppeteer
+        timeout-minutes: 5
+
+      - name: Diagnosticar altitud
+        env:
+          TL_USER: ${{ secrets.TL_USER }}
+          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
+          TL_DOMAIN: ${{ secrets.TL_DOMAIN }}
+        run: node scripts/diagnosticar-altitud-nudo.js "${{ inputs.fechaInicio }}" "${{ inputs.fechaFin }}" "${{ inputs.lat }}" "${{ inputs.lon }}" "${{ inputs.radio }}" "${{ inputs.unitIds }}"
