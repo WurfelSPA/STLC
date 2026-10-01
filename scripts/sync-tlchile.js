@@ -183,8 +183,11 @@ const PORTICOS_FALLBACK = [
   // esta misma fuente resuelve la incertidumbre vieja de P8/P11/P13 (ver
   // TARIFAS abajo, quedan actualizados con esta fuente oficial).
   { codigo: 'P15',  concesionaria: 'Vespucio Norte', tramo: 'El Salto – Recoleta',                lat: -33.388664, lon: -70.632967 },
-  { codigo: 'P14',  concesionaria: 'Vespucio Norte', tramo: 'Guanaco – El Salto',                 lat: -33.388604, lon: -70.633316 },
-  { codigo: 'P12',  concesionaria: 'Vespucio Norte', tramo: 'Pedro Fontova – Guanaco',            lat: -33.373394, lon: -70.664973 },
+  // P14 quitado como entrada física 2026-09-30 -- es el alterno de P15
+  // (mismo nudo, sentido contrario, ver PARES_DIRECCIONALES). Mismo bug
+  // real que P10/P11, confirmado con track GPS de VVJG-14.
+  // P12 quitado como entrada física 2026-09-30 -- es el alterno de P13
+  // (mismo nudo, sentido contrario, ver PARES_DIRECCIONALES).
   // P10 quitado como entrada física 2026-09-22 -- es el alterno de P11
   // (mismo nudo, sentido contrario, ver PARES_DIRECCIONALES). Bug real
   // confirmado con track GPS: P10/P11 disparaban juntos en cada cruce.
@@ -466,6 +469,16 @@ const PARES_DIRECCIONALES = {
   // convención de longitud que P6/P17 (mismo corredor E-O): positivo =
   // longitud creciente = hacia Pedro Fontova (oriente) = alterno.
   P11:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P10',  tramoAlterno: 'Ruta 5 Norte – Pedro Fontova' },
+  // P12/P13 (nudo Pedro Fontova) y P14/P15 (nudo Guanaco-El Salto) -- mismo
+  // patrón real confirmado 2026-09-30 con el track GPS de VVJG-14 (vuelta,
+  // rumbo oriente): los 4 códigos disparaban en pares al mismo segundo
+  // (17:50:25 y 17:53:25) por no tener par direccional configurado, igual
+  // que P10/P11. Misma convención de longitud del corredor: positivo =
+  // longitud creciente = hacia el oriente = alterno. Validado con test
+  // aislado contra los 2 cruces reales (ambos rumbo oriente, resuelven a
+  // P12/P14 respectivamente) antes de pushear.
+  P13:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P12',  tramoAlterno: 'Pedro Fontova – Guanaco' },
+  P15:   { eje: 'lon', positivoEsAlterno: true,  alterno: 'P14',  tramoAlterno: 'Guanaco – El Salto' },
   // PC101/PC102 (Túnel San Cristóbal, El Salto↔Kennedy) — mismo bug real,
   // confirmado 2026-09-22 con el mismo track: los dos códigos del túnel
   // disparaban juntos en cada cruce, con tarifas BIEN distintas (TBFP $565
