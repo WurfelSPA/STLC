@@ -51,7 +51,8 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   assert.equal(r.envios.D30, 3);
   assert.equal(r.sinTelefono, 1);
   assert.equal(caso("sintel").requiere_ejecutivo, true);
-  assert.match(String(salientes("persona1")[0].texto), /Somos Tracklink/);
+  assert.match(String(salientes("persona1")[0].texto), /^Hola Cliente Prueba 👋, soy Tracky, tu bot de Tracklink\./);
+  assert.match(String(salientes("auto1")[0].texto), /tu bot de AUTOBAHN/);
   console.log("✔ Día 30: casos creados, flota consolidada, exclusiones, primer contacto");
 
   // Repetir el mismo día no duplica nada.

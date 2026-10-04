@@ -86,7 +86,7 @@ export default function BotRenovaciones() {
       <div className="p-4">
         {/* Encabezado */}
         <div className="flex flex-wrap items-center gap-3 mb-3">
-          <span className="text-blue-900 font-bold text-lg">Bot de Renovaciones</span>
+          <span className="text-blue-900 font-bold text-lg">Tracky · Bot de Renovaciones</span>
           {panel && (
             <>
               <span className={`text-xs px-2 py-0.5 rounded font-semibold ${panel.simulacion ? "bg-amber-100 text-amber-900 border border-amber-300" : "bg-green-600 text-white"}`}>

@@ -183,8 +183,8 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
     }
 
     const primerContacto = caso.hitos_enviados.length === 0;
-    const texto = pendiente.hito === "D0" ? mensajeVencimiento(caso)
-      : primerContacto ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, hoy);
+    const texto = pendiente.hito === "D0" ? mensajeVencimiento(caso, cfg)
+      : primerContacto ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoy);
     const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(dias)];
     await enviarProactivo(caso, pendiente.hito, texto, params);
     await actualizarCaso(caso.id, {

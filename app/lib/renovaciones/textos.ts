@@ -14,8 +14,16 @@ export const MENU_OPCIONES =
 
 const MSG_DERIVA = "Voy a derivar tu solicitud a nuestro equipo para que puedan ayudarte.";
 
+// Nombre del bot frente al cliente (pedido 2026-10-04).
+export const NOMBRE_BOT = "Tracky";
+
 function marca(c: Caso, cfg: ConfigBot) {
   return cfg.lineas[c.linea]?.nombre ?? c.linea;
+}
+
+// "Hola Francisca López 👋, soy Tracky, tu bot de Tracklink."
+function saludo(c: Caso, cfg: ConfigBot) {
+  return `Hola ${nombreCorto(c)} 👋, soy ${NOMBRE_BOT}, tu bot de ${marca(c, cfg)}.`;
 }
 
 function descripcionVehiculos(c: Caso): string {
@@ -31,28 +39,27 @@ function descripcionVehiculos(c: Caso): string {
 
 // Sección 4 — primer mensaje
 export function mensajeInicial(c: Caso, cfg: ConfigBot): string {
-  return `Hola ${nombreCorto(c)} 👋\n` +
-    `Somos ${marca(c, cfg)}.\n` +
-    `Queremos informarte que ${descripcionVehiculos(c)}.\n` +
+  return `${saludo(c, cfg)}\n` +
+    `Quiero informarte que ${descripcionVehiculos(c)}.\n` +
     `Queremos ayudarte a mantener tu servicio activo sin interrupciones.\n\n` +
     MENU_OPCIONES;
 }
 
 // Sección 5 — recordatorios día 20 / 10 / 3
-export function mensajeRecordatorio(c: Caso, hoy: string): string {
+export function mensajeRecordatorio(c: Caso, cfg: ConfigBot, hoy: string): string {
   const dias = diasEntre(hoy, c.fecha_vencimiento);
   const sujeto = c.cantidad_vehiculos === 1
     ? `el servicio asociado a tu patente ${c.vehiculos[0]?.placa}`
     : `el servicio de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)})`;
-  return `Hola ${nombreCorto(c)}.\n` +
-    `Te recordamos que ${sujeto} vence en ${dias} ${dias === 1 ? "día" : "días"}.\n` +
+  return `${saludo(c, cfg)}\n` +
+    `Te recuerdo que ${sujeto} vence en ${dias} ${dias === 1 ? "día" : "días"}.\n` +
     `Puedes renovarlo directamente por este medio.\n\n` + MENU_OPCIONES;
 }
 
 // Sección 5 — día 0
-export function mensajeVencimiento(c: Caso): string {
-  return `Hola ${nombreCorto(c)}. Te informamos que tu servicio venció hoy.\n` +
-    `Para mantener la continuidad y que estés siempre seguro, te recomendamos renovar durante el día de hoy.\n\n` +
+export function mensajeVencimiento(c: Caso, cfg: ConfigBot): string {
+  return `${saludo(c, cfg)}\nTe informo que tu servicio venció hoy.\n` +
+    `Para mantener la continuidad y que estés siempre seguro, te recomiendo renovar durante el día de hoy.\n\n` +
     MENU_OPCIONES;
 }
 
