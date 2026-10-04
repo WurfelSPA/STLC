@@ -131,7 +131,7 @@ insert into public.renov_config (clave, valor) values
      "transferencia": null
    }'),
   ('general', '{
-     "call_center": null,
+     "call_center": "+56 2 2583 0707 (24/7)",
      "horario_envio": "09:00-20:00",
      "usuarios_excluidos": ["bodega","emiliano","INSTALACIONES","mautobahn","PERDIDOS","REVISION","RECICLADAS","sparejam","sparejam-MDB"]
    }')

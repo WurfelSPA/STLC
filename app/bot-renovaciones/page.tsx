@@ -369,7 +369,6 @@ function Config({ panel }: { panel: Panel }) {
         <ul className="list-disc ml-4 space-y-0.5">
           <li>Trackcity: base de clientes (otra plataforma), precios y medios de pago.</li>
           <li>Precios para planes especiales (COORP MENSUALIZADO, SANTANDER CONSUMER, concesionarios, REFERIDO, FLOTAS) — hoy el bot los deriva a ejecutivo.</li>
-          <li>Número de Call Center para problemas de App / GPS.</li>
           <li>Datos de transferencia para Autobahn (hoy solo link de pago).</li>
           <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas D30/D20/D10/D3/D0.</li>
         </ul>
