@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@/app/lib/supabaseAdmin": ["scripts/test/supabaseMock.ts"],
+      "server-only": ["scripts/test/vacio.ts"],
+      "@/*": ["./*"]
+    }
+  }
+}
