@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  "https://lomkolhgmkvshucqjuhf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
-);
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 // Este endpoint ya NO se conecta a TrackGTS en vivo. La cuenta "amelendez"/
 // "tlchile" tiene un rate-limit agresivo y TrackGTS no lo va a bajar (ya se
@@ -18,6 +13,7 @@ const TLCHILE_LAST_SUCCESS_KEY = "tlchile_last_success";
 
 export async function POST() {
   try {
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from("SyncCheckpoints")
       .select("value")

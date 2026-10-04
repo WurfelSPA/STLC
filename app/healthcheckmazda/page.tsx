@@ -1,14 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
-
-const supabase = createClient(
-  "https://lomkolhgmkvshucqjuhf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
-);
+import { listarUnidadesAction } from "../lib/unidadesActions";
 
 type Unidad = {
   IMEI: string;
@@ -117,21 +112,9 @@ export default function HealthCheckMazda() {
   const cargarDatos = async () => {
     setCargando(true);
     setError("");
-    let todos: Unidad[] = [];
-    let desde = 0;
-    const pageSize = 1000;
-    while (true) {
-      const { data, error: err } = await supabase
-        .from("MZDConnect")
-        .select("*")
-        .range(desde, desde + pageSize - 1);
-      if (err) { setError("Error al cargar datos: " + err.message); break; }
-      if (!data || data.length === 0) break;
-      todos = [...todos, ...data as Unidad[]];
-      if (data.length < pageSize) break;
-      desde += pageSize;
-    }
-    setDatos(todos);
+    const { data, error: err } = await listarUnidadesAction("MZDConnect");
+    if (err) setError("Error al cargar datos: " + err);
+    setDatos(data as Unidad[]);
     setCargando(false);
   };
 

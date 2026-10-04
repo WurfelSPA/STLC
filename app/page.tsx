@@ -2,13 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import Navbar from "./components/Navbar";
-
-const supabase = createClient(
-  "https://lomkolhgmkvshucqjuhf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
-);
+import { buscarUnidadesAction, guardarComentarioAction } from "./lib/unidadesActions";
 
 type Unidad = {
   IMEI: string;
@@ -96,45 +91,11 @@ export default function Home() {
     setSeleccionada(null);
     setBdOrigen("");
 
-    const q = buscar.trim();
-    const qUpper = q.toUpperCase();
-
-    const buscarEnTabla = async (tabla: string): Promise<Unidad[]> => {
-      // Exact match: IMEI, Cust ID, Serie SIM
-      for (const campo of ["IMEI", "Cust ID", "Serie SIM"]) {
-        const { data } = await supabase.from(tabla).select("*").eq(campo, q);
-        if (data && data.length > 0) return data as Unidad[];
-      }
-      // Placa: convertir a mayúsculas, y si no tiene guión intentar inserirlo entre letras y números
-      const placas = [qUpper];
-      if (!qUpper.includes("-")) {
-        const conGuion = qUpper.replace(/^([A-Z]+)(\d+)$/, "$1-$2");
-        if (conGuion !== qUpper) placas.push(conGuion);
-      }
-      for (const placa of placas) {
-        const { data } = await supabase.from(tabla).select("*").eq("Placa", placa);
-        if (data && data.length > 0) return data as Unidad[];
-      }
-      // Cliente/Empresa (comillas dobles por el "/" en el nombre de columna) y Usuario: búsqueda parcial en paralelo
-      const [resCliente, resUsuario] = await Promise.all([
-        supabase.from(tabla).select("*").filter('"Cliente/Empresa"', 'ilike', `%${q}%`),
-        supabase.from(tabla).select("*").ilike("Usuario", `%${q}%`),
-      ]);
-      const combinados = [...(resCliente.data || []), ...(resUsuario.data || [])];
-      if (combinados.length > 0) {
-        // Deduplicar por IMEI por si aparece en ambos campos
-        return Array.from(new Map(combinados.map(u => [(u as Unidad).IMEI, u])).values()) as Unidad[];
-      }
-      return [];
-    };
-
-    let encontrados = await buscarEnTabla("Tracklink");
-    let origen = encontrados.length > 0 ? "BD: Tracklink" : "";
-
-    if (encontrados.length === 0) {
-      encontrados = await buscarEnTabla("MZDConnect");
-      if (encontrados.length > 0) origen = "BD: MZDConnect";
-    }
+    // La búsqueda corre server-side (unidadesActions.ts) — la tabla tiene PII
+    // y ya no es legible con la anon key desde el navegador.
+    const { resultados: filas, tabla } = await buscarUnidadesAction(buscar);
+    const encontrados = filas as Unidad[];
+    const origen = tabla ? `BD: ${tabla}` : "";
 
     if (encontrados.length === 0) {
       alert("NO ENCONTRADO.");
@@ -195,7 +156,7 @@ export default function Home() {
     if (!seleccionada) return;
     setGuardando(true);
     const tabla = bdOrigen.includes("MZD") ? "MZDConnect" : "Tracklink";
-    const { error } = await supabase.from(tabla).update({ Comentarios: comentarios }).eq("IMEI", seleccionada.IMEI);
+    const { error } = await guardarComentarioAction(tabla, seleccionada.IMEI, comentarios);
     setGuardando(false);
     setMensajeGuardado(error ? "❌ Error al guardar" : "✅ Guardado");
     setTimeout(() => setMensajeGuardado(""), 3000);

@@ -1,14 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import Navbar from "../components/Navbar";
-
-const supabase = createClient(
-  "https://lomkolhgmkvshucqjuhf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
-);
+import { listarUnidadesAction } from "../lib/unidadesActions";
 
 const USUARIOS_EXCLUIDOS = ["bodega", "emiliano", "INSTALACIONES", "mautobahn", "PERDIDOS", "REVISION", "RECICLADAS", "sparejam", "sparejam-MDB"];
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -103,15 +98,8 @@ export default function Renovaciones() {
 
   const cargarDatos = async () => {
     setCargando(true);
-    let todos: Registro[] = [];
-    let desde = 0;
-    while (true) {
-      const { data } = await supabase.from("Tracklink").select("*").range(desde, desde + 999);
-      if (!data || data.length === 0) break;
-      todos = [...todos, ...data as Registro[]];
-      if (data.length < 1000) break;
-      desde += 1000;
-    }
+    const { data } = await listarUnidadesAction("Tracklink");
+    const todos = data as Registro[];
     setDatos(todos.filter(r => !USUARIOS_EXCLUIDOS.includes(r.Usuario) && !!r["Serv. Hasta"]));
     setCargando(false);
   };

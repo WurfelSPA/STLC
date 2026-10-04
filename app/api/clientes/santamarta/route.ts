@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  "https://lomkolhgmkvshucqjuhf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbWtvbGhnbWt2c2h1Y3FqdWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MDUyNTUsImV4cCI6MjA5MDI4MTI1NX0.I_13jMA2DAa6Jzff4VBQitezdR2kfrXSVacaBn0QZbo"
-);
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 const API_KEY = process.env.SANTAMARTA_API_KEY;
 
@@ -32,7 +28,7 @@ const MAX_FILAS = 5000; // red de seguridad, no un límite de operación normal
 //     (útil para reintentar sin perder nada si un envío falla de su lado).
 //     En ese caso NO se actualiza la marca de agua automática, para no
 //     interferir con el flujo por defecto.
-async function obtenerHistorial(sinceParam: string | null) {
+async function obtenerHistorial(supabase: SupabaseClient, sinceParam: string | null) {
   let since: string;
   let esAutomatico = false;
 
@@ -84,10 +80,11 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const sinceParam = searchParams.get("since");
+  const supabase = getSupabaseAdmin();
 
   const [snapshotRes, historialRes] = await Promise.all([
     supabase.from("Tracklink").select("*").in("IMEI", IMEIS_SANTAMARTA),
-    obtenerHistorial(sinceParam),
+    obtenerHistorial(supabase, sinceParam),
   ]);
 
   if (snapshotRes.error) {
