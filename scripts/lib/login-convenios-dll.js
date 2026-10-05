@@ -16,19 +16,23 @@
 
 async function clickPorTexto(page, textosCandidatos) {
   return page.evaluate((textos) => {
-    // Se agrega [onclick]/li ademas de button/a/input -- confirmado real
-    // 2026-10-05 que "Tránsitos no facturados" en Costanera Norte es
-    // javascript:MostrarTransitos() (podria ser <a href="javascript:...">
-    // o un elemento con onclick, no siempre un link/boton estandar).
-    const elementos = document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [onclick], li');
+    // Busca en TODOS los elementos (no solo button/a/[onclick]) -- se
+    // confirmó real 2026-10-05 que ni siquiera [onclick]/li alcanzó para
+    // "Tránsitos no facturados" en Costanera Norte (probablemente el
+    // handler de click está atado por JS en vez de en el atributo
+    // onclick). Entre los que matchean el texto, se elige el más
+    // específico (menor textContent) para no clickear un contenedor
+    // gigante en vez del elemento real.
     for (const texto of textos) {
-      for (const el of elementos) {
-        const contenido = (el.innerText || el.value || '').trim();
-        if (contenido && contenido.toLowerCase().includes(texto.toLowerCase())) {
-          el.click();
-          return contenido;
-        }
-      }
+      const candidatos = Array.from(document.querySelectorAll('*')).filter((el) => {
+        const t = (el.textContent || el.value || '').trim();
+        return t && t.toLowerCase().includes(texto.toLowerCase());
+      });
+      if (!candidatos.length) continue;
+      candidatos.sort((a, b) => (a.textContent || '').trim().length - (b.textContent || '').trim().length);
+      const elegido = candidatos[0];
+      elegido.click();
+      return (elegido.textContent || elegido.value || '').trim();
     }
     return null;
   }, textosCandidatos);
