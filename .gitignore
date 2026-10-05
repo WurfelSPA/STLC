@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# herramientas locales (machine-specific, no compartir en el repo)
+/graphify-out
+/.claude/settings.json
