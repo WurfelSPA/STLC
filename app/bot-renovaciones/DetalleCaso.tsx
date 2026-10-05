@@ -80,6 +80,9 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
             </span>
           ))}
         </div>
+        {!!caso.contexto?.comentario_origen && (
+          <div className="text-xs mt-1 text-blue-900 bg-blue-50 border border-blue-200 rounded px-2 py-1">Nota de la planilla: {String(caso.contexto.comentario_origen)}</div>
+        )}
         {caso.motivo && <div className="text-xs mt-1 text-orange-800 bg-orange-50 border border-orange-200 rounded px-2 py-1">Motivo: {caso.motivo}</div>}
       </div>
 

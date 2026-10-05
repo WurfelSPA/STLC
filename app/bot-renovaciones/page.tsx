@@ -5,8 +5,8 @@ import Navbar from "../components/Navbar";
 import type { Linea, Prioridad } from "@/app/lib/renovaciones/tipos";
 import { ESTADOS, ESTADO_LABEL } from "@/app/lib/renovaciones/tipos";
 import {
-  ejecutarCampanaAction, obtenerPanelAction, reiniciarSimulacionAction,
-  type CasoPanel, type Metricas, type Panel,
+  ejecutarCampanaAction, estadoTrackcityAction, importarTrackcityAction, obtenerPanelAction, reiniciarSimulacionAction,
+  type CasoPanel, type EstadoTrackcity, type Metricas, type Panel,
 } from "@/app/lib/renovaciones/acciones";
 import type { ResumenCampana } from "@/app/lib/renovaciones/campana";
 import DetalleCaso from "./DetalleCaso";
@@ -252,7 +252,7 @@ function Dashboard({ panel }: { panel: Panel }) {
               const m: Metricas = panel.porLinea[l];
               return (
                 <tr key={l} className="border-b border-gray-100">
-                  <td className="px-2 py-1 font-semibold">{l}{l === "TRACKCITY" && <span className="text-[10px] text-gray-400 font-normal"> (otra plataforma — pendiente)</span>}</td>
+                  <td className="px-2 py-1 font-semibold">{l}{l === "TRACKCITY" && <span className="text-[10px] text-gray-400 font-normal"> (desde planilla)</span>}</td>
                   {[m.universo, m.contactados, m.respondieron, m.interesados, m.pagoPendiente, m.renovados, m.noRenuevan, m.sinRespuesta].map((v, i) =>
                     <td key={i} className="px-2 py-1">{v}</td>)}
                   <td className="px-2 py-1 font-semibold text-green-800">{m.penetracion}%</td>
@@ -347,6 +347,74 @@ function FilaCaso({ c, activo, onClick }: { c: CasoPanel; activo: boolean; onCli
   );
 }
 
+// ── Trackcity: la base vive en una planilla de Tracklink (no en TrackGTS) ───
+
+function ImportarTrackcity() {
+  const [estado, setEstado] = useState<EstadoTrackcity | null>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => { estadoTrackcityAction().then(setEstado).catch(() => {}); }, []);
+
+  const subir = async (archivo: File | undefined) => {
+    if (!archivo) return;
+    setSubiendo(true);
+    setError("");
+    try {
+      setEstado(await importarTrackcityAction(await archivo.text()));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al importar");
+    }
+    setSubiendo(false);
+  };
+
+  return (
+    <div className="md:col-span-3 bg-white border border-gray-200 rounded p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="font-semibold text-blue-900">Base Trackcity (planilla)</span>
+        <label className={`text-xs px-3 py-1 rounded cursor-pointer ${subiendo ? "bg-gray-300 text-gray-600" : "bg-blue-900 text-white hover:bg-blue-800"}`}>
+          {subiendo ? "Importando..." : "Subir CSV actualizado"}
+          <input type="file" accept=".csv,text/csv" className="hidden" disabled={subiendo}
+            onChange={e => { subir(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
+        <span className="text-xs text-gray-500">
+          Google Sheets › pestaña &quot;Renovaciones Trackcity&quot; › Archivo › Descargar › .csv. Cada carga reemplaza la anterior.
+        </span>
+      </div>
+      {error && <div className="text-xs text-red-600">{error}</div>}
+      {estado && (
+        <>
+          <div className="text-xs text-gray-700">
+            {estado.total} vehículos · {estado.excluidas} excluidos (demo, desconectado, no renovar…) · {estado.sinFecha} sin fecha
+            {estado.importadoEn && ` · última carga ${new Date(estado.importadoEn).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}${estado.importadoPor ? ` por ${estado.importadoPor}` : ""}`}
+          </div>
+          {estado.avisos && estado.avisos.length > 0 && (
+            <ul className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 list-disc ml-4">
+              {estado.avisos.map(a => <li key={a}>{a}</li>)}
+            </ul>
+          )}
+          {estado.proximas.length > 0 && (
+            <table className="w-full text-xs border-collapse">
+              <thead><tr className="bg-blue-900 text-white">
+                {["Vence", "Patente", "Cliente", "Teléfono", "Observación"].map(h => <th key={h} className="px-2 py-1 text-left">{h}</th>)}
+              </tr></thead>
+              <tbody>{estado.proximas.map((f, i) => (
+                <tr key={i} className={`border-b border-gray-100 ${f.excluir ? "text-gray-400" : ""}`}>
+                  <td className="px-2 py-0.5 whitespace-nowrap">{f.vence ? fechaCorta(f.vence) : "—"}</td>
+                  <td className="px-2 py-0.5">{f.placa || f.modelo}</td>
+                  <td className="px-2 py-0.5">{f.nombre}</td>
+                  <td className="px-2 py-0.5">{f.telefono ? `+${f.telefono}` : <span className="text-red-600">sin móvil</span>}</td>
+                  <td className="px-2 py-0.5">{f.excluir ? `Excluido: ${f.motivo_exclusion}` : f.comentario ?? ""}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Configuración ───────────────────────────────────────────────────────────
 
 function Config({ panel }: { panel: Panel }) {
@@ -364,10 +432,11 @@ function Config({ panel }: { panel: Panel }) {
           ) : <div className="text-xs text-red-600">Sin precios cargados — el bot deriva estas renovaciones a un ejecutivo.</div>}
         </div>
       ))}
+      <ImportarTrackcity />
       <div className="md:col-span-3 bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900 space-y-1">
         <div className="font-semibold">Pendientes de Tracklink para pasar a producción</div>
         <ul className="list-disc ml-4 space-y-0.5">
-          <li>Trackcity: base de clientes (otra plataforma), precios y medios de pago.</li>
+          <li>Trackcity: precios y medios de pago (la base ya se importa desde la planilla).</li>
           <li>Precios para planes especiales (COORP MENSUALIZADO, SANTANDER CONSUMER, concesionarios, REFERIDO, FLOTAS) — hoy el bot los deriva a ejecutivo.</li>
           <li>Datos de transferencia para Autobahn (hoy solo link de pago).</li>
           <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas D30/D20/D10/D3/D0.</li>

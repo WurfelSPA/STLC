@@ -43,6 +43,32 @@ async function leerTracklink(): Promise<FilaTL[]> {
   return todos;
 }
 
+// Líneas fuera de TrackGTS (Trackcity), importadas desde la planilla de
+// Tracklink a renov_fuente_externa. Se adaptan a la forma de una fila de
+// "Tracklink" para que la campaña las trate igual. El IMEI sintético se arma
+// con la patente (estable entre importaciones, que reemplazan las filas).
+async function leerFuenteExterna(): Promise<FilaTL[]> {
+  const { data, error } = await getSupabaseAdmin().from("renov_fuente_externa").select("*")
+    .eq("excluir", false).not("vence", "is", null);
+  if (error) throw new Error(`Error leyendo renov_fuente_externa: ${error.message}`);
+  return (data ?? []).map(f => ({
+    IMEI: `${f.linea}:${f.placa || `${f.cliente_key}|${f.modelo}`}`,
+    Placa: f.placa,
+    Marca: f.marca,
+    Modelo: f.modelo,
+    "Serv. Hasta": f.vence,
+    "Servicio Comercial": f.linea,
+    Usuario: f.cliente_key,
+    Nombre: f.nombre,
+    Apellido: "",
+    "Cust ID": f.rut,
+    Telefono: f.telefono,
+    Correo: f.correo,
+    "Fecha Ultimo Reporte": null,
+    Comentario: f.comentario,
+  }));
+}
+
 // La misma patente puede tener varias filas (GPS reasignado, la fila vieja
 // nunca se borra): nos quedamos con la que reportó más reciente.
 function deduplicarPorPatente(filas: FilaTL[]): FilaTL[] {
@@ -60,7 +86,9 @@ const vence = (f: FilaTL) => (f["Serv. Hasta"] ?? "").slice(0, 10);
 
 export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise<ResumenCampana> {
   const sb = getSupabaseAdmin();
-  const [filasRaw, segmentos, general, cfg] = await Promise.all([leerTracklink(), cargarSegmentos(), cargarGeneral(), cargarConfig()]);
+  const [filasRaw, externas, segmentos, general, cfg] = await Promise.all([
+    leerTracklink(), leerFuenteExterna(), cargarSegmentos(), cargarGeneral(), cargarConfig(),
+  ]);
   const excluidos = new Set(general.usuarios_excluidos);
   const segPorNombre = new Map(segmentos.map(s => [s.servicio_comercial, s]));
   const segDe = (f: FilaTL) => {
@@ -68,9 +96,14 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
     return { nombre, ...(segPorNombre.get(nombre) ?? { linea: "TRACKLINK" as Linea, cotiza_bot: false, excluir: false }) };
   };
 
-  const filas = deduplicarPorPatente(
-    filasRaw.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f["Serv. Hasta"] ?? "") && !excluidos.has(f.Usuario ?? "") && !segDe(f).excluir),
-  );
+  // Cada fuente se deduplica por separado: una patente que se cambia de
+  // Trackcity a Tracklink puede estar en ambas y son ciclos distintos.
+  const filas = [
+    ...deduplicarPorPatente(
+      filasRaw.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f["Serv. Hasta"] ?? "") && !excluidos.has(f.Usuario ?? "") && !segDe(f).excluir),
+    ),
+    ...externas,
+  ];
   const venceActualPorImei = new Map(filas.map(f => [f.IMEI ?? "", vence(f)]));
 
   const resumen: ResumenCampana = {
@@ -102,7 +135,10 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
     const seg = segDe(p);
     const telefono = fs.map(f => normalizarTelefono(f.Telefono)).find(Boolean) ?? null;
     const empresa = esRutEmpresa(p["Cust ID"]);
+    // Comentarios de la planilla de origen (Trackcity) -> visibles al ejecutivo.
+    const comentarios = [...new Set(fs.map(f => (f.Comentario ?? "").trim()).filter(Boolean))];
     return {
+      contexto: comentarios.length ? { comentario_origen: comentarios.join(" · ") } : {},
       usuario: p.Usuario ?? "",
       nombre: [p.Nombre, p.Apellido].filter(Boolean).join(" ").trim() || null,
       rut: p["Cust ID"],
@@ -212,11 +248,11 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
 // Universo del mes para el dashboard: vehículos que vencen en el mes según la
 // base de TrackGTS (mismas exclusiones que la campaña), por línea.
 export async function universoDelMes(mes: string): Promise<Record<Linea, number>> {
-  const [filasRaw, segmentos, general] = await Promise.all([leerTracklink(), cargarSegmentos(), cargarGeneral()]);
+  const [filasRaw, externas, segmentos, general] = await Promise.all([leerTracklink(), leerFuenteExterna(), cargarSegmentos(), cargarGeneral()]);
   const excluidos = new Set(general.usuarios_excluidos);
   const segPorNombre = new Map(segmentos.map(s => [s.servicio_comercial, s]));
   const res: Record<Linea, number> = { TRACKLINK: 0, AUTOBAHN: 0, TRACKCITY: 0 };
-  const filas = deduplicarPorPatente(filasRaw.filter(f => !excluidos.has(f.Usuario ?? "")));
+  const filas = [...deduplicarPorPatente(filasRaw.filter(f => !excluidos.has(f.Usuario ?? ""))), ...externas];
   for (const f of filas) {
     if (!vence(f).startsWith(mes)) continue;
     const seg = segPorNombre.get((f["Servicio Comercial"] ?? "").trim());

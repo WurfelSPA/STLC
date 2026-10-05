@@ -24,10 +24,20 @@ db["Tracklink"] = [
   fila({ imei: "9", placa: "AAAA-11", vence: "2025-01-01", usuario: "persona1", rep: "2024-01-01" }),     // fila vieja misma patente
   fila({ imei: "10", placa: "IIII-99", vence: "2027-03-01", usuario: "lejos" }),                          // fuera de ventana
 ];
+// Trackcity (planilla importada): flota de 2 + uno excluido + uno sin fecha.
+const ext = (o: Record<string, unknown>) => ({ linea: "TRACKCITY", cliente_key: "TC:WL", nombre: "W&L", rut: "16518216-2",
+  telefono: "56936158071", correo: "x@w-l.cl", marca: "VW", modelo: "SAVEIRO", estatus: null, comentario: null, excluir: false, ...o });
+db["renov_fuente_externa"] = [
+  ext({ id: 1, placa: "SBBX-65", vence: "2026-10-20", comentario: "pagará en efectivo" }),
+  ext({ id: 2, placa: "SBBX-70", vence: "2026-10-22" }),
+  ext({ id: 3, placa: "ZZZZ-99", vence: "2026-10-20", excluir: true }),
+  ext({ id: 4, placa: "YYYY-88", vence: null }),
+];
 db["renov_segmentos"] = [
   { servicio_comercial: "", linea: "TRACKLINK", cotiza_bot: true, excluir: false },
   { servicio_comercial: "AUTOBAHN NUEVOS", linea: "AUTOBAHN", cotiza_bot: true, excluir: false },
   { servicio_comercial: "zzz Demo-Test", linea: "TRACKLINK", cotiza_bot: false, excluir: true },
+  { servicio_comercial: "TRACKCITY", linea: "TRACKCITY", cotiza_bot: true, excluir: false },
 ];
 db["renov_config"] = [
   { clave: "general", valor: { usuarios_excluidos: ["bodega"] } },
@@ -42,13 +52,22 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
 (async () => {
   // Día 1: 30 días antes del primer vencimiento.
   let r = await ejecutarCampana("2026-10-04", true);
-  assert.equal(r.casosNuevos, 4, "persona1, empresa(flota), auto1, sintel");
+  assert.equal(r.casosNuevos, 5, "persona1, empresa(flota), auto1, sintel + W&L (Trackcity)");
+  const wl = caso("TC:WL");
+  assert.equal(wl.linea, "TRACKCITY");
+  assert.equal(wl.cantidad_vehiculos, 2, "Trackcity: sin el excluido ni el sin fecha");
+  assert.equal(wl.contexto.comentario_origen, "pagará en efectivo");
+  assert.match(String(salientes("TC:WL")[0].texto), /tu bot de TRACKCITY/);
+  // Reimportar la planilla (ids nuevos) no duplica casos.
+  db["renov_fuente_externa"] = db["renov_fuente_externa"].map((f, i) => ({ ...f, id: 100 + i }));
+  assert.equal((await ejecutarCampana("2026-10-04", true)).casosNuevos, 0);
   assert.equal(caso("empresa").cantidad_vehiculos, 2, "flota: solo los 2 que vencen dentro de 30 días");
   assert.equal(caso("empresa").tipo_cliente, "empresa");
   assert.equal(caso("persona1").vehiculos.length, 1, "deduplicado por patente");
   assert.equal(caso("auto1").linea, "AUTOBAHN");
   assert.equal(caso("persona1").telefono, "56912345678");
   assert.equal(r.envios.D30, 3);
+  assert.equal(r.envios.D20, 1, "W&L vence en 16 días: su primer contacto cae en el hito D20");
   assert.equal(r.sinTelefono, 1);
   assert.equal(caso("sintel").requiere_ejecutivo, true);
   assert.match(String(salientes("persona1")[0].texto), /^Hola Cliente Prueba 👋, soy Tracky, tu bot de Tracklink\./);

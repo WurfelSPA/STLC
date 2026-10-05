@@ -14,8 +14,9 @@ class Query implements PromiseLike<{ data: unknown; error: null }> {
   eq(c: string, v: unknown) { this.filtros.push(f => f[c] === v); return this; }
   gte(c: string, v: string) { this.filtros.push(f => String(f[c]) >= v); return this; }
   lte(c: string, v: string) { this.filtros.push(f => String(f[c]) <= v); return this; }
-  not(c: string, _op: "in", lista: string) {
-    const vals = lista.replace(/[()]/g, "").split(",");
+  not(c: string, op: "in" | "is", valor: string | null) {
+    if (op === "is") { this.filtros.push(f => f[c] != null); return this; }
+    const vals = String(valor).replace(/[()]/g, "").split(",");
     this.filtros.push(f => !vals.includes(String(f[c])));
     return this;
   }

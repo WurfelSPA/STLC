@@ -7,6 +7,7 @@ import { actualizarCaso, cargarConfig, listarCasos, mensajesDeCaso, modoSimulaci
 import { calcularPrioridad, hoyChile } from "./formato";
 import { ejecutarCampana, universoDelMes, type ResumenCampana } from "./campana";
 import { recibirMensaje, validarPago } from "./servicio";
+import { parsearTrackcity } from "./importarTrackcity";
 
 async function exigirSesion() {
   const s = await getSession();
@@ -167,6 +168,45 @@ export async function ejecutarCampanaAction(fecha?: string): Promise<ResumenCamp
   const simulacion = modoSimulacion();
   const hoy = simulacion && fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : hoyChile();
   return ejecutarCampana(hoy, simulacion);
+}
+
+// ── Trackcity: importación de la planilla (CSV) ─────────────────────────────
+
+export type FilaTrackcityPanel = { placa: string; modelo: string; nombre: string; vence: string | null; telefono: string | null; excluir: boolean; motivo_exclusion: string | null; comentario: string | null };
+export type EstadoTrackcity = { total: number; excluidas: number; sinFecha: number; importadoEn: string | null; importadoPor: string | null; proximas: FilaTrackcityPanel[]; avisos?: string[] };
+
+export async function estadoTrackcityAction(): Promise<EstadoTrackcity> {
+  await exigirSesion();
+  const { data } = await getSupabaseAdmin().from("renov_fuente_externa")
+    .select("placa, modelo, nombre, vence, telefono, excluir, motivo_exclusion, comentario, importado_en, importado_por")
+    .eq("linea", "TRACKCITY").order("vence", { ascending: true, nullsFirst: false });
+  const filas = data ?? [];
+  const hoy = hoyChile();
+  return {
+    total: filas.length,
+    excluidas: filas.filter(f => f.excluir).length,
+    sinFecha: filas.filter(f => !f.vence).length,
+    importadoEn: filas[0]?.importado_en ?? null,
+    importadoPor: filas[0]?.importado_por ?? null,
+    proximas: filas.filter(f => f.vence && f.vence >= hoy).slice(0, 100),
+  };
+}
+
+// Cada importación REEMPLAZA las filas de Trackcity (la planilla es la fuente).
+export async function importarTrackcityAction(csv: string): Promise<EstadoTrackcity> {
+  const s = await exigirSesion();
+  if (csv.length > 2_000_000) throw new Error("Archivo demasiado grande");
+  const { filas, avisos } = parsearTrackcity(csv);
+  if (filas.length === 0) throw new Error("No se encontraron filas válidas. ¿Es el CSV de la pestaña \"Renovaciones Trackcity\"?");
+  const sb = getSupabaseAdmin();
+  const { error: errDel } = await sb.from("renov_fuente_externa").delete().eq("linea", "TRACKCITY");
+  if (errDel) throw new Error(errDel.message);
+  const ahora = new Date().toISOString();
+  const { error } = await sb.from("renov_fuente_externa").insert(
+    filas.map(f => ({ ...f, linea: "TRACKCITY", importado_en: ahora, importado_por: s.usuario })),
+  );
+  if (error) throw new Error(error.message);
+  return { ...(await estadoTrackcityAction()), avisos };
 }
 
 export async function reiniciarSimulacionAction() {
