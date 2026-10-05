@@ -58,7 +58,7 @@ async function main() {
     }
 
     await llenarPrimero(['input[name="rut"]', 'input#rut', 'input[name="Rut"]'], rutNumero, 'RUT (número)');
-    await llenarPrimero(['input[name="dv"]', 'input#dv', 'input[name="Dv"]'], rutDv, 'RUT (dígito verificador)');
+    await llenarPrimero(['input[name="dv"]', 'input#dv', 'input[name="Dv"]', 'input[name="rut_dv"]', 'input[maxlength="1"]'], rutDv, 'RUT (dígito verificador)');
     await llenarPrimero(['input[name="password"]', 'input#password', 'input[type="password"]'], VESPUCIO_SUR_PASSWORD, 'Contraseña');
 
     await page.screenshot({ path: 'vespuciosur-01-formulario-lleno.png', fullPage: true });

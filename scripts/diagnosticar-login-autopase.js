@@ -55,7 +55,21 @@ async function main() {
       return false;
     }
 
-    await llenarPrimero(['input[name="rut"]', 'input#rut', 'input[placeholder*="RUT" i]'], AUTOPASE_RUT, 'RUT');
+    // El dígito verificador puede ir en una casilla separada (confirmado por
+    // el usuario que el patrón se repite en varios logins chilenos, no
+    // asumir un solo campo) -- se intenta primero con casilla separada, y
+    // si no existe ninguna de esas, se cae al campo único con el RUT
+    // completo (con guión).
+    const [rutNumero, rutDv] = AUTOPASE_RUT.split('-');
+    const huboDvSeparado = await llenarPrimero(
+      ['input[name="dv"]', 'input#dv', 'input[name="rut_dv"]', 'input[maxlength="1"]'],
+      rutDv, 'RUT (dígito verificador)'
+    );
+    if (huboDvSeparado) {
+      await llenarPrimero(['input[name="rut"]', 'input#rut', 'input[name="rut_numero"]'], rutNumero, 'RUT (número)');
+    } else {
+      await llenarPrimero(['input[name="rut"]', 'input#rut', 'input[placeholder*="RUT" i]'], AUTOPASE_RUT, 'RUT (completo, un solo campo)');
+    }
     await llenarPrimero(['input[name="password"]', 'input#password', 'input[type="password"]'], AUTOPASE_PASSWORD, 'Contraseña');
 
     await page.screenshot({ path: 'autopase-01-formulario-lleno.png', fullPage: true });
