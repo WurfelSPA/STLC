@@ -36,15 +36,21 @@ async function main() {
     const page = await browser.newPage();
     page.setDefaultTimeout(60_000);
 
-    await loginConveniosDll(page, { loginUrl: LOGIN_URL, rut: VESPUCIO_SUR_RUT, password: VESPUCIO_SUR_PASSWORD });
+    await loginConveniosDll(page, {
+      loginUrl: LOGIN_URL, rut: VESPUCIO_SUR_RUT, password: VESPUCIO_SUR_PASSWORD,
+      volcarHtmlInicial: (html) => fs.writeFileSync('vespuciosur-00-login-inicial.html', html),
+    });
 
-    await page.screenshot({ path: 'vespuciosur-02-post-login.png', fullPage: true });
-    fs.writeFileSync('vespuciosur-02-post-login.html', await page.content());
+    // Cada paso en su propio try/catch -- si algo se cuelga o falla, igual
+    // se guarda lo que se alcanzó a conseguir hasta ahí (confirmado real
+    // 2026-10-05: un alert sin descartar colgó hasta el screenshot).
+    try { await page.screenshot({ path: 'vespuciosur-02-post-login.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
+    try { fs.writeFileSync('vespuciosur-02-post-login.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
 
     console.log(`[cartola] Navegando a ${CARTOLA_URL}...`);
-    await page.goto(CARTOLA_URL, { waitUntil: 'networkidle0' }).catch((e) => console.log(`[cartola] goto falló: ${e.message}`));
-    await page.screenshot({ path: 'vespuciosur-03-cartola.png', fullPage: true });
-    fs.writeFileSync('vespuciosur-03-cartola.html', await page.content());
+    await page.goto(CARTOLA_URL, { waitUntil: 'networkidle0', timeout: 15_000 }).catch((e) => console.log(`[cartola] goto falló: ${e.message}`));
+    try { await page.screenshot({ path: 'vespuciosur-03-cartola.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
+    try { fs.writeFileSync('vespuciosur-03-cartola.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
 
     console.log('=== Diagnóstico terminado. Revisar los .png y .html guardados. ===');
   } finally {

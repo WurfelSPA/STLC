@@ -43,26 +43,50 @@ async function llenarPrimero(page, selectores, valor, nombre) {
   return false;
 }
 
-async function loginConveniosDll(page, { loginUrl, rut, password }) {
+// Confirmado real 2026-10-05: sin esto, un alert() de validación del
+// formulario (ej. "RUT requerido") deja la página bloqueada y hasta el
+// screenshot termina colgado ("Page.captureScreenshot timed out") -- los
+// diálogos nativos de JS bloquean todo el render hasta que algo los cierra.
+function descartarDialogosAutomaticamente(page) {
+  page.on('dialog', async (dialog) => {
+    console.log(`[dialog] ⚠️ Diálogo nativo detectado: "${dialog.message()}" -- se descarta automáticamente.`);
+    await dialog.dismiss().catch(() => {});
+  });
+}
+
+async function loginConveniosDll(page, { loginUrl, rut, password, volcarHtmlInicial }) {
   const [rutNumero, rutDv] = rut.split('-');
+
+  descartarDialogosAutomaticamente(page);
 
   console.log(`[login] ${loginUrl}`);
   await page.goto(loginUrl, { waitUntil: 'networkidle0' });
+
+  // Se guarda el HTML tal cual llega, ANTES de tocar nada -- si los
+  // selectores de abajo fallan (como pasó realmente con "rut"), esto deja
+  // ver los nombres reales de los campos en vez de seguir adivinando a
+  // ciegas.
+  if (volcarHtmlInicial) await volcarHtmlInicial(await page.content());
 
   await llenarPrimero(page, ['input[name="rut"]', 'input#rut', 'input[name="Rut"]'], rutNumero, 'RUT (número)');
   await llenarPrimero(page, ['input[name="dv"]', 'input#dv', 'input[name="Dv"]', 'input[name="rut_dv"]', 'input[maxlength="1"]'], rutDv, 'RUT (dígito verificador)');
   await llenarPrimero(page, ['input[name="password"]', 'input#password', 'input[type="password"]'], password, 'Contraseña');
 
+  // Timeout corto a propósito (15s, no los 60s default): si el submit no
+  // dispara una navegación completa (ej. falla la validación y se queda en
+  // la misma página, o es un alert ya descartado arriba), no vale la pena
+  // esperar el default entero -- mejor seguir y que el HTML/captura de
+  // después muestre lo que realmente pasó.
   const botonIngresar = await page.$('button[type="submit"], input[type="submit"]');
   if (botonIngresar) {
     await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle0' }).catch(() => null),
+      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15_000 }).catch(() => null),
       botonIngresar.click(),
     ]);
   } else {
     console.log('[login] No se encontró botón de submit estándar, buscando por texto "Ingresar"...');
     const [, textoEncontrado] = await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle0' }).catch(() => null),
+      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15_000 }).catch(() => null),
       clickPorTexto(page, ['Ingresar']),
     ]);
     console.log(textoEncontrado ? `[login] Click por texto: "${textoEncontrado}"` : '[login] ⚠️ No se encontró ningún elemento con texto "Ingresar".');
