@@ -14,12 +14,9 @@
  */
 const puppeteer = require('puppeteer');
 const fs = require('fs');
-const { loginConveniosDll } = require('./lib/login-convenios-dll');
+const { loginConveniosDll, clickPorTexto } = require('./lib/login-convenios-dll');
 
-// Mejor estimación por ahora -- mismo patrón que Vespucio Sur, sin el
-// subdominio "oficina." porque la captura real no lo mostraba.
 const LOGIN_URL = 'https://costaneranorte.cl/sucursal_virtual/login.html';
-const CARTOLA_URL = 'https://costaneranorte.cl/Convenios.dll/Cartola';
 
 async function main() {
   const { COSTANERA_NORTE_RUT, COSTANERA_NORTE_PASSWORD } = process.env;
@@ -41,10 +38,17 @@ async function main() {
     try { await page.screenshot({ path: 'costaneranorte-02-post-login.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
     try { fs.writeFileSync('costaneranorte-02-post-login.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
 
-    console.log(`[cartola] Navegando a ${CARTOLA_URL}...`);
-    await page.goto(CARTOLA_URL, { waitUntil: 'networkidle0', timeout: 15_000 }).catch((e) => console.log(`[cartola] goto falló: ${e.message}`));
-    try { await page.screenshot({ path: 'costaneranorte-03-cartola.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
-    try { fs.writeFileSync('costaneranorte-03-cartola.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
+    // "Tránsitos no facturados" NO es un link con URL -- es
+    // javascript:MostrarTransitos() (confirmado real 2026-10-05,
+    // inspeccionado a mano), probablemente carga el contenido en la misma
+    // página vía AJAX. Se hace click por texto y se espera un poco en vez
+    // de navegar a una URL adivinada.
+    console.log('[transitos] Buscando "Tránsitos no facturados"...');
+    const textoTransitos = await clickPorTexto(page, ['Tránsitos no facturados', 'Transitos no facturados']);
+    console.log(textoTransitos ? `[transitos] Click: "${textoTransitos}"` : '[transitos] ⚠️ No se encontró el link/botón por texto.');
+    await new Promise((r) => setTimeout(r, 3000));
+    try { await page.screenshot({ path: 'costaneranorte-03-transitos.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
+    try { fs.writeFileSync('costaneranorte-03-transitos.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
 
     console.log('=== Diagnóstico terminado. Revisar los .png y .html guardados. ===');
   } finally {

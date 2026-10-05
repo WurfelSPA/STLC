@@ -19,7 +19,7 @@
  */
 const puppeteer = require('puppeteer');
 const fs = require('fs');
-const { loginConveniosDll } = require('./lib/login-convenios-dll');
+const { loginConveniosDll, clickPorTexto } = require('./lib/login-convenios-dll');
 
 const LOGIN_URL = 'https://oficina.vespuciosur.cl/sucursal_virtual/login.html';
 const CARTOLA_URL = 'https://oficina.vespuciosur.cl/Convenios.dll/Cartola';
@@ -49,6 +49,13 @@ async function main() {
 
     console.log(`[cartola] Navegando a ${CARTOLA_URL}...`);
     await page.goto(CARTOLA_URL, { waitUntil: 'networkidle0', timeout: 15_000 }).catch((e) => console.log(`[cartola] goto falló: ${e.message}`));
+
+    // La captura que compartió el usuario mostraba la pestaña "Tránsitos"
+    // ya activa, pero no hay garantía de que sea la pestaña por defecto --
+    // se intenta clickearla por texto, sin bloquear si no se encuentra.
+    const textoTransitos = await clickPorTexto(page, ['Tránsitos']);
+    if (textoTransitos) { console.log(`[cartola] Click en pestaña: "${textoTransitos}"`); await new Promise((r) => setTimeout(r, 1500)); }
+
     try { await page.screenshot({ path: 'vespuciosur-03-cartola.png', fullPage: true, timeout: 15_000 }); } catch (e) { console.log(`[screenshot] falló: ${e.message}`); }
     try { fs.writeFileSync('vespuciosur-03-cartola.html', await page.content()); } catch (e) { console.log(`[content] falló: ${e.message}`); }
 

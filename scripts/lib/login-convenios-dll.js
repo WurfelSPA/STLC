@@ -16,7 +16,11 @@
 
 async function clickPorTexto(page, textosCandidatos) {
   return page.evaluate((textos) => {
-    const elementos = document.querySelectorAll('button, a, input[type="submit"], input[type="button"]');
+    // Se agrega [onclick]/li ademas de button/a/input -- confirmado real
+    // 2026-10-05 que "Tránsitos no facturados" en Costanera Norte es
+    // javascript:MostrarTransitos() (podria ser <a href="javascript:...">
+    // o un elemento con onclick, no siempre un link/boton estandar).
+    const elementos = document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [onclick], li');
     for (const texto of textos) {
       for (const el of elementos) {
         const contenido = (el.innerText || el.value || '').trim();
@@ -68,8 +72,13 @@ async function loginConveniosDll(page, { loginUrl, rut, password, volcarHtmlInic
   // ciegas.
   if (volcarHtmlInicial) await volcarHtmlInicial(await page.content());
 
-  await llenarPrimero(page, ['input[name="rut"]', 'input#rut', 'input[name="Rut"]'], rutNumero, 'RUT (número)');
-  await llenarPrimero(page, ['input[name="dv"]', 'input#dv', 'input[name="Dv"]', 'input[name="rut_dv"]', 'input[maxlength="1"]'], rutDv, 'RUT (dígito verificador)');
+  // Confirmado real 2026-10-05 (inspeccionado a mano en Costanera Norte):
+  // name="RUT" / name="RUTDV", todo en mayúsculas -- no "rut"/"dv" como se
+  // había asumido antes. Se dejan los nombres en minúscula como fallback
+  // por si Vespucio Sur (mismo sistema, pero no necesariamente el mismo
+  // build exacto) los tiene distinto.
+  await llenarPrimero(page, ['input[name="RUT"]', 'input#RUT', 'input[name="rut"]', 'input#rut'], rutNumero, 'RUT (número)');
+  await llenarPrimero(page, ['input[name="RUTDV"]', 'input#RUTDV', 'input[name="dv"]', 'input#dv', 'input[maxlength="1"]'], rutDv, 'RUT (dígito verificador)');
   await llenarPrimero(page, ['input[name="password"]', 'input#password', 'input[type="password"]'], password, 'Contraseña');
 
   // Timeout corto a propósito (15s, no los 60s default): si el submit no
