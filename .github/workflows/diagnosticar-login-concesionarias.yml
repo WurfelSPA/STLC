@@ -56,12 +56,12 @@ jobs:
           COSTANERA_NORTE_PASSWORD: ${{ secrets.COSTANERA_NORTE_PASSWORD }}
         run: node scripts/diagnosticar-login-costaneranorte.js
 
-      - name: Diagnosticar login Autopase
-        if: always()
-        env:
-          AUTOPASE_RUT: ${{ secrets.AUTOPASE_RUT }}
-          AUTOPASE_PASSWORD: ${{ secrets.AUTOPASE_PASSWORD }}
-        run: node scripts/diagnosticar-login-autopase.js
+      # Autopase: bloqueado por Radware Bot Manager (validate.perfdrive.com),
+      # no es un problema de selectores -- es detección de bots activa.
+      # Decisión del usuario (2026-10-05): se deja fuera de la automatización
+      # y se sigue con la descarga manual del CSV para Autopista Central.
+      # El script queda en el repo (diagnosticar-login-autopase.js) por si
+      # se retoma más adelante, pero no se corre en este workflow.
 
       - name: Subir capturas y HTML como artifact
         if: always()
