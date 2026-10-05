@@ -49,6 +49,13 @@ jobs:
           VESPUCIO_SUR_PASSWORD: ${{ secrets.VESPUCIO_SUR_PASSWORD }}
         run: node scripts/diagnosticar-login-vespuciosur.js
 
+      - name: Diagnosticar login Costanera Norte
+        if: always()
+        env:
+          COSTANERA_NORTE_RUT: ${{ secrets.COSTANERA_NORTE_RUT }}
+          COSTANERA_NORTE_PASSWORD: ${{ secrets.COSTANERA_NORTE_PASSWORD }}
+        run: node scripts/diagnosticar-login-costaneranorte.js
+
       - name: Diagnosticar login Autopase
         if: always()
         env:
