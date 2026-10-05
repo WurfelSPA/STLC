@@ -15,6 +15,18 @@
  * un "dato real" contra el cual calibrar la detección automáticamente, en
  * vez de depender de que comparta un CSV manual cada cierto tiempo.
  *
+ * ESTADO (2026-10-05): PAUSADO. El login real no se puede automatizar --
+ * el formulario tiene Cloudflare Turnstile (class="cf turnstile" en
+ * form1), y el botón "Ingresar" llama a sendPOST(), que necesita el
+ * token de Turnstile resuelto antes de enviar. En Chrome headless ese
+ * challenge no se resuelve, así que el POST nunca llega con credenciales
+ * válidas y el servidor devuelve la misma página de login (confirmado
+ * real revisando el HTML descargado del artifact, NO solo el log: título
+ * "...Acceso", formulario vacío, data-page="login"). El workflow que
+ * corría esto se eliminó; el script queda como referencia. Decisión del
+ * usuario: no evadir Turnstile, igual que con Radware en Autopase --
+ * se sigue con exportación/consulta manual para este portal.
+ *
  * Requiere env vars: VESPUCIO_SUR_RUT, VESPUCIO_SUR_PASSWORD.
  */
 const puppeteer = require('puppeteer');

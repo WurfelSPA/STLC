@@ -10,6 +10,15 @@
  * YA logueado) -- este diagnóstico sirve justamente para confirmarlas o
  * corregirlas con el HTML/capturas reales.
  *
+ * ESTADO (2026-10-05): PAUSADO, mismo motivo que Vespucio Sur --
+ * Cloudflare Turnstile (data-sitekey="0x4AAAAAACaPHViWMxm1WwSq") bloquea
+ * el login en headless. El click que parecía "entrar a tránsitos" en
+ * realidad clickeaba el texto promocional "Revisa los tránsitos no
+ * facturados" que aparece en la misma página de login pública (li de la
+ * lista de beneficios), no una navegación real -- confirmado revisando
+ * el HTML del artifact, que seguía siendo la página de login. No evadir
+ * el captcha; se sigue con consulta manual para este portal.
+ *
  * Requiere env vars: COSTANERA_NORTE_RUT, COSTANERA_NORTE_PASSWORD.
  */
 const puppeteer = require('puppeteer');
