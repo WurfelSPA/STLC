@@ -20,7 +20,8 @@ import { cargarPiloto, modoSimulacion, registrarMensaje } from "./datos";
 // después del último mensaje del cliente) debe ser una plantilla aprobada.
 // Dentro de la ventana de 24h se puede responder texto libre.
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+// Misma versión que muestra la consola de Meta para la app (oct-2026).
+const GRAPH = "https://graph.facebook.com/v25.0";
 const VENTANA_MS = 24 * 60 * 60 * 1000;
 
 function phoneId(caso: Caso): string | undefined {
