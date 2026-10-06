@@ -12,6 +12,7 @@ import {
 import { DIAS_PRIMER_CONTACTO, HITO_IDS, type Hito } from "@/app/lib/renovaciones/tipos";
 import type { ResumenCampana } from "@/app/lib/renovaciones/campana";
 import DetalleCaso from "./DetalleCaso";
+import TrackyAnimado from "../components/TrackyAnimado";
 import { BadgeEstado, BadgePrioridad, fechaCorta, pesosCL } from "./ui";
 
 type Tab = "dashboard" | "cola" | "conversaciones" | "config" | "piloto";
@@ -88,6 +89,7 @@ export default function BotRenovaciones() {
       <div className="p-4">
         {/* Encabezado */}
         <div className="flex flex-wrap items-center gap-3 mb-3">
+          <TrackyAnimado alto={64} estado={corriendo ? "hablando" : "normal"} />
           <span className="text-blue-900 font-bold text-lg">Tracky · Bot de Renovaciones</span>
           {panel && (
             <>

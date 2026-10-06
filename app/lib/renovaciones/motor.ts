@@ -56,14 +56,14 @@ const SIN_MENU = [
   ["renov", "pagar", "continuar"],
   ["consulta", "pregunta", "duda"],
   ["ejecutivo", "persona", "humano", "asesor", "hablar"],
-  ["ya no tengo", "no tengo", "vendi", "cambie"],
+  ["ya no tengo", "no tengo", "vendi", "cambie", "traspas"],
 ];
 const SIN_EJECUTIVO = [
   ["precio", "descuento"], ["cotiz", "orden de compra", " oc"], ["tecnico", "falla", "problema"],
   ["cambio de vehiculo", "otro vehiculo", "auto nuevo"], ["cancelar", "baja"], ["otro"],
 ];
 const MOTIVOS_EJECUTIVO = ["Solicita precio o descuento", "Cotización / OC", "Problema técnico", "Cambio de vehículo", "Quiere cancelar", "Otro"];
-const SIN_QUE_PASO = [["vendi", "venta"], ["cambie", "otro vehiculo", "nuevo"], ["no utilizo", "no uso", "no lo necesito", "no quiero"], ["otro"]];
+const SIN_QUE_PASO = [["vendi", "venta"], ["cambie", "otro vehiculo", "nuevo", "traspas"], ["no utilizo", "no uso", "no lo necesito", "no quiero"], ["otro"]];
 const SIN_NO_USO = [["precio", "caro"], ["no lo necesito", "no necesito"], ["conforme", "mal servicio", "malo"], ["tecnico", "falla"], ["otro proveedor", "otra empresa", "competencia"], ["otro"]];
 const MOTIVOS_NO_USO = ["Precio", "No lo necesito", "No conforme con el servicio", "Problemas técnicos", "Contrató otro proveedor", "Otro"];
 const SIN_VENTA = [["traspas", "otro vehiculo"], ["titular", "dueño", "dueno"], ["baja", "eliminar", "cancelar"]];
@@ -291,6 +291,13 @@ export async function procesarEntrada(
 
   switch (caso.paso) {
     case "MENU": {
+      // "Quiero traspasar mi GPS" ya dice qué pasó: directo a pedir el nuevo vehículo.
+      if (/traspas/.test(t) && caso.cantidad_vehiculos === 1) {
+        ctxSet(ctx, { via: "traspaso" });
+        decir(ctx, T.cambioVehiculo);
+        ir(ctx, "D_NUEVA_PATENTE");
+        break;
+      }
       const n = opcion(ctx.texto, SIN_MENU);
       if (n === 1) { iniciarRenovacion(ctx); break; }
       if (n === 2) { decir(ctx, T.consultaAbierta); ir(ctx, "B_CONSULTA"); break; }

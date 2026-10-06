@@ -24,3 +24,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Tracky animado (app/components/TrackyAnimado.tsx) ─────────────────────
+   Los elementos tk-* viven dentro del SVG de la cara (coordenadas de la
+   imagen); transform-box: fill-box hace que cada uno rote/escale en torno
+   a su propio centro. */
+.tk-tracky .tk-flota { animation: tk-flota 3.4s ease-in-out infinite; transform-origin: 50% 100%; }
+.tk-tracky .tk-ojos { animation: tk-parpadeo 5.2s infinite; transform-box: fill-box; transform-origin: center; }
+.tk-tracky .tk-latido { animation: tk-latido 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.tk-tracky .tk-latido-2 { animation-delay: 0.12s; }
+.tk-tracky .tk-boca { transform-box: fill-box; transform-origin: 50% 20%; }
+.tk-tracky .tk-pulso { animation: tk-pulso 2.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.tk-tracky .tk-pulso-2 { animation-delay: 1.2s; }
+.tk-hablando .tk-boca { animation: tk-habla 0.32s ease-in-out infinite alternate; }
+.tk-hablando .tk-flota { animation-duration: 1.8s; }
+.tk-feliz .tk-latido { animation-duration: 0.8s; }
+
+@keyframes tk-flota {
+  0%, 100% { transform: translateY(0) scale(1.02); }
+  50% { transform: translateY(-2.2%) scale(1.02); }
+}
+@keyframes tk-parpadeo {
+  0%, 90%, 100% { transform: scaleY(1); }
+  93% { transform: scaleY(0.08); }
+  96% { transform: scaleY(1); }
+}
+@keyframes tk-latido {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.1); }
+  28% { transform: scale(0.98); }
+  42% { transform: scale(1.06); }
+  70% { transform: scale(1); }
+}
+@keyframes tk-pulso {
+  0% { transform: scale(1); opacity: 0.85; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+@keyframes tk-habla {
+  from { transform: scaleY(0.45); }
+  to { transform: scaleY(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tk-tracky * { animation: none !important; }
+}

@@ -123,6 +123,12 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
     assert.match(String(caso.motivo), /KXPT-21/);
   });
 
+  await prueba("D: 'quiero traspasar mi GPS' en el menú va directo a pedir el nuevo vehículo", async () => {
+    const { caso } = await conversar(nuevoCaso(), ["quiero traspasar mi gps a mi auto nuevo", "LKJH-22 Kia Sportage"]);
+    assert.equal(caso.estado, "CAMBIO_VEHICULO");
+    assert.match(String(caso.motivo), /LKJH-22/);
+  });
+
   await prueba("D3: ya no uso, motivo precio -> NO_RENUEVA + alerta ejecutivo", async () => {
     const { caso } = await conversar(nuevoCaso(), ["4", "3", "1"]);
     assert.equal(caso.estado, "NO_RENUEVA");

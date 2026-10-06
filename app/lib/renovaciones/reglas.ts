@@ -31,7 +31,7 @@ const REGLAS: { intencion: Intencion; patrones: RegExp[] }[] = [
   { intencion: "ya_pague", patrones: [/\bya pague\b/, /\bpague\b/, /comprobante/, /transferi/, /\bdeposite\b/] },
   { intencion: "no_quiere_renovar", patrones: [/no (quiero|deseo|voy a) renovar/, /\bcancelar\b/, /no me interesa/, /\bdar de baja\b/] },
   { intencion: "venta_vehiculo", patrones: [/\bvend(i|o|er|iendo)\b/, /venta del (auto|vehiculo)/] },
-  { intencion: "cambio_vehiculo", patrones: [/cambi\w* (de |el |mi )?(auto|vehiculo|camioneta|carro)/, /(auto|vehiculo) nuevo/, /otro (auto|vehiculo)/] },
+  { intencion: "cambio_vehiculo", patrones: [/traspas/, /cambi\w* (de |el |mi )?(auto|vehiculo|camioneta|carro)/, /(auto|vehiculo) nuevo/, /otro (auto|vehiculo)/] },
   { intencion: "no_tengo_vehiculo", patrones: [/ya no tengo/, /no tengo (el|ese|este) (auto|vehiculo)/] },
   { intencion: "cambio_patente", patrones: [/cambi\w* (de |la )?patente/, /patente (nueva|distinta|equivocada)/] },
   { intencion: "problema_app", patrones: [/\bapp\b/, /aplicacion/, /no (puedo|logro) (entrar|ingresar)/, /contrasena/] },

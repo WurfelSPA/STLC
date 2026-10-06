@@ -10,7 +10,7 @@ export const MENU_OPCIONES =
   "1. Renovar mi servicio\n" +
   "2. Tengo una consulta\n" +
   "3. Hablar con un ejecutivo\n" +
-  "4. Ya no tengo este vehículo";
+  "4. Ya no tengo este vehículo / quiero traspasar mi sistema de seguridad y conectividad GPS";
 
 const MSG_DERIVA = "Voy a derivar tu solicitud a nuestro equipo para que puedan ayudarte.";
 
@@ -124,7 +124,7 @@ export const T = {
     "1. Precio o descuento\n2. Cotización / OC\n3. Problema técnico\n4. Cambio de vehículo\n5. Quiero cancelar\n6. Otro",
   ejecutivoOtro: "Cuéntame brevemente el motivo y se lo paso al ejecutivo.",
   queOcurrio:
-    "¿Qué ocurrió con el vehículo?\n1. Lo vendí\n2. Lo cambié por otro vehículo\n3. Ya no utilizo el servicio\n4. Otro motivo",
+    "¿Qué ocurrió con el vehículo?\n1. Lo vendí\n2. Lo cambié por otro vehículo / quiero traspasar el GPS a otro vehículo\n3. Ya no utilizo el servicio\n4. Otro motivo",
   otroVehiculo: "Entiendo. ¿Tienes actualmente otro vehículo donde quieras mantener tu servicio? (Sí / No)",
   pideNuevaPatente: "¡Genial! Indícame la patente del nuevo vehículo (y marca/modelo si la tienes a mano).",
   cambioVehiculo:

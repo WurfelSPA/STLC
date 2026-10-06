@@ -8,6 +8,7 @@ import {
   simularMensajeAction, validarPagoAction, type CasoPanel,
 } from "@/app/lib/renovaciones/acciones";
 import { BadgeEstado, BadgePrioridad, fechaCorta, pesosCL } from "./ui";
+import TrackyAnimado from "../components/TrackyAnimado";
 
 type Conversacion = { caso: CasoPanel; mensajes: Mensaje[] };
 
@@ -88,7 +89,10 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
 
       {/* Mensajes */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-[#ece5dd]">
-        {mensajes.length === 0 && <div className="text-center text-xs text-gray-500 py-6">{caso.piloto
+        {mensajes.length === 0 && (
+          <div className="flex justify-center pt-2"><TrackyAnimado alto={150} estado={enviando ? "hablando" : "normal"} /></div>
+        )}
+        {mensajes.length === 0 &&<div className="text-center text-xs text-gray-500 py-6">{caso.piloto
           ? "Sin mensajes todavía. Envía un aviso desde la pestaña Piloto, o escríbele \"hola\" al número del bot desde este teléfono."
           : "Sin mensajes todavía. Ejecuta la campaña para enviar el primer contacto."}</div>}
         {mensajes.map(m => m.direccion === "nota" ? (
@@ -113,6 +117,12 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
             </div>
           </div>
         ))}
+        {enviando && mensajes.length > 0 && (
+          <div className="flex items-end gap-2">
+            <TrackyAnimado alto={56} estado="hablando" />
+            <span className="text-[11px] text-gray-600 bg-white rounded-lg px-2 py-1 shadow-sm">Tracky está escribiendo…</span>
+          </div>
+        )}
         <div ref={finRef} />
       </div>
 
