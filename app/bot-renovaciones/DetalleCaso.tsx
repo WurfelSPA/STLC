@@ -102,7 +102,8 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
             </span>
           </div>
         ) : (
-          <div key={m.id} className={`flex ${m.direccion === "in" ? "justify-end" : "justify-start"}`}>
+          <div key={m.id} className={`flex items-end gap-1.5 ${m.direccion === "in" ? "justify-end" : "justify-start"}`}>
+            {m.direccion !== "in" && <TrackyAnimado alto={28} estado="normal" fondo={false} className="mb-0.5" />}
             <div className={`max-w-[80%] rounded-lg px-3 py-1.5 shadow-sm whitespace-pre-wrap text-[13px] ${m.direccion === "in" ? "bg-[#dcf8c6]" : "bg-white"}`}>
               {m.tipo && m.direccion === "out" && /^D\d+$/.test(m.tipo) && (
                 <div className="text-[10px] font-semibold text-blue-700 mb-0.5">Contacto automático {m.tipo}</div>
