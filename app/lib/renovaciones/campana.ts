@@ -165,7 +165,7 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
 
   // ── 3+4. Contactos y cierres sobre casos abiertos ─────────────────────────
   const { data: abiertosRaw, error } = await sb.from("renov_casos").select("*")
-    .eq("simulacion", simulacion).not("estado", "in", `(${ESTADOS_CERRADOS.join(",")})`)
+    .eq("simulacion", simulacion).eq("piloto", false).not("estado", "in", `(${ESTADOS_CERRADOS.join(",")})`)
     .gte("fecha_vencimiento", desdeExistentes);
   if (error) throw new Error(error.message);
 
@@ -233,7 +233,7 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
 
   // RENOVADO por el bot: marcar cuando TrackGTS ya refleja la nueva fecha.
   const { data: porActualizar } = await sb.from("renov_casos").select("id, vehiculos, nueva_fecha_vencimiento")
-    .eq("simulacion", simulacion).eq("estado", "RENOVADO").eq("trackgts_actualizado", false);
+    .eq("simulacion", simulacion).eq("piloto", false).eq("estado", "RENOVADO").eq("trackgts_actualizado", false);
   for (const c of porActualizar ?? []) {
     const ok = (c.vehiculos as Vehiculo[]).every(v => {
       const a = venceActualPorImei.get(v.imei);

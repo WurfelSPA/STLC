@@ -89,6 +89,7 @@ export type Caso = {
   opt_out: boolean;
   cerrado_por: string | null;
   simulacion: boolean;
+  piloto: boolean;
   creado_en: string;
   actualizado_en: string;
   ultima_interaccion: string | null;

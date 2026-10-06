@@ -31,7 +31,7 @@ class Query implements PromiseLike<{ data: unknown; error: null }> {
       db[this.tabla].push({
         id: `c${++seq}`, estado: "PENDIENTE", paso: "MENU", contexto: {}, motivo: null, requiere_ejecutivo: false,
         atendido: false, hitos_enviados: [], respondio: false, opt_out: false, trackgts_actualizado: false,
-        plazo_meses: null, monto: null, nueva_fecha_vencimiento: null, cerrado_por: null, creado_en: new Date().toISOString(), ...r,
+        piloto: false, plazo_meses: null, monto: null, nueva_fecha_vencimiento: null, cerrado_por: null, creado_en: new Date().toISOString(), ...r,
       });
     }
     return Promise.resolve({ error: null });

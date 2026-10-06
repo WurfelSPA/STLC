@@ -2,8 +2,12 @@
 
 import { getSession } from "@/app/lib/session";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
-import type { Caso, Estado, Linea, Mensaje, Prioridad } from "./tipos";
-import { actualizarCaso, cargarConfig, listarCasos, mensajesDeCaso, modoSimulacion, obtenerCaso, registrarMensaje } from "./datos";
+import type { Caso, Estado, Hito, Linea, Mensaje, Prioridad } from "./tipos";
+import {
+  actualizarCaso, cargarConfig, cargarPiloto, listarCasos, mensajesDeCaso, modoSimulacion, obtenerCaso, registrarMensaje,
+  type ContactoPiloto,
+} from "./datos";
+import { crearCasosPiloto, enviarAvisoPiloto } from "./piloto";
 import { calcularPrioridad, hoyChile } from "./formato";
 import { ejecutarCampana, universoDelMes, type ResumenCampana } from "./campana";
 import { recibirMensaje, validarPago } from "./servicio";
@@ -168,6 +172,45 @@ export async function ejecutarCampanaAction(fecha?: string): Promise<ResumenCamp
   const simulacion = modoSimulacion();
   const hoy = simulacion && fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : hoyChile();
   return ejecutarCampana(hoy, simulacion);
+}
+
+// ── Piloto WhatsApp ─────────────────────────────────────────────────────────
+
+export type EstadoPiloto = {
+  whatsappConfigurado: boolean;
+  plantillas: Record<Hito, boolean>;
+  modo: "simulacion" | "produccion";
+  contactos: ContactoPiloto[];
+  casos: CasoPanel[];
+};
+
+export async function estadoPilotoAction(): Promise<EstadoPiloto> {
+  await exigirSesion();
+  const [contactos, { data }] = await Promise.all([
+    cargarPiloto(),
+    getSupabaseAdmin().from("renov_casos").select("*").eq("piloto", true).order("usuario"),
+  ]);
+  const hoy = hoyChile();
+  return {
+    whatsappConfigurado: !!(process.env.WHATSAPP_TOKEN && (process.env.WHATSAPP_PHONE_ID || process.env.WHATSAPP_PHONE_ID_TRACKLINK)),
+    plantillas: Object.fromEntries((["D30", "D20", "D10", "D3", "D0"] as Hito[]).map(h => [h, !!process.env[`WHATSAPP_TEMPLATE_${h}`]])) as Record<Hito, boolean>,
+    modo: modoSimulacion() ? "simulacion" : "produccion",
+    contactos,
+    casos: ((data ?? []) as Caso[]).map(c => ({ ...c, prioridad: calcularPrioridad(c, hoy) })),
+  };
+}
+
+export async function crearPilotoAction(): Promise<EstadoPiloto> {
+  await exigirSesion();
+  await crearCasosPiloto(hoyChile());
+  return estadoPilotoAction();
+}
+
+export async function enviarAvisoPilotoAction(casoId: string, hito: Hito) {
+  const s = await exigirSesion();
+  if (!["D30", "D20", "D10", "D3", "D0"].includes(hito)) throw new Error("Hito inválido");
+  await enviarAvisoPiloto(casoId, hito, s.usuario);
+  return obtenerConversacionAction(casoId);
 }
 
 // ── Trackcity: importación de la planilla (CSV) ─────────────────────────────

@@ -5,10 +5,15 @@ import { clasificar } from "./clasificador";
 import { procesarEntrada, patchRenovado } from "./motor";
 import { enviarRespuesta } from "./canal";
 import { textoRenovado } from "./textos";
+import { responderPrimerContacto } from "./piloto";
 
 // Orquestación: mensaje entrante -> motor -> guardar -> responder.
 export async function recibirMensaje(caso: Caso, texto: string, opts: { canal: string; conAdjunto?: boolean; meta?: Record<string, unknown> }) {
   await registrarMensaje({ caso_id: caso.id, direccion: "in", canal: opts.canal, tipo: "cliente", texto: texto || "(adjunto)", meta: opts.meta });
+
+  // Piloto: si el tester escribe antes de recibir el primer aviso, Tracky
+  // parte la conversación con el mensaje inicial.
+  if (await responderPrimerContacto(caso)) return obtenerCaso(caso.id);
 
   const cfg = await cargarConfig();
   const r = await procesarEntrada(caso, texto, cfg, clasificar, opts.conAdjunto ?? false);

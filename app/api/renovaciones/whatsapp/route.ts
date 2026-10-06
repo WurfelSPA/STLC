@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { modoSimulacion, obtenerCasoPorTelefono, registrarMensaje } from "@/app/lib/renovaciones/datos";
+import { obtenerCasoPorTelefono, registrarMensaje } from "@/app/lib/renovaciones/datos";
 import { recibirMensaje } from "@/app/lib/renovaciones/servicio";
 import { normalizarTelefono } from "@/app/lib/renovaciones/formato";
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   for (const m of mensajes) {
     const telefono = normalizarTelefono(m.from);
     if (!telefono) continue;
-    const caso = await obtenerCasoPorTelefono(telefono, modoSimulacion());
+    const caso = await obtenerCasoPorTelefono(telefono);
     if (!caso) {
       console.log(`[renovaciones][whatsapp] mensaje de ${telefono} sin caso de renovación asociado`);
       continue;

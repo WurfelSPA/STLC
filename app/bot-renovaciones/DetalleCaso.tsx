@@ -88,7 +88,9 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
 
       {/* Mensajes */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-[#ece5dd]">
-        {mensajes.length === 0 && <div className="text-center text-xs text-gray-500 py-6">Sin mensajes todavía. Ejecuta la campaña para enviar el primer contacto.</div>}
+        {mensajes.length === 0 && <div className="text-center text-xs text-gray-500 py-6">{caso.piloto
+          ? "Sin mensajes todavía. Envía un aviso desde la pestaña Piloto, o escríbele \"hola\" al número del bot desde este teléfono."
+          : "Sin mensajes todavía. Ejecuta la campaña para enviar el primer contacto."}</div>}
         {mensajes.map(m => m.direccion === "nota" ? (
           <div key={m.id} className="text-center">
             <span className="inline-block text-[11px] bg-yellow-50 border border-yellow-200 text-yellow-900 rounded px-2 py-0.5">
@@ -103,6 +105,8 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
               )}
               {!!m.meta?.adjunto && <div className="text-[11px] text-gray-600 mb-0.5">📎 {String(m.meta.adjunto)}</div>}
               {m.texto}
+              {!!m.meta?.error && <div className="text-[11px] text-red-700 bg-red-50 rounded px-1 mt-1">❌ No llegó: {String(m.meta.error)}</div>}
+              {!!m.meta?.no_enviado && <div className="text-[11px] text-amber-800 bg-amber-50 rounded px-1 mt-1">No enviado por WhatsApp: {String(m.meta.no_enviado)}</div>}
               <div className="text-[10px] text-gray-400 text-right mt-0.5">
                 {m.canal === "whatsapp" ? "WhatsApp · " : ""}{new Date(m.creado_en).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
               </div>

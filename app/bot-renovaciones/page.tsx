@@ -5,14 +5,16 @@ import Navbar from "../components/Navbar";
 import type { Linea, Prioridad } from "@/app/lib/renovaciones/tipos";
 import { ESTADOS, ESTADO_LABEL } from "@/app/lib/renovaciones/tipos";
 import {
-  ejecutarCampanaAction, estadoTrackcityAction, importarTrackcityAction, obtenerPanelAction, reiniciarSimulacionAction,
-  type CasoPanel, type EstadoTrackcity, type Metricas, type Panel,
+  crearPilotoAction, ejecutarCampanaAction, enviarAvisoPilotoAction, estadoPilotoAction, estadoTrackcityAction,
+  importarTrackcityAction, obtenerPanelAction, reiniciarSimulacionAction,
+  type CasoPanel, type EstadoPiloto, type EstadoTrackcity, type Metricas, type Panel,
 } from "@/app/lib/renovaciones/acciones";
+import type { Hito } from "@/app/lib/renovaciones/tipos";
 import type { ResumenCampana } from "@/app/lib/renovaciones/campana";
 import DetalleCaso from "./DetalleCaso";
 import { BadgeEstado, BadgePrioridad, fechaCorta, pesosCL } from "./ui";
 
-type Tab = "dashboard" | "cola" | "conversaciones" | "config";
+type Tab = "dashboard" | "cola" | "conversaciones" | "config" | "piloto";
 const LINEAS: Linea[] = ["TRACKLINK", "AUTOBAHN", "TRACKCITY"];
 const ORDEN_PRIORIDAD: Record<Prioridad, number> = { ALTA: 0, MEDIA: 1, BAJA: 2 };
 
@@ -143,6 +145,7 @@ export default function BotRenovaciones() {
             ["cola", `Cola del ejecutivo${cola.length ? ` (${cola.length})` : ""}`],
             ["conversaciones", "Conversaciones / Simulador"],
             ["config", "Precios y configuración"],
+            ["piloto", "Piloto WhatsApp"],
           ] as [Tab, string][]).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-t border border-b-0 ${tab === k ? "bg-white text-blue-900 border-gray-300" : "bg-gray-200 text-gray-600 border-transparent hover:bg-gray-50"}`}>
@@ -161,6 +164,7 @@ export default function BotRenovaciones() {
               <Dividido casos={panel.casos} seleccionado={seleccionado} onSel={setSeleccionado} onCambio={cargar} modo="todas" />
             )}
             {tab === "config" && <Config panel={panel} />}
+            {tab === "piloto" && <Piloto />}
           </>
         )}
       </div>
@@ -344,6 +348,95 @@ function FilaCaso({ c, activo, onClick }: { c: CasoPanel; activo: boolean; onCli
       </div>
       {c.motivo && <div className="text-[11px] text-orange-800 truncate mt-0.5">{c.motivo}</div>}
     </button>
+  );
+}
+
+// ── Piloto WhatsApp: casos de prueba con los teléfonos del equipo ──────────
+
+const HITOS_PILOTO: Hito[] = ["D30", "D20", "D10", "D3", "D0"];
+
+function Piloto() {
+  const [estado, setEstado] = useState<EstadoPiloto | null>(null);
+  const [seleccionado, setSeleccionado] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState("");
+  const [error, setError] = useState("");
+  const [version, setVersion] = useState(0);
+
+  const cargar = useCallback(() => { estadoPilotoAction().then(setEstado).catch(e => setError(String(e?.message ?? e))); }, []);
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const accion = async (clave: string, fn: () => Promise<unknown>) => {
+    setOcupado(clave);
+    setError("");
+    try { await fn(); cargar(); setVersion(v => v + 1); } catch (e) { setError(e instanceof Error ? e.message : "Error"); }
+    setOcupado("");
+  };
+
+  const crear = () => {
+    if (estado?.casos.length && !confirm("Esto borra los casos piloto actuales y su conversación. ¿Continuar?")) return;
+    accion("crear", async () => { await crearPilotoAction(); setSeleccionado(null); });
+  };
+
+  if (!estado) return <div className="text-center py-10 text-gray-500">{error || "Cargando..."}</div>;
+  const sinPlantillas = HITOS_PILOTO.filter(h => !estado.plantillas[h]);
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-gray-200 rounded p-3 text-xs space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-blue-900 text-sm">Piloto WhatsApp</span>
+          <span className={`px-2 py-0.5 rounded font-semibold ${estado.whatsappConfigurado ? "bg-green-600 text-white" : "bg-red-100 text-red-800 border border-red-200"}`}>
+            WhatsApp {estado.whatsappConfigurado ? "conectado" : "sin configurar"}
+          </span>
+          <span className="text-gray-600">
+            Plantillas: {sinPlantillas.length === 0 ? "todas configuradas" : `faltan ${sinPlantillas.join(", ")}`}
+          </span>
+          <div className="flex-1" />
+          <button disabled={!!ocupado} onClick={crear}
+            className="px-3 py-1 rounded bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-50">
+            {ocupado === "crear" ? "Creando..." : estado.casos.length ? "Reiniciar casos piloto" : "Crear casos piloto"}
+          </button>
+        </div>
+        <p className="text-gray-600">
+          Solo estos teléfonos pueden recibir mensajes de Tracky fuera de producción; cada uno tiene un caso con vehículos ficticios (PRBA-01…).
+          {sinPlantillas.length > 0 && " Mientras no haya plantillas aprobadas, la persona debe escribir primero al número del bot (por ejemplo \"hola\"): eso abre la ventana de 24 h y Tracky responde con el primer aviso."}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {estado.contactos.map(c => (
+            <span key={c.telefono} className="bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
+              {c.nombre} · +{c.telefono} · {c.linea}{c.vehiculos > 1 ? ` · flota ${c.vehiculos}` : ""}
+            </span>
+          ))}
+        </div>
+        {error && <div className="text-red-600">{error}</div>}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded max-h-[calc(100vh-380px)] overflow-y-auto">
+          {estado.casos.length === 0 && <div className="p-6 text-center text-xs text-gray-500">Aún no hay casos piloto. Presiona &quot;Crear casos piloto&quot;.</div>}
+          {estado.casos.map(c => (
+            <div key={c.id} className={`border-b border-gray-100 ${c.id === seleccionado ? "bg-blue-50" : ""}`}>
+              <FilaCaso c={c} activo={c.id === seleccionado} onClick={() => setSeleccionado(c.id)} />
+              <div className="px-3 pb-2 flex flex-wrap items-center gap-1">
+                <span className="text-[11px] text-gray-500 mr-1">Enviar aviso:</span>
+                {HITOS_PILOTO.map(h => (
+                  <button key={h} disabled={!!ocupado}
+                    onClick={() => accion(`${c.id}:${h}`, async () => { await enviarAvisoPilotoAction(c.id, h); setSeleccionado(c.id); })}
+                    className={`text-[11px] px-2 py-0.5 rounded border ${c.hitos_enviados.includes(h) ? "bg-green-50 border-green-300 text-green-800" : "bg-white border-gray-300 hover:bg-gray-50"} disabled:opacity-50`}>
+                    {ocupado === `${c.id}:${h}` ? "..." : h}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="lg:col-span-3 bg-white border border-gray-200 rounded h-[calc(100vh-340px)] min-h-[520px] overflow-hidden">
+          {seleccionado
+            ? <DetalleCaso key={`${seleccionado}:${version}`} casoId={seleccionado} onCambio={cargar} />
+            : <div className="h-full flex items-center justify-center text-gray-400 text-xs">Selecciona un caso para ver la conversación real de WhatsApp.</div>}
+        </div>
+      </div>
+    </div>
   );
 }
 

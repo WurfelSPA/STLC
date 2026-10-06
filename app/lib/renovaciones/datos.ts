@@ -39,12 +39,20 @@ export async function obtenerCaso(id: string): Promise<Caso | null> {
   return (data as Caso) ?? null;
 }
 
-// Caso abierto más reciente para un teléfono (mensajes entrantes de WhatsApp).
-export async function obtenerCasoPorTelefono(telefono: string, simulacion: boolean): Promise<Caso | null> {
-  const { data } = await getSupabaseAdmin().from("renov_casos").select("*")
-    .eq("telefono", telefono).eq("simulacion", simulacion)
-    .order("fecha_vencimiento", { ascending: false }).limit(1).maybeSingle();
+// Caso más reciente para un teléfono (mensajes entrantes de WhatsApp). Nunca
+// un caso de simulación. Fuera de producción, solo casos del piloto.
+export async function obtenerCasoPorTelefono(telefono: string): Promise<Caso | null> {
+  let q = getSupabaseAdmin().from("renov_casos").select("*").eq("telefono", telefono).eq("simulacion", false);
+  if (modoSimulacion()) q = q.eq("piloto", true);
+  const { data } = await q.order("creado_en", { ascending: false }).limit(1).maybeSingle();
   return (data as Caso) ?? null;
+}
+
+export type ContactoPiloto = { nombre: string; telefono: string; linea: Linea; vehiculos: number };
+
+export async function cargarPiloto(): Promise<ContactoPiloto[]> {
+  const { data } = await getSupabaseAdmin().from("renov_config").select("valor").eq("clave", "piloto").maybeSingle();
+  return ((data?.valor as { telefonos?: ContactoPiloto[] })?.telefonos ?? []);
 }
 
 export async function actualizarCaso(id: string, patch: Partial<Caso>) {
@@ -68,7 +76,7 @@ export async function listarCasos(filtro: { simulacion: boolean; desde?: string;
   const sb = getSupabaseAdmin();
   let todos: Caso[] = [];
   for (let desde = 0; ; desde += 1000) {
-    let q = sb.from("renov_casos").select("*").eq("simulacion", filtro.simulacion);
+    let q = sb.from("renov_casos").select("*").eq("simulacion", filtro.simulacion).eq("piloto", false);
     if (filtro.desde) q = q.gte("fecha_vencimiento", filtro.desde);
     if (filtro.hasta) q = q.lte("fecha_vencimiento", filtro.hasta);
     const { data, error } = await q.order("fecha_vencimiento").range(desde, desde + 999);
