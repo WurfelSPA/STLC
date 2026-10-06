@@ -9,7 +9,7 @@ import {
   importarTrackcityAction, obtenerPanelAction, reiniciarSimulacionAction,
   type CasoPanel, type EstadoPiloto, type EstadoTrackcity, type Metricas, type Panel,
 } from "@/app/lib/renovaciones/acciones";
-import type { Hito } from "@/app/lib/renovaciones/tipos";
+import { DIAS_PRIMER_CONTACTO, HITO_IDS, type Hito } from "@/app/lib/renovaciones/tipos";
 import type { ResumenCampana } from "@/app/lib/renovaciones/campana";
 import DetalleCaso from "./DetalleCaso";
 import { BadgeEstado, BadgePrioridad, fechaCorta, pesosCL } from "./ui";
@@ -127,8 +127,8 @@ export default function BotRenovaciones() {
           )}
           {resumen && (
             <span className="text-xs text-gray-700">
-              {fechaCorta(resumen.hoy)}: {resumen.vehiculosEnVentana} vehículos vencen en 30 días · {resumen.casosNuevos} casos nuevos ({resumen.vehiculosNuevos} veh.) ·
-              enviados D30 {resumen.envios.D30} / D20 {resumen.envios.D20} / D10 {resumen.envios.D10} / D3 {resumen.envios.D3} / D0 {resumen.envios.D0}
+              {fechaCorta(resumen.hoy)}: {resumen.vehiculosEnVentana} vehículos vencen en {DIAS_PRIMER_CONTACTO} días · {resumen.casosNuevos} casos nuevos ({resumen.vehiculosNuevos} veh.) ·
+              enviados {HITO_IDS.map(h => `${h} ${resumen.envios[h] ?? 0}`).join(" / ")}
               {resumen.sinTelefono ? ` · ${resumen.sinTelefono} sin teléfono` : ""}
               {resumen.renovadosFueraDelBot ? ` · ${resumen.renovadosFueraDelBot} ya renovados en TrackGTS` : ""}
               {resumen.pasadosAGestionManual ? ` · ${resumen.pasadosAGestionManual} a gestión manual` : ""}
@@ -353,7 +353,7 @@ function FilaCaso({ c, activo, onClick }: { c: CasoPanel; activo: boolean; onCli
 
 // ── Piloto WhatsApp: casos de prueba con los teléfonos del equipo ──────────
 
-const HITOS_PILOTO: Hito[] = ["D30", "D20", "D10", "D3", "D0"];
+const HITOS_PILOTO: readonly Hito[] = HITO_IDS;
 
 function Piloto() {
   const [estado, setEstado] = useState<EstadoPiloto | null>(null);
@@ -409,6 +409,22 @@ function Piloto() {
           ))}
         </div>
         {error && <div className="text-red-600">{error}</div>}
+        <div className="pt-1">
+          <div className="font-semibold text-gray-700">Últimos avisos de Meta al webhook {estado.webhook.length === 0 && <span className="font-normal text-gray-500">— ninguno todavía: Meta no está entregando los mensajes al bot</span>}</div>
+          {estado.webhook.length > 0 && (
+            <table className="w-full mt-1">
+              <tbody>{estado.webhook.map((w, i) => (
+                <tr key={i} className="border-b border-gray-100">
+                  <td className="py-0.5 pr-2 whitespace-nowrap text-gray-500">{new Date(w.creado_en).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "medium" })}</td>
+                  <td className={`py-0.5 pr-2 font-semibold ${w.resultado === "ok" ? "text-green-700" : "text-red-700"}`}>{w.resultado}</td>
+                  <td className="py-0.5 pr-2">{w.telefono ? `+${w.telefono}` : ""}</td>
+                  <td className="py-0.5 text-gray-600">{w.detalle}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+          <button onClick={cargar} className="mt-1 text-[11px] text-blue-700 hover:underline">↻ Actualizar</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
@@ -532,7 +548,7 @@ function Config({ panel }: { panel: Panel }) {
           <li>Trackcity: precios y medios de pago (la base ya se importa desde la planilla).</li>
           <li>Precios para planes especiales (COORP MENSUALIZADO, SANTANDER CONSUMER, concesionarios, REFERIDO, FLOTAS) — hoy el bot los deriva a ejecutivo.</li>
           <li>Datos de transferencia para Autobahn (hoy solo link de pago).</li>
-          <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas D30/D20/D10/D3/D0.</li>
+          <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas {HITO_IDS.join("/")}.</li>
         </ul>
       </div>
     </div>

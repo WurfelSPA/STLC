@@ -16,7 +16,7 @@ db["Tracklink"] = [
   fila({ imei: "1", placa: "AAAA-11", vence: "2026-11-02", usuario: "persona1" }),                       // Tracklink, 1 vehículo
   fila({ imei: "2", placa: "BBBB-22", vence: "2026-10-25", usuario: "empresa", rut: "76123456-7" }),    // flota de 3
   fila({ imei: "3", placa: "CCCC-33", vence: "2026-10-28", usuario: "empresa", rut: "76123456-7" }),
-  fila({ imei: "4", placa: "DDDD-44", vence: "2026-11-25", usuario: "empresa", rut: "76123456-7" }),    // aún fuera de ventana
+  fila({ imei: "4", placa: "DDDD-44", vence: "2026-12-25", usuario: "empresa", rut: "76123456-7" }),    // entra a la ventana de 60 días el 26-oct
   fila({ imei: "5", placa: "EEEE-55", vence: "2026-11-03", usuario: "auto1", sc: "AUTOBAHN NUEVOS" }),  // Autobahn
   fila({ imei: "6", placa: "FFFF-66", vence: "2026-11-01", usuario: "sintel", tel: "123" }),              // sin móvil
   fila({ imei: "7", placa: "GGGG-77", vence: "2026-11-04", usuario: "bodega" }),                          // excluido
@@ -61,7 +61,7 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   // Reimportar la planilla (ids nuevos) no duplica casos.
   db["renov_fuente_externa"] = db["renov_fuente_externa"].map((f, i) => ({ ...f, id: 100 + i }));
   assert.equal((await ejecutarCampana("2026-10-04", true)).casosNuevos, 0);
-  assert.equal(caso("empresa").cantidad_vehiculos, 2, "flota: solo los 2 que vencen dentro de 30 días");
+  assert.equal(caso("empresa").cantidad_vehiculos, 2, "flota: solo los 2 que vencen dentro de la ventana (60 días)");
   assert.equal(caso("empresa").tipo_cliente, "empresa");
   assert.equal(caso("persona1").vehiculos.length, 1, "deduplicado por patente");
   assert.equal(caso("auto1").linea, "AUTOBAHN");
@@ -105,7 +105,7 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   assert.match(String(salientes("persona1").at(-1)!.texto), /Nuevo vencimiento: 2 de noviembre de 2028/);
   console.log("✔ Validación de pago -> RENOVADO + confirmación con nueva fecha");
 
-  // El 23-oct la flota estaba a 2 días -> recibió D3. Día 0 = 25-oct.
+  // El 23-oct la flota estaba a 2 días -> recibió D5. Día 0 = 25-oct.
   assert.match(String(salientes("empresa").at(-1)!.texto), /vence en 2 días/);
   r = await ejecutarCampana("2026-10-25", true);
   assert.equal(r.envios.D0, 1);

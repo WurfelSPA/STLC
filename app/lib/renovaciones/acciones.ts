@@ -3,6 +3,7 @@
 import { getSession } from "@/app/lib/session";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Caso, Estado, Hito, Linea, Mensaje, Prioridad } from "./tipos";
+import { HITO_IDS } from "./tipos";
 import {
   actualizarCaso, cargarConfig, cargarPiloto, listarCasos, mensajesDeCaso, modoSimulacion, obtenerCaso, registrarMensaje,
   type ContactoPiloto,
@@ -166,7 +167,7 @@ export async function marcarTrackgtsAction(casoId: string) {
 }
 
 // Corrida de la campaña. En simulación se puede elegir la fecha para mostrar
-// cómo avanzan los recordatorios (D30 -> D20 -> D10 -> D3 -> D0).
+// cómo avanzan los recordatorios (D60 -> D30 -> D20 -> D10 -> D5 -> D0).
 export async function ejecutarCampanaAction(fecha?: string): Promise<ResumenCampana> {
   await exigirSesion();
   const simulacion = modoSimulacion();
@@ -179,6 +180,7 @@ export async function ejecutarCampanaAction(fecha?: string): Promise<ResumenCamp
 export type EstadoPiloto = {
   whatsappConfigurado: boolean;
   plantillas: Record<Hito, boolean>;
+  webhook: { creado_en: string; resultado: string; telefono: string | null; detalle: string | null }[];
   modo: "simulacion" | "produccion";
   contactos: ContactoPiloto[];
   casos: CasoPanel[];
@@ -186,14 +188,17 @@ export type EstadoPiloto = {
 
 export async function estadoPilotoAction(): Promise<EstadoPiloto> {
   await exigirSesion();
-  const [contactos, { data }] = await Promise.all([
+  const sb = getSupabaseAdmin();
+  const [contactos, { data }, { data: logs }] = await Promise.all([
     cargarPiloto(),
-    getSupabaseAdmin().from("renov_casos").select("*").eq("piloto", true).order("usuario"),
+    sb.from("renov_casos").select("*").eq("piloto", true).order("usuario"),
+    sb.from("renov_webhook_log").select("creado_en, resultado, telefono, detalle").order("creado_en", { ascending: false }).limit(15),
   ]);
   const hoy = hoyChile();
   return {
     whatsappConfigurado: !!(process.env.WHATSAPP_TOKEN && (process.env.WHATSAPP_PHONE_ID || process.env.WHATSAPP_PHONE_ID_TRACKLINK)),
-    plantillas: Object.fromEntries((["D30", "D20", "D10", "D3", "D0"] as Hito[]).map(h => [h, !!process.env[`WHATSAPP_TEMPLATE_${h}`]])) as Record<Hito, boolean>,
+    plantillas: Object.fromEntries(HITO_IDS.map(h => [h, !!process.env[`WHATSAPP_TEMPLATE_${h}`]])) as Record<Hito, boolean>,
+    webhook: (logs ?? []) as EstadoPiloto["webhook"],
     modo: modoSimulacion() ? "simulacion" : "produccion",
     contactos,
     casos: ((data ?? []) as Caso[]).map(c => ({ ...c, prioridad: calcularPrioridad(c, hoy) })),
@@ -208,7 +213,7 @@ export async function crearPilotoAction(): Promise<EstadoPiloto> {
 
 export async function enviarAvisoPilotoAction(casoId: string, hito: Hito) {
   const s = await exigirSesion();
-  if (!["D30", "D20", "D10", "D3", "D0"].includes(hito)) throw new Error("Hito inválido");
+  if (!(HITO_IDS as readonly string[]).includes(hito)) throw new Error("Hito inválido");
   await enviarAvisoPiloto(casoId, hito, s.usuario);
   return obtenerConversacionAction(casoId);
 }

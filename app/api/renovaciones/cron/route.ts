@@ -3,7 +3,7 @@ import { ejecutarCampana } from "@/app/lib/renovaciones/campana";
 import { modoSimulacion } from "@/app/lib/renovaciones/datos";
 import { hoyChile } from "@/app/lib/renovaciones/formato";
 
-// Corrida diaria del Bot de Renovaciones (crear casos + enviar D30/20/10/3/0).
+// Corrida diaria del Bot de Renovaciones (crear casos + enviar D60/30/20/10/5/0).
 // Llamar 1 vez al día en horario hábil (ej. 10:00 Chile) con
 // Authorization: Bearer <CRON_SECRET>.
 export const maxDuration = 300;

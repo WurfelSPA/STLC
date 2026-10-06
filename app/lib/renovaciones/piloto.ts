@@ -1,7 +1,7 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Caso, Hito } from "./tipos";
-import { HITOS } from "./tipos";
+import { DIAS_PRIMER_CONTACTO, HITOS } from "./tipos";
 import { actualizarCaso, cargarConfig, cargarPiloto, obtenerCaso, registrarMensaje } from "./datos";
 import { fechaLarga, nombreCorto, patentes } from "./formato";
 import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento } from "./textos";
@@ -24,7 +24,7 @@ export async function crearCasosPiloto(hoy: string): Promise<number> {
   const contactos = await cargarPiloto();
   const { error: errDel } = await sb.from("renov_casos").delete().eq("piloto", true);
   if (errDel) throw new Error(errDel.message);
-  const vence = sumarDias(hoy, 30);
+  const vence = sumarDias(hoy, DIAS_PRIMER_CONTACTO);
   const casos = contactos.map((c, i) => ({
     usuario: `piloto-${i + 1}`,
     nombre: c.nombre,
@@ -58,7 +58,7 @@ export async function enviarAvisoPiloto(casoId: string, hito: Hito, usuarioPanel
   const dias = HITOS.find(h => h.hito === hito)!.dias;
   const hoyFicticio = sumarDias(caso.fecha_vencimiento, -dias);
   const texto = hito === "D0" ? mensajeVencimiento(caso, cfg)
-    : hito === "D30" ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoyFicticio);
+    : hito === HITOS[0].hito ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoyFicticio);
   const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(dias)];
   await registrarMensaje({ caso_id: caso.id, direccion: "nota", canal: "panel", tipo: "evento", texto: `${usuarioPanel} envió el aviso ${hito} (piloto)` });
   await enviarProactivo(caso, hito, texto, params);
@@ -70,14 +70,15 @@ export async function enviarAvisoPiloto(casoId: string, hito: Hito, usuarioPanel
 }
 
 // El tester escribe primero ("hola") a un caso del piloto que aún no recibió
-// contacto: Tracky responde con el primer mensaje (D30). Así se puede probar
-// sin plantillas aprobadas: el mensaje del cliente abre la ventana de 24 h.
+// contacto: Tracky responde con el primer mensaje (primer hito). Así se puede
+// probar sin plantillas aprobadas: el mensaje del cliente abre la ventana de 24 h.
 export async function responderPrimerContacto(caso: Caso): Promise<boolean> {
   if (!caso.piloto || caso.hitos_enviados.length > 0) return false;
   const cfg = await cargarConfig();
-  const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), "30"];
+  const primero = HITOS[0];
+  const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(primero.dias)];
   const actualizado = { ...caso, ultima_interaccion: new Date().toISOString() };
-  await enviarProactivo(actualizado, "D30", mensajeInicial(caso, cfg), params);
-  await actualizarCaso(caso.id, { hitos_enviados: ["D30"], estado: "CONTACTADO", paso: "MENU", ultima_interaccion: actualizado.ultima_interaccion });
+  await enviarProactivo(actualizado, primero.hito, mensajeInicial(caso, cfg), params);
+  await actualizarCaso(caso.id, { hitos_enviados: [primero.hito], estado: "CONTACTADO", paso: "MENU", ultima_interaccion: actualizado.ultima_interaccion });
   return true;
 }

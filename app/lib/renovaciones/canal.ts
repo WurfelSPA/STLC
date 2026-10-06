@@ -14,7 +14,7 @@ import { cargarPiloto, modoSimulacion, registrarMensaje } from "./datos";
 //   WHATSAPP_TOKEN            token (permanente) del System User de Meta
 //   WHATSAPP_PHONE_ID_<LINEA> phone_number_id por marca (TRACKLINK/AUTOBAHN/TRACKCITY);
 //                             si falta, usa WHATSAPP_PHONE_ID
-//   WHATSAPP_TEMPLATE_<HITO>  plantilla aprobada para D30/D20/D10/D3/D0
+//   WHATSAPP_TEMPLATE_<HITO>  plantilla aprobada por hito (D60/D30/D20/D10/D5/D0)
 //
 // Regla de Meta: un mensaje que INICIA la conversación (o que llega >24h
 // después del último mensaje del cliente) debe ser una plantilla aprobada.

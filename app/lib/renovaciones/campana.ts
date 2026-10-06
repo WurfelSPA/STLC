@@ -1,7 +1,7 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Caso, Hito, Linea, Vehiculo } from "./tipos";
-import { ESTADOS_CERRADOS, HITOS } from "./tipos";
+import { DIAS_PRIMER_CONTACTO, ESTADOS_CERRADOS, HITOS, HITO_IDS } from "./tipos";
 import { actualizarCaso, cargarConfig, cargarGeneral, cargarSegmentos, registrarMensaje } from "./datos";
 import { diasEntre, esRutEmpresa, fechaLarga, nombreCorto, normalizarTelefono, patentes } from "./formato";
 import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento } from "./textos";
@@ -9,13 +9,13 @@ import { enviarProactivo } from "./canal";
 
 // Corrida diaria (sección 3 + 5 del spec):
 //  1. Lee la base sincronizada desde TrackGTS (tabla "Tracklink").
-//  2. Crea casos para vencimientos de los próximos 30 días — consolidando la
-//     flota de un mismo cliente en un solo caso.
-//  3. Envía el contacto que corresponda (D30 / D20 / D10 / D3 / D0).
+//  2. Crea casos para vencimientos de los próximos 60 días (primer hito) —
+//     consolidando la flota de un mismo cliente en un solo caso.
+//  3. Envía el contacto que corresponda (D60 / D30 / D20 / D10 / D5 / D0, ver tipos.ts).
 //  4. Cierra como RENOVADO los que ya aparecen renovados en TrackGTS (renovación
 //     hecha por fuera del bot) y pasa a gestión manual los sin respuesta.
 
-const VENTANA_DIAS = 30;
+const VENTANA_DIAS = DIAS_PRIMER_CONTACTO;
 
 type FilaTL = Record<string, string | null>;
 
@@ -108,7 +108,7 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
 
   const resumen: ResumenCampana = {
     hoy, vehiculosEnVentana: 0, casosNuevos: 0, vehiculosNuevos: 0,
-    envios: { D30: 0, D20: 0, D10: 0, D3: 0, D0: 0 },
+    envios: Object.fromEntries(HITO_IDS.map(h => [h, 0])) as Record<Hito, number>,
     sinTelefono: 0, renovadosFueraDelBot: 0, pasadosAGestionManual: 0,
   };
 

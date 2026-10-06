@@ -42,15 +42,13 @@ export type Paso =
   | "D_QUE_PASO" | "D1_OTRO_VEHICULO" | "D_NUEVA_PATENTE" | "D3_MOTIVO" | "D3_OTRO" | "D4_TEXTO"
   | "FIN";
 
-export type Hito = "D30" | "D20" | "D10" | "D3" | "D0";
-// Días antes del vencimiento en que corresponde cada contacto (sección 5).
-export const HITOS: { hito: Hito; dias: number }[] = [
-  { hito: "D30", dias: 30 },
-  { hito: "D20", dias: 20 },
-  { hito: "D10", dias: 10 },
-  { hito: "D3", dias: 3 },
-  { hito: "D0", dias: 0 },
-];
+// Días antes del vencimiento en que corresponde cada contacto. El spec decía
+// 30/20/10/3/0; el equipo Tracklink lo cambió a 60/30/20/10/5/0 (2026-10-06).
+// El primero (D60) es el contacto inicial; el resto, recordatorios.
+export const HITO_IDS = ["D60", "D30", "D20", "D10", "D5", "D0"] as const;
+export type Hito = (typeof HITO_IDS)[number];
+export const HITOS: { hito: Hito; dias: number }[] = HITO_IDS.map(h => ({ hito: h, dias: Number(h.slice(1)) }));
+export const DIAS_PRIMER_CONTACTO = HITOS[0].dias;
 
 export type Vehiculo = {
   imei: string;
