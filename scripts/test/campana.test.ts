@@ -57,7 +57,7 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   assert.equal(wl.linea, "TRACKCITY");
   assert.equal(wl.cantidad_vehiculos, 2, "Trackcity: sin el excluido ni el sin fecha");
   assert.equal(wl.contexto.comentario_origen, "pagará en efectivo");
-  assert.match(String(salientes("TC:WL")[0].texto), /tu bot de TRACKCITY/);
+  assert.match(String(salientes("TC:WL")[0].texto), /el servicio TRACKCITY de tus 2 vehículos/);
   // Reimportar la planilla (ids nuevos) no duplica casos.
   db["renov_fuente_externa"] = db["renov_fuente_externa"].map((f, i) => ({ ...f, id: 100 + i }));
   assert.equal((await ejecutarCampana("2026-10-04", true)).casosNuevos, 0);
@@ -70,8 +70,9 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   assert.equal(r.envios.D20, 1, "W&L vence en 16 días: su primer contacto cae en el hito D20");
   assert.equal(r.sinTelefono, 1);
   assert.equal(caso("sintel").requiere_ejecutivo, true);
-  assert.match(String(salientes("persona1")[0].texto), /^Hola Cliente Prueba 👋, soy Tracky, tu bot de Tracklink\./);
-  assert.match(String(salientes("auto1")[0].texto), /tu bot de AUTOBAHN/);
+  assert.match(String(salientes("persona1")[0].texto), /^¡Hola Cliente Prueba! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
+  assert.match(String(salientes("persona1")[0].texto), /el servicio Tracklink asociado a la patente AAAA-11/);
+  assert.match(String(salientes("auto1")[0].texto), /el servicio AUTOBAHN asociado/);
   console.log("✔ Día 30: casos creados, flota consolidada, exclusiones, primer contacto");
 
   // Repetir el mismo día no duplica nada.

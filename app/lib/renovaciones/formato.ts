@@ -70,6 +70,7 @@ export function calcularPrioridad(c: Caso, hoy: string): Prioridad {
   const motivo = (c.motivo ?? "").toLowerCase();
   if (["INTERESADO", "PAGO_PENDIENTE", "PAGO_POR_VALIDAR"].includes(c.estado)) return "ALTA"; // quiere renovar
   if (c.contexto?.origen === "C") return "ALTA";                                           // solicitó ejecutivo
+  if (c.contexto?.origen === "retencion") return "ALTA";                                   // no renueva: retención
   if (motivo.includes("precio") || motivo.includes("descuento")) return "ALTA";            // cancela por precio
   if (c.cantidad_vehiculos > 1 || c.tipo_cliente === "empresa") return "ALTA";             // corporativo
   if (dias <= 3) return "ALTA";

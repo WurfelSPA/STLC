@@ -14,53 +14,67 @@ export const MENU_OPCIONES =
 
 const MSG_DERIVA = "Voy a derivar tu solicitud a nuestro equipo para que puedan ayudarte.";
 
-// Nombre del bot frente al cliente (pedido 2026-10-04).
+// Nombre de la asistente frente al cliente. Tracky es "la asistente virtual
+// de renovaciones" de las 3 marcas, con un solo número de WhatsApp: la marca
+// va en la descripción del servicio para que el cliente sepa de cuál se trata
+// (correo F. López 2026-10-08).
 export const NOMBRE_BOT = "Tracky";
 
 function marca(c: Caso, cfg: ConfigBot) {
   return cfg.lineas[c.linea]?.nombre ?? c.linea;
 }
 
-// "Hola Francisca López 👋, soy Tracky, tu bot de Tracklink."
-function saludo(c: Caso, cfg: ConfigBot) {
-  return `Hola ${nombreCorto(c)} 👋, soy ${NOMBRE_BOT}, tu bot de ${marca(c, cfg)}.`;
+// Recordatorios: saludo corto (la presentación completa va en el primer mensaje).
+function saludo(c: Caso) {
+  return `Hola ${nombreCorto(c)}, soy ${NOMBRE_BOT}, tu asistente virtual de renovaciones.`;
 }
 
-function descripcionVehiculos(c: Caso): string {
+function descripcionVehiculos(c: Caso, cfg: ConfigBot): string {
   if (c.cantidad_vehiculos === 1) {
-    return `el servicio asociado a la patente ${c.vehiculos[0]?.placa || "de tu vehículo"} vence el ${fechaLarga(c.fecha_vencimiento)}`;
+    return `el servicio ${marca(c, cfg)} asociado a la patente ${c.vehiculos[0]?.placa || "de tu vehículo"} vence el ${fechaLarga(c.fecha_vencimiento)}`;
   }
   const ultimo = c.vehiculos.map(v => v.vence).sort().at(-1)!;
   const rango = ultimo === c.fecha_vencimiento
     ? `el ${fechaLarga(c.fecha_vencimiento)}`
     : `entre el ${fechaLarga(c.fecha_vencimiento)} y el ${fechaLarga(ultimo)}`;
-  return `el servicio de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)}) vence ${rango}`;
+  return `el servicio ${marca(c, cfg)} de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)}) vence ${rango}`;
 }
 
-// Sección 4 — primer mensaje
+// Primer mensaje (texto definido por Tracklink, correo F. López 2026-10-08).
 export function mensajeInicial(c: Caso, cfg: ConfigBot): string {
-  return `${saludo(c, cfg)}\n` +
-    `Quiero informarte que ${descripcionVehiculos(c)}.\n` +
-    `Queremos ayudarte a mantener tu servicio activo sin interrupciones.\n\n` +
+  return `¡Hola ${nombreCorto(c)}! Soy ${NOMBRE_BOT}, tu nueva asistente virtual de renovaciones. ` +
+    `Estoy aquí para que renovar tu conectividad sea más fácil, resolver tus dudas y conectarte con una ejecutiva cuando lo necesites.\n\n` +
+    `Te quiero informar que ${descripcionVehiculos(c, cfg)} y quiero ayudarte a mantener tu servicio activo sin interrupciones 💙\n\n` +
     MENU_OPCIONES;
 }
 
-// Sección 5 — recordatorios día 20 / 10 / 3
+// Recordatorios (hitos posteriores al primero).
 export function mensajeRecordatorio(c: Caso, cfg: ConfigBot, hoy: string): string {
   const dias = diasEntre(hoy, c.fecha_vencimiento);
   const sujeto = c.cantidad_vehiculos === 1
-    ? `el servicio asociado a tu patente ${c.vehiculos[0]?.placa}`
-    : `el servicio de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)})`;
-  return `${saludo(c, cfg)}\n` +
+    ? `tu servicio ${marca(c, cfg)} asociado a la patente ${c.vehiculos[0]?.placa}`
+    : `el servicio ${marca(c, cfg)} de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)})`;
+  return `${saludo(c)}\n` +
     `Te recuerdo que ${sujeto} vence en ${dias} ${dias === 1 ? "día" : "días"}.\n` +
-    `Puedes renovarlo directamente por este medio.\n\n` + MENU_OPCIONES;
+    `Puedes renovarlo directamente por este medio 💙\n\n` + MENU_OPCIONES;
 }
 
-// Sección 5 — día 0
+// Día del vencimiento.
 export function mensajeVencimiento(c: Caso, cfg: ConfigBot): string {
-  return `${saludo(c, cfg)}\nTe informo que tu servicio venció hoy.\n` +
+  return `${saludo(c)}\nTe informo que tu servicio ${marca(c, cfg)} venció hoy.\n` +
     `Para mantener la continuidad y que estés siempre seguro, te recomiendo renovar durante el día de hoy.\n\n` +
     MENU_OPCIONES;
+}
+
+// Servicio suspendido: se ofrece renovar (no se confirma ni se diagnostica la
+// suspensión: el bot no conoce el estado técnico del equipo).
+export function textoSuspendido(c: Caso, cfg: ConfigBot, hoy: string): string {
+  const vencido = c.fecha_vencimiento < hoy;
+  const sujeto = c.cantidad_vehiculos === 1
+    ? `Tu servicio ${marca(c, cfg)} de la patente ${c.vehiculos[0]?.placa}`
+    : `El servicio ${marca(c, cfg)} de tus ${c.cantidad_vehiculos} vehículos`;
+  return `${sujeto} ${vencido ? "venció" : "vence"} el ${fechaLarga(c.fecha_vencimiento, true)}. ` +
+    `Para mantenerlo activo puedes renovarlo ahora mismo por este medio.`;
 }
 
 export function textoPrecios(c: Caso, cfg: ConfigBot): string {
@@ -137,27 +151,30 @@ export const T = {
     "Para ayudarnos a mejorar, ¿nos puedes indicar brevemente por qué ya no deseas continuar?\n" +
     "1. Precio\n2. No lo necesito\n3. No estoy conforme con el servicio\n4. Problemas técnicos\n5. Contraté otro proveedor\n6. Otro",
   graciasMotivo: "Gracias por contarnos, lo tendremos en cuenta para mejorar. 🙏",
-  graciasMotivoPrecio:
-    "Gracias por contarnos. Un ejecutivo revisará tu caso por si podemos ofrecerte una mejor alternativa. 🙏",
+  // No renueva: siempre pasa a una ejecutiva (prioridad alta) para retención.
+  graciasMotivoRetencion:
+    "Gracias por contarnos. Una ejecutiva revisará tu caso y se pondrá en contacto contigo. 🙏",
   cuentaMotivo: "Cuéntame brevemente el motivo.",
   graciasDeriva: "Gracias por contarnos. " + MSG_DERIVA,
   cambioVehiculoDeriva: "Para realizar el cambio de vehículo necesito derivar tu solicitud a un ejecutivo. 🚗",
   cambioPatenteDeriva: "Para actualizar la patente necesito derivar tu solicitud a un ejecutivo para validarla.",
-  suspendidoDeriva: "Entiendo. Voy a derivar tu caso a un ejecutivo para revisar el estado de tu servicio.",
   ventaPregunta:
     "Entiendo. ¿Qué deseas hacer con el servicio?\n1. Traspasarlo a otro vehículo\n2. Cambiar el titular\n3. Dar de baja el servicio",
   instalacionPide:
-    "¡Perfecto! Para coordinar la instalación indícame la dirección (calle, número y comuna) donde estaría el vehículo.",
-  instalacionOk: "¡Gracias! Un ejecutivo te contactará para coordinar la instalación.",
+    "¡Perfecto! Para coordinar la instalación envíame en un solo mensaje estos datos:\n" +
+    "• Nombre\n• RUT\n• Correo\n• Marca, modelo y patente del vehículo\n• Dirección (calle, número y comuna)",
+  instalacionOk: "¡Gracias! Una ejecutiva te contactará con estos datos para coordinar la instalación.",
   desinstalacionDeriva: "Voy a derivar tu solicitud de desinstalación a un ejecutivo para coordinarla.",
   variosVehiculos: "Para renovar más de un vehículo te ayuda mejor un ejecutivo. " + MSG_DERIVA,
   optOut: "Entendido, no te enviaremos más recordatorios por este medio. Si cambias de opinión, escríbenos cuando quieras.",
 };
 
-export function textoProblemaTecnico(cfg: ConfigBot): string {
+// App / GPS: solo se entrega el Call Center; el bot no compromete soluciones
+// técnicas (correo F. López 2026-10-08). Sin número cargado, deriva.
+export function textoProblemaTecnico(cfg: ConfigBot): string | null {
   return cfg.callCenter
-    ? `Para problemas técnicos puedes llamar a nuestro Call Center al ${cfg.callCenter}. Además, dejaré registrado tu caso para que un ejecutivo lo revise.`
-    : `Voy a derivar tu caso a nuestro equipo técnico para que puedan ayudarte.`;
+    ? `Para ayudarte con eso, comunícate con nuestro Call Center al ${cfg.callCenter}: ellos revisarán tu caso.`
+    : null;
 }
 
 export function textoVigencia(c: Caso): string {

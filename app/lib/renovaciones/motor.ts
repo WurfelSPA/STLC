@@ -6,10 +6,10 @@
 
 import type { Caso, ConfigBot, Estado, Paso } from "./tipos";
 import type { Intencion } from "./reglas";
-import { sinAcentos, sumarMeses } from "./formato";
+import { hoyChile, sinAcentos, sumarMeses } from "./formato";
 import {
   MENU_OPCIONES, T, textoConfirmacionPlazo, textoInstruccionPago, textoMediosPago,
-  textoPrecios, textoProblemaTecnico, textoVigencia,
+  textoPrecios, textoProblemaTecnico, textoSuspendido, textoVigencia,
 } from "./textos";
 
 export type Clasificador = (texto: string) => Promise<{ intencion: Intencion; fuente: string }>;
@@ -211,11 +211,19 @@ async function responderConsulta(ctx: Ctx, intencion: Intencion) {
     case "cambio_patente":
       return derivar(ctx, "Cambio de patente", { mensaje: T.cambioPatenteDeriva });
     case "problema_app":
-      return derivar(ctx, "Problema con la App", { mensaje: textoProblemaTecnico(cfg) });
-    case "problema_gps":
-      return derivar(ctx, "Problema con GPS", { mensaje: textoProblemaTecnico(cfg) });
+    case "problema_gps": {
+      // Solo el Call Center: el bot no compromete soluciones técnicas.
+      const tema = intencion === "problema_app" ? "Problema con la App" : "Problema con GPS";
+      const texto = textoProblemaTecnico(cfg);
+      if (!texto) return derivar(ctx, tema);
+      ctx.r.notas.push(`${tema}: se entregó el número del Call Center`);
+      decir(ctx, texto, T.quieresRenovar);
+      return ir(ctx, "B_RENOVAR", "EN_CONVERSACION");
+    }
     case "servicio_suspendido":
-      return derivar(ctx, "Servicio suspendido", { mensaje: T.suspendidoDeriva });
+      // Se identifica la marca y se ofrece renovar (Flujo A si acepta).
+      decir(ctx, textoSuspendido(caso, cfg, hoyChile()), T.quieresRenovar);
+      return ir(ctx, "B_RENOVAR", "EN_CONVERSACION");
     case "venta_vehiculo":
       decir(ctx, T.ventaPregunta);
       return ir(ctx, "B_VENTA", "EN_CONVERSACION");
@@ -262,7 +270,7 @@ function noRenueva(ctx: Ctx, motivo: string, mensaje: string, alertarEjecutivo =
   if (alertarEjecutivo) {
     ctx.r.patch.requiere_ejecutivo = true;
     ctx.r.patch.atendido = false;
-    ctxSet(ctx, { derivado: true });
+    ctxSet(ctx, { derivado: true, origen: "retencion" });
   }
   decir(ctx, mensaje);
   ir(ctx, "FIN", "NO_RENUEVA");
@@ -327,8 +335,8 @@ export async function procesarEntrada(
       break;
     }
     case "B_INSTALACION":
-      ctxSet(ctx, { direccion_instalacion: ctx.texto });
-      derivar(ctx, `Instalación — dirección: ${ctx.texto.slice(0, 200)}`, { mensaje: T.instalacionOk });
+      ctxSet(ctx, { datos_instalacion: ctx.texto.slice(0, 500) });
+      derivar(ctx, `Instalación — datos del cliente: ${ctx.texto.slice(0, 300)}`, { mensaje: T.instalacionOk });
       break;
     case "B_VENTA": {
       const n = opcion(ctx.texto, SIN_VENTA);
@@ -383,13 +391,13 @@ export async function procesarEntrada(
       const n = opcion(ctx.texto, SIN_NO_USO);
       if (!n) { noEntendi(ctx, T.motivoNoUso); break; }
       if (n === 6) { decir(ctx, T.cuentaMotivo); ir(ctx, "D3_OTRO"); break; }
-      // "Quiere cancelar por precio" es PRIORIDAD ALTA para retención (sección 6).
-      if (n === 1) { noRenueva(ctx, "Precio", T.graciasMotivoPrecio, true); break; }
-      noRenueva(ctx, MOTIVOS_NO_USO[n - 1], T.graciasMotivo);
+      // Todo "no renueva" pasa a una ejecutiva con PRIORIDAD ALTA y el motivo,
+      // para que prepare la estrategia antes de llamar (correo F. López 2026-10-08).
+      noRenueva(ctx, MOTIVOS_NO_USO[n - 1], T.graciasMotivoRetencion, true);
       break;
     }
     case "D3_OTRO":
-      noRenueva(ctx, `Otro: ${ctx.texto.slice(0, 200)}`, T.graciasMotivo);
+      noRenueva(ctx, `Otro: ${ctx.texto.slice(0, 200)}`, T.graciasMotivoRetencion, true);
       break;
     case "D4_TEXTO":
       derivar(ctx, `Ya no tiene el vehículo — otro motivo: ${ctx.texto.slice(0, 200)}`, { mensaje: T.graciasDeriva });

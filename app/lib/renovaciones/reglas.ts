@@ -36,7 +36,7 @@ const REGLAS: { intencion: Intencion; patrones: RegExp[] }[] = [
   { intencion: "cambio_patente", patrones: [/cambi\w* (de |la )?patente/, /patente (nueva|distinta|equivocada)/] },
   { intencion: "problema_app", patrones: [/\bapp\b/, /aplicacion/, /no (puedo|logro) (entrar|ingresar)/, /contrasena/] },
   { intencion: "problema_gps", patrones: [/\bgps\b/, /no (aparece|marca|reporta)/, /ubicacion/, /no funciona/] },
-  { intencion: "servicio_suspendido", patrones: [/suspendid/, /cortaron/, /bloquead/] },
+  { intencion: "servicio_suspendido", patrones: [/suspend/, /cortaron/, /cortado/, /bloquead/, /desactivad/] },
   { intencion: "desinstalacion", patrones: [/desinstal/, /retirar (el )?(gps|equipo)/, /sacar (el )?(gps|equipo)/] },
   { intencion: "instalacion", patrones: [/\binstal/] },
   { intencion: "varios_vehiculos", patrones: [/(varios|mas de un|dos|tres) (autos|vehiculos)/] },

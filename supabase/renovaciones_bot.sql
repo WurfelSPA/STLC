@@ -118,13 +118,13 @@ on conflict (servicio_comercial) do nothing;
 insert into public.renov_config (clave, valor) values
   ('linea:TRACKLINK', '{
      "nombre": "Tracklink",
-     "link_pago": "https://www.webpay.cl/company/51461",
+     "link_pago": "https://www.webpay.cl/portalpagodirecto/pages/institucion.jsf?idEstablecimiento=107837496",
      "transferencia": "TRACK LINK CHILE SPA\nBanco Santander\nCuenta Corriente: 86992604\nRUT: 77.379.375-1\nMail: ventas@tracklink.cl"
    }'),
   ('linea:AUTOBAHN', '{
      "nombre": "Autobahn",
      "link_pago": "https://www.webpay.cl/form-pay/186673",
-     "transferencia": null
+     "transferencia": "Autobahn S.A.\nRUT: 89.694.900-4\nBanco Scotiabank\nCuenta Corriente: 6044271\nMail: veronica.melendez@tracklink.cl"
    }'),
   ('linea:TRACKCITY', '{
      "nombre": "Trackcity",

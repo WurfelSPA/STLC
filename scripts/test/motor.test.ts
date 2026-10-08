@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { procesarEntrada, type Clasificador } from "../../app/lib/renovaciones/motor";
 import { clasificarPorReglas } from "../../app/lib/renovaciones/reglas";
 import type { Caso, ConfigBot } from "../../app/lib/renovaciones/tipos";
+import { calcularPrioridad } from "../../app/lib/renovaciones/formato";
+import { mensajeInicial } from "../../app/lib/renovaciones/textos";
 
 const cfg: ConfigBot = {
   lineas: {
@@ -97,6 +99,35 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
     const { caso } = await conversar(nuevoCaso(), ["mi gps no funciona"]);
     assert.equal(caso.requiere_ejecutivo, true);
     assert.equal(caso.motivo, "Problema con GPS");
+  });
+
+  await prueba("B: GPS con Call Center cargado: entrega el número, no deriva, ofrece renovar", async () => {
+    const conCC = { ...cfg, callCenter: "+56 2 2583 0707 (24/7)" };
+    const r = await procesarEntrada(nuevoCaso(), "mi gps no funciona", conCC, clasificar);
+    assert.equal(r.patch.requiere_ejecutivo, undefined);
+    assert.equal(r.patch.paso, "B_RENOVAR");
+    assert.ok(r.respuestas.some(t => t.includes("+56 2 2583 0707")));
+  });
+
+  await prueba("B: servicio suspendido identifica la marca y ofrece renovar -> Flujo A", async () => {
+    const { caso, log } = await conversar(nuevoCaso(), ["me suspendieron el servicio", "sí"]);
+    assert.ok(log.some(l => l.includes("Tu servicio Tracklink de la patente RPLB-98")));
+    assert.equal(caso.paso, "A_PLAZO");
+    assert.equal(caso.requiere_ejecutivo, false);
+  });
+
+  await prueba("D3: cualquier motivo de no renovación pasa a ejecutiva con prioridad alta", async () => {
+    const { caso } = await conversar(nuevoCaso(), ["4", "3", "5"]);
+    assert.equal(caso.estado, "NO_RENUEVA");
+    assert.equal(caso.motivo, "Contrató otro proveedor");
+    assert.equal(caso.requiere_ejecutivo, true);
+    assert.equal(calcularPrioridad(caso, "2026-09-01"), "ALTA");
+  });
+
+  await prueba("Mensaje inicial con el texto de Tracklink y la marca del cliente", async () => {
+    const t = mensajeInicial(nuevoCaso({ linea: "AUTOBAHN" }), cfg);
+    assert.match(t, /^¡Hola Francisca López! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
+    assert.match(t, /el servicio Autobahn asociado a la patente RPLB-98 vence el 10 de octubre/);
   });
 
   await prueba("B: consulta no reconocida deriva con el mensaje del spec", async () => {
