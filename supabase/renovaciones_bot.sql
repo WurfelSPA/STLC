@@ -96,9 +96,10 @@ insert into public.renov_precios (linea, meses, precio) values
   ('TRACKLINK', 12, 174082), ('TRACKLINK', 24, 278531),
   ('TRACKLINK', 36, 376040), ('TRACKLINK', 48, 466609),
   ('AUTOBAHN',  12, 133280), ('AUTOBAHN',  24, 219167),
-  ('AUTOBAHN',  36, 305054), ('AUTOBAHN',  48, 340941)
+  ('AUTOBAHN',  36, 305054), ('AUTOBAHN',  48, 340941),
+  ('TRACKCITY', 12,  89000), ('TRACKCITY', 24, 164650),   -- informados por Tracklink 2026-10-08
+  ('TRACKCITY', 36, 240300), ('TRACKCITY', 48, 315950)
 on conflict (linea, meses) do nothing;
--- TRACKCITY: sin precios todavía (otra plataforma, pendiente de Tracklink).
 
 insert into public.renov_segmentos (servicio_comercial, linea, cotiza_bot, excluir, nota) values
   ('',                   'TRACKLINK', true,  false, 'Cliente Tracklink directo'),
@@ -127,7 +128,7 @@ insert into public.renov_config (clave, valor) values
    }'),
   ('linea:TRACKCITY', '{
      "nombre": "Trackcity",
-     "link_pago": "https://www.webpay.cl/company/51461",
+     "link_pago": "https://www.webpay.cl/portalpagodirecto/pages/institucion.jsf?idEstablecimiento=107837496",
      "transferencia": null
    }'),
   ('general', '{

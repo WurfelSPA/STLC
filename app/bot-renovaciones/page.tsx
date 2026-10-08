@@ -547,7 +547,6 @@ function Config({ panel }: { panel: Panel }) {
       <div className="md:col-span-3 bg-amber-50 border border-amber-200 rounded p-3 text-xs text-amber-900 space-y-1">
         <div className="font-semibold">Pendientes de Tracklink para pasar a producción</div>
         <ul className="list-disc ml-4 space-y-0.5">
-          <li>Trackcity: precios y medios de pago (la base ya se importa desde la planilla).</li>
           <li>Precios para planes especiales (COORP MENSUALIZADO, SANTANDER CONSUMER, concesionarios, REFERIDO, FLOTAS) — hoy el bot los deriva a ejecutivo.</li>
           <li>Datos de transferencia para Autobahn (hoy solo link de pago).</li>
           <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas {HITO_IDS.join("/")}.</li>
