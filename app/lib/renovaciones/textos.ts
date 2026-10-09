@@ -10,7 +10,12 @@ export const MENU_OPCIONES =
   "1. Renovar mi servicio\n" +
   "2. Tengo una consulta\n" +
   "3. Hablar con un ejecutivo\n" +
-  "4. Ya no tengo este vehículo / quiero traspasar mi sistema de seguridad y conectividad GPS";
+  "4. Ya no tengo este vehículo / quiero traspasar mi sistema de seguridad y conectividad GPS\n" +
+  "5. Salir";
+
+// Navegación que se agrega al final de cada respuesta (motor.ts decide cuál).
+export const NAV_SUBMENU = "0. Volver al menú anterior\n9. Menú principal";
+export const NAV_FIN = "9. Menú principal\n5. Salir";
 
 const MSG_DERIVA = "Voy a derivar tu solicitud a nuestro equipo para que puedan ayudarte.";
 
@@ -127,12 +132,12 @@ export const T = {
     "En este momento no tengo un medio de pago disponible para tu servicio. " + MSG_DERIVA,
   pagoRecibido:
     "¡Gracias! Recibimos tu aviso de pago. Nuestro equipo lo validará y te confirmaremos la renovación por este medio. 🙌",
-  pagoRecordar: "¿Ya realizaste el pago? Si es así, envíanos el comprobante por aquí. Si prefieres volver al menú, escribe MENÚ.",
+  pagoRecordar: "¿Ya realizaste el pago? Si es así, envíanos el comprobante por aquí.",
   consultaAbierta: "Claro, cuéntame tu consulta y te ayudo. ✍️",
   quieresRenovar: "¿Quieres renovar tu servicio? (Sí / No)",
-  finAmable: "¡Gracias por tu tiempo! Si necesitas algo más, escribe MENÚ cuando quieras.",
+  finAmable: "¡Gracias por tu tiempo! Si necesitas algo más, aquí estoy.",
   yaDerivado:
-    "Tu solicitud ya fue derivada a nuestro equipo y un ejecutivo te contactará pronto. Si quieres volver al menú, escribe MENÚ.",
+    "Tu solicitud ya fue derivada a nuestro equipo y un ejecutivo te contactará pronto.",
   ejecutivoMotivo:
     "Para que el ejecutivo te ayude más rápido, cuéntame el motivo:\n" +
     "1. Precio o descuento\n2. Cotización / OC\n3. Problema técnico\n4. Cambio de vehículo\n5. Quiero cancelar\n6. Otro",
@@ -167,6 +172,8 @@ export const T = {
   desinstalacionDeriva: "Voy a derivar tu solicitud de desinstalación a un ejecutivo para coordinarla.",
   variosVehiculos: "Para renovar más de un vehículo te ayuda mejor un ejecutivo. " + MSG_DERIVA,
   optOut: "Entendido, no te enviaremos más recordatorios por este medio. Si cambias de opinión, escríbenos cuando quieras.",
+  salir: "¡Gracias por conversar conmigo! 💙 Cuando quieras retomar, escríbeme cualquier mensaje y volvemos al menú principal.",
+  bienvenidaDeNuevo: "¡Hola de nuevo! 👋 Soy Tracky, tu asistente virtual de renovaciones.",
 };
 
 // App / GPS: solo se entrega el Call Center; el bot no compromete soluciones

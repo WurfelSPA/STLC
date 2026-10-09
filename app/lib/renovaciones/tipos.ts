@@ -40,7 +40,8 @@ export type Paso =
   | "B_CONSULTA" | "B_RENOVAR" | "B_INSTALACION" | "B_VENTA"
   | "C_MOTIVO" | "C_OTRO"
   | "D_QUE_PASO" | "D1_OTRO_VEHICULO" | "D_NUEVA_PATENTE" | "D3_MOTIVO" | "D3_OTRO" | "D4_TEXTO"
-  | "FIN";
+  | "FIN"        // flujo terminado (derivado / cerrado): ofrece menú principal o salir
+  | "CERRADO";   // el cliente eligió "Salir": el próximo mensaje reinicia en el menú
 
 // Días antes del vencimiento en que corresponde cada contacto. El spec decía
 // 30/20/10/3/0; el equipo Tracklink lo cambió a 60/30/20/10/5/0 (2026-10-06).

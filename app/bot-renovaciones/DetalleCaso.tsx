@@ -12,7 +12,7 @@ import TrackyAnimado from "../components/TrackyAnimado";
 
 type Conversacion = { caso: CasoPanel; mensajes: Mensaje[] };
 
-const RESPUESTAS_RAPIDAS = ["1", "2", "3", "4", "Sí", "No", "24 meses", "¿Cuánto cuesta?", "Mi GPS no funciona", "Vendí el auto", "MENÚ"];
+const RESPUESTAS_RAPIDAS = ["1", "2", "3", "4", "Sí", "No", "24 meses", "¿Cuánto cuesta?", "Mi GPS no funciona", "Vendí el auto", "0 (volver)", "9 (menú)", "5 (salir)"];
 
 // Conversación de un caso (vista tipo WhatsApp) + acciones del ejecutivo.
 // En simulación, la caja de texto escribe COMO EL CLIENTE.
@@ -133,7 +133,7 @@ export default function DetalleCaso({ casoId, onCambio }: { casoId: string; onCa
           <div className="text-[11px] text-gray-500 mb-1">Simulador — escribe como si fueras el cliente:</div>
           <div className="flex flex-wrap gap-1 mb-1.5">
             {RESPUESTAS_RAPIDAS.map(r => (
-              <button key={r} disabled={enviando} onClick={() => enviar(r)}
+              <button key={r} disabled={enviando} onClick={() => enviar(r.replace(/\s*\(.*\)$/, ""))}
                 className="text-xs px-2 py-0.5 rounded-full border border-green-300 bg-green-50 hover:bg-green-100 disabled:opacity-50">{r}</button>
             ))}
             <button disabled={enviando} onClick={() => enviar("", true)}

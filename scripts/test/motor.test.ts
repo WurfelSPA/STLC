@@ -176,6 +176,41 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
     assert.equal(caso.opt_out, true);
   });
 
+  await prueba("Navegación: subpasos muestran 0/9, el menú trae 5. Salir", async () => {
+    const r1 = await procesarEntrada(nuevoCaso(), "1", cfg, clasificar);
+    assert.match(r1.respuestas.at(-1)!, /0\. Volver al menú anterior\n9\. Menú principal$/);
+    const r2 = await procesarEntrada(nuevoCaso(), "9", cfg, clasificar);
+    assert.match(r2.respuestas.at(-1)!, /5\. Salir$/);
+  });
+
+  await prueba("Navegación: 0 vuelve paso a paso hasta el menú principal", async () => {
+    // menú -> 4 (qué ocurrió) -> 3 (motivo no uso) -> 0 -> 0
+    const { caso, log } = await conversar(nuevoCaso(), ["4", "3", "0"]);
+    assert.equal(caso.paso, "D_QUE_PASO");
+    assert.ok(log.at(-1)!.includes("¿Qué ocurrió con el vehículo?"));
+    const { caso: c2 } = await conversar(caso, ["0"]);
+    assert.equal(c2.paso, "MENU");
+  });
+
+  await prueba("Navegación: 0 en la confirmación vuelve a los plazos", async () => {
+    const { caso } = await conversar(nuevoCaso(), ["1", "2", "0"]);
+    assert.equal(caso.paso, "A_PLAZO");
+  });
+
+  await prueba("Salir cierra y el siguiente mensaje reinicia en el menú", async () => {
+    const { caso, log } = await conversar(nuevoCaso(), ["3", "9", "5"]);
+    assert.equal(caso.paso, "CERRADO");
+    assert.ok(log.some(l => l.includes("Gracias por conversar conmigo")));
+    const { caso: c2, log: l2 } = await conversar(caso, ["hola"]);
+    assert.equal(c2.paso, "MENU");
+    assert.ok(l2.some(l => l.includes("Hola de nuevo")));
+  });
+
+  await prueba("Fin de un flujo ofrece 9. Menú principal y 5. Salir", async () => {
+    const r = await procesarEntrada(nuevoCaso({ paso: "C_MOTIVO" }), "1", cfg, clasificar);
+    assert.match(r.respuestas.at(-1)!, /9\. Menú principal\n5\. Salir$/);
+  });
+
   await prueba("MENÚ reinicia desde cualquier paso", async () => {
     const { caso } = await conversar(nuevoCaso(), ["1", "menu"]);
     assert.equal(caso.paso, "MENU");

@@ -8,7 +8,7 @@ import type { Caso, ConfigBot, Estado, Paso } from "./tipos";
 import type { Intencion } from "./reglas";
 import { hoyChile, sinAcentos, sumarMeses } from "./formato";
 import {
-  MENU_OPCIONES, T, textoConfirmacionPlazo, textoInstruccionPago, textoMediosPago,
+  MENU_OPCIONES, NAV_FIN, NAV_SUBMENU, T, textoConfirmacionPlazo, textoInstruccionPago, textoMediosPago,
   textoPrecios, textoProblemaTecnico, textoSuspendido, textoVigencia,
 } from "./textos";
 
@@ -75,7 +75,25 @@ function decir(ctx: Ctx, ...msgs: string[]) {
   ctx.r.respuestas.push(...msgs.filter(Boolean));
 }
 
-function ir(ctx: Ctx, paso: Paso, estado?: Estado) {
+// Pasos que esperan una respuesta dentro de un flujo: llevan "0. Volver" y "9. Menú".
+const SUBPASOS: Paso[] = [
+  "A_PLAZO", "A_CONFIRMAR", "A_PAGO", "B_CONSULTA", "B_RENOVAR", "B_INSTALACION", "B_VENTA",
+  "C_MOTIVO", "C_OTRO", "D_QUE_PASO", "D1_OTRO_VEHICULO", "D_NUEVA_PATENTE", "D3_MOTIVO", "D3_OTRO", "D4_TEXTO",
+];
+
+function historial(ctx: Ctx): Paso[] {
+  return [...((ctx.r.patch.contexto?.historial ?? ctx.caso.contexto?.historial ?? []) as Paso[])];
+}
+
+// Cambia de paso y lleva la pila para "Volver al menú anterior": entrar a un
+// subpaso apila el paso desde el que se vino; el menú, el fin y el cierre la vacían.
+function ir(ctx: Ctx, paso: Paso, estado?: Estado, apilar = true) {
+  const actual = ctx.r.patch.paso ?? ctx.caso.paso;
+  if (paso === "MENU" || paso === "FIN" || paso === "CERRADO") {
+    ctxSet(ctx, { historial: [] });
+  } else if (apilar && paso !== actual && (actual === "MENU" || SUBPASOS.includes(actual))) {
+    ctxSet(ctx, { historial: [...historial(ctx), actual].slice(-10) });
+  }
   ctx.r.patch.paso = paso;
   if (estado) ctx.r.patch.estado = estado;
 }
@@ -285,16 +303,40 @@ export async function procesarEntrada(
   const ctx: Ctx = { caso, cfg, texto: texto.trim(), conAdjunto, clasificar, r: { respuestas: [], patch: {}, notas: [] } };
   const t = sinAcentos(ctx.texto);
   ctx.r.patch.respondio = true;
+  if (caso.estado === "CONTACTADO" || caso.estado === "PENDIENTE" || caso.estado === "SIN_RESPUESTA") {
+    ctx.r.patch.estado = "EN_CONVERSACION";
+  }
 
-  // Comandos globales
-  if (/^(menu|inicio|volver)\b/.test(t)) {
-    if (caso.estado === "CONTACTADO" || caso.estado === "PENDIENTE") ctx.r.patch.estado = "EN_CONVERSACION";
+  // ── Navegación global ───────────────────────────────────────────────────
+  // Conversación cerrada con "Salir": cualquier mensaje la reinicia.
+  if (caso.paso === "CERRADO") {
+    ctxSet(ctx, { fallos: 0 });
+    mostrarMenu(ctx, T.bienvenidaDeNuevo);
+    return conNavegacion(ctx);
+  }
+  // Salir: "salir" en cualquier paso, o "5" donde se ofrece (menú principal y fin de flujo).
+  if (/^(salir|terminar|finalizar|chao|adios)\b/.test(t) || (t === "5" && (caso.paso === "MENU" || caso.paso === "FIN"))) {
+    ctxSet(ctx, { fallos: 0 });
+    decir(ctx, T.salir);
+    ir(ctx, "CERRADO");
+    ctx.r.notas.push("El cliente cerró la conversación (Salir)");
+    return ctx.r;
+  }
+  // Menú principal: "9" o "menú".
+  if (t === "9" || /^(menu|inicio|principal)\b/.test(t)) {
     ctxSet(ctx, { fallos: 0 });
     mostrarMenu(ctx);
     return ctx.r;
   }
-  if (caso.estado === "CONTACTADO" || caso.estado === "PENDIENTE" || caso.estado === "SIN_RESPUESTA") {
-    ctx.r.patch.estado = "EN_CONVERSACION";
+  // Menú anterior: "0" o "volver"; desde el menú o el fin de un flujo, vuelve al menú.
+  if (t === "0" || /^(volver|atras|anterior|regresar)\b/.test(t)) {
+    ctxSet(ctx, { fallos: 0 });
+    const pila = historial(ctx);
+    const previo = caso.paso === "MENU" || caso.paso === "FIN" ? "MENU" : (pila.pop() ?? "MENU");
+    ctxSet(ctx, { historial: pila });
+    if (previo === "MENU") mostrarMenu(ctx);
+    else { decir(ctx, textoPaso(ctx, previo)); ir(ctx, previo, undefined, false); }
+    return conNavegacion(ctx);
   }
 
   switch (caso.paso) {
@@ -329,7 +371,7 @@ export async function procesarEntrada(
     case "B_RENOVAR": {
       const r = siNo(ctx.texto);
       if (r === true) { iniciarRenovacion(ctx); break; }
-      if (r === false) { decir(ctx, T.finAmable); ir(ctx, "MENU"); break; }
+      if (r === false) { mostrarMenu(ctx, T.finAmable); break; }
       const { intencion } = await clasificar(ctx.texto);
       await responderConsulta(ctx, intencion);
       break;
@@ -415,7 +457,43 @@ export async function procesarEntrada(
       await responderConsulta(ctx, intencion);
     }
   }
-  return ctx.r;
+  return conNavegacion(ctx);
+}
+
+// Pregunta que corresponde repetir al volver a un paso.
+function textoPaso(ctx: Ctx, paso: Paso): string {
+  const { caso, cfg } = ctx;
+  switch (paso) {
+    case "A_PLAZO": return textoPrecios(caso, cfg);
+    case "A_CONFIRMAR":
+      return caso.plazo_meses && caso.monto ? textoConfirmacionPlazo(caso, cfg, caso.plazo_meses, caso.monto) : textoPrecios(caso, cfg);
+    case "A_PAGO": return textoInstruccionPago(caso, cfg, caso.monto ?? 0);
+    case "B_CONSULTA": return T.consultaAbierta;
+    case "B_RENOVAR": return T.quieresRenovar;
+    case "B_INSTALACION": return T.instalacionPide;
+    case "B_VENTA": return T.ventaPregunta;
+    case "C_MOTIVO": return T.ejecutivoMotivo;
+    case "C_OTRO": return T.ejecutivoOtro;
+    case "D_QUE_PASO": return T.queOcurrio;
+    case "D1_OTRO_VEHICULO": return T.otroVehiculo;
+    case "D_NUEVA_PATENTE": return T.pideNuevaPatente;
+    case "D3_MOTIVO": return T.motivoNoUso;
+    case "D3_OTRO":
+    case "D4_TEXTO": return T.cuentaMotivo;
+    default: return MENU_OPCIONES;
+  }
+}
+
+// Pie de navegación en la última respuesta: en un subpaso "0. Volver / 9. Menú";
+// al terminar un flujo "9. Menú / 5. Salir" (el menú principal ya trae "5. Salir").
+function conNavegacion(ctx: Ctx): Resultado {
+  const r = ctx.r;
+  const paso = r.patch.paso ?? ctx.caso.paso;
+  const ultimo = r.respuestas.length - 1;
+  if (ultimo < 0) return r;
+  if (SUBPASOS.includes(paso)) r.respuestas[ultimo] += `\n\n${NAV_SUBMENU}`;
+  else if (paso === "FIN") r.respuestas[ultimo] += `\n\n${NAV_FIN}`;
+  return r;
 }
 
 // Cierre de una renovación cuando el ejecutivo valida el pago.
