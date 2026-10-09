@@ -28,6 +28,15 @@ export async function recibirMensaje(caso: Caso, texto: string, opts: { canal: s
   return actualizado;
 }
 
+// Nota de voz: mientras no haya transcripción (voz a texto) configurada,
+// Tracky pide escribir la opción. No cambia el paso de la conversación.
+export async function recibirAudioSinTranscripcion(caso: Caso, meta: Record<string, unknown>) {
+  await registrarMensaje({ caso_id: caso.id, direccion: "in", canal: "whatsapp", tipo: "cliente", texto: "🎙️ (nota de voz)", meta });
+  await actualizarCaso(caso.id, { respondio: true, ultima_interaccion: new Date().toISOString() });
+  await enviarRespuesta({ ...caso, ultima_interaccion: new Date().toISOString() },
+    "🎙️ Por ahora no puedo escuchar notas de voz. Escríbeme el número de la opción (por ejemplo: 1) y sigo ayudándote.");
+}
+
 // El ejecutivo validó el pago en el panel -> RENOVADO + confirmación al cliente.
 export async function validarPago(casoId: string, meses: number, usuarioPanel: string) {
   const caso = await obtenerCaso(casoId);

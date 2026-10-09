@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { obtenerCasoPorTelefono, registrarMensaje } from "@/app/lib/renovaciones/datos";
-import { recibirMensaje } from "@/app/lib/renovaciones/servicio";
+import { recibirAudioSinTranscripcion, recibirMensaje } from "@/app/lib/renovaciones/servicio";
 import { normalizarTelefono } from "@/app/lib/renovaciones/formato";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
@@ -78,6 +78,10 @@ export async function POST(request: Request) {
       continue;
     }
     await log("ok", telefono, m.type);
+    if (m.type === "audio") {
+      await recibirAudioSinTranscripcion(caso, { wa_id: m.id, tipo: m.type });
+      continue;
+    }
     const conAdjunto = m.type === "image" || m.type === "document";
     const texto = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title
       ?? m.image?.caption ?? m.document?.caption ?? "";

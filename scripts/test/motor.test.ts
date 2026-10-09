@@ -1,7 +1,7 @@
 // Prueba del motor del Bot de Renovaciones (sin base ni red).
 // Ejecutar: npx tsx scripts/test/motor.test.ts
 import assert from "node:assert/strict";
-import { procesarEntrada, type Clasificador } from "../../app/lib/renovaciones/motor";
+import { opcionSola, procesarEntrada, type Clasificador } from "../../app/lib/renovaciones/motor";
 import { clasificarPorReglas } from "../../app/lib/renovaciones/reglas";
 import type { Caso, ConfigBot } from "../../app/lib/renovaciones/tipos";
 import { calcularPrioridad } from "../../app/lib/renovaciones/formato";
@@ -209,6 +209,18 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
   await prueba("Fin de un flujo ofrece 9. Menú principal y 5. Salir", async () => {
     const r = await procesarEntrada(nuevoCaso({ paso: "C_MOTIVO" }), "1", cfg, clasificar);
     assert.match(r.respuestas.at(-1)!, /9\. Menú principal\n5\. Salir$/);
+  });
+
+  await prueba("Opciones dichas en palabra ('opción uno', 'la dos', 'nueve')", async () => {
+    assert.equal(opcionSola("Opción uno."), "1");
+    assert.equal(opcionSola("la dos"), "2");
+    assert.equal(opcionSola("número 4"), "4");
+    assert.equal(opcionSola("nueve"), "9");
+    assert.equal(opcionSola("tengo una consulta"), null);
+    assert.equal(opcionSola("hola"), null);
+    const { caso } = await conversar(nuevoCaso(), ["opción uno", "la dos", "sí"]);
+    assert.equal(caso.estado, "PAGO_PENDIENTE");
+    assert.equal(caso.plazo_meses, 24);
   });
 
   await prueba("MENÚ reinicia desde cualquier paso", async () => {

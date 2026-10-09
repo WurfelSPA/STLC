@@ -31,8 +31,27 @@ type Ctx = {
 
 // ── Interpretación de respuestas ────────────────────────────────────────────
 
-// Acepta el número ("2", "2.", "la 2") o alguna frase de la opción.
+const NUMEROS_EN_PALABRA: Record<string, string> = {
+  cero: "0", uno: "1", una: "1", primera: "1", primero: "1", dos: "2", segunda: "2", segundo: "2",
+  tres: "3", tercera: "3", tercero: "3", cuatro: "4", cuarta: "4", cuarto: "4", cinco: "5", quinta: "5", quinto: "5",
+  seis: "6", sexta: "6", sexto: "6", nueve: "9",
+};
+
+// Mensaje que es SOLO una opción dicha o escrita ("opción uno", "la dos",
+// "número 3", "nueve", "Opción 1."), típico de una nota de voz transcrita.
+// Devuelve el dígito o null. No toca frases más largas ("tengo una consulta").
+export function opcionSola(texto: string): string | null {
+  const t = sinAcentos(texto).replace(/[.,!?¿¡]/g, "").trim();
+  const m = t.match(/^(?:(?:la|el)\s+)?(?:(?:opcion|numero|alternativa)\s+)?(?:(?:la|el)\s+)?(\d{1,2}|[a-z]+)$/);
+  if (!m) return null;
+  if (/^\d+$/.test(m[1])) return m[1];
+  return NUMEROS_EN_PALABRA[m[1]] ?? null;
+}
+
+// Acepta el número ("2", "2.", "la 2", "opción dos") o alguna frase de la opción.
 function opcion(texto: string, sinonimos: string[][]): number | null {
+  const sola = opcionSola(texto);
+  if (sola) texto = sola;
   const t = sinAcentos(texto);
   const num = t.match(/^\D{0,12}?(\d{1,2})\b/);
   if (num) {
@@ -300,7 +319,9 @@ function noRenueva(ctx: Ctx, motivo: string, mensaje: string, alertarEjecutivo =
 export async function procesarEntrada(
   caso: Caso, texto: string, cfg: ConfigBot, clasificar: Clasificador, conAdjunto = false,
 ): Promise<Resultado> {
-  const ctx: Ctx = { caso, cfg, texto: texto.trim(), conAdjunto, clasificar, r: { respuestas: [], patch: {}, notas: [] } };
+  // "Opción uno" / "la dos" (texto o nota de voz transcrita) -> "1" / "2".
+  const sola = opcionSola(texto);
+  const ctx: Ctx = { caso, cfg, texto: sola ?? texto.trim(), conAdjunto, clasificar, r: { respuestas: [], patch: {}, notas: [] } };
   const t = sinAcentos(ctx.texto);
   ctx.r.patch.respondio = true;
   if (caso.estado === "CONTACTADO" || caso.estado === "PENDIENTE" || caso.estado === "SIN_RESPUESTA") {
