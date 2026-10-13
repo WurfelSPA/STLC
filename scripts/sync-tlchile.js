@@ -253,8 +253,17 @@ const PORTICOS_FALLBACK = [
   // contra tramo+km real de Smart Report (cuenta kcerda) para confirmar
   // identidad — el archivo original traía PA4↔PA37 y PA6↔PA37 con las
   // coordenadas cruzadas entre sí (mismo texto de tramo apuntaba a otro
-  // código), corregido acá. PA3 y el PA4 real (Calera de Tango – La
-  // Capilla) siguen sin coordenada, no se encontró fuente confiable.
+  // código), corregido acá.
+  // PA1/PA2/PA3/PA4: extensión sur (La Capilla/Los Guindos/Calera de Tango,
+  // camino a Buin/Paine) agregada 2026-10-13 a partir del cruce real de AGP
+  // (correo Sergio Hidalgo) — faltaban por completo, confirmado con
+  // coordenadas OSM reales. PA3/PA4 son el mismo gantry físico (90m de
+  // separación) en sentidos opuestos: PA4 queda como `alterno` de PA3 en
+  // PARES_DIRECCIONALES, NO se agrega como entrada física acá (mismo
+  // criterio que 5.1/PA9/etc.).
+  { codigo: 'PA1',  concesionaria: 'Autopista Central', tramo: 'La Capilla – Los Guindos',                     lat: -33.695400, lon: -70.723700 },
+  { codigo: 'PA2',  concesionaria: 'Autopista Central', tramo: 'Los Guindos – La Capilla',                     lat: -33.647300, lon: -70.711600 },
+  { codigo: 'PA3',  concesionaria: 'Autopista Central', tramo: 'La Capilla – Colón',                           lat: -33.622800, lon: -70.714600 },
   { codigo: 'PA37', concesionaria: 'Autopista Central', tramo: 'Colón – Calera de Tango',                      lat: -33.624384, lon: -70.714528 },
   { codigo: 'PA6',  concesionaria: 'Autopista Central', tramo: 'Lo Blanco – Colón',                            lat: -33.596835, lon: -70.715823 },
   { codigo: 'PA5',  concesionaria: 'Autopista Central', tramo: 'Colón – Las Acacias',                          lat: -33.582641, lon: -70.713824 },
@@ -369,6 +378,29 @@ const PORTICOS_FALLBACK = [
   // detallado por banda horaria encontrado todavía, tratar como estimado
   // grueso hasta confirmar con una pasada real.
   { codigo: 'AMB', concesionaria: 'Acceso Vial AMB', tramo: 'Peaje Acceso Vial AMB', lat: -33.416596, lon: -70.792727 },
+  // Autopistas interurbanas -- agregadas 2026-10-13 a partir del cruce real
+  // de AGP (correo Sergio Hidalgo, VHRX66/TTXR82 08-13 oct): el catálogo NO
+  // cubría NINGUNA ruta interurbana (solo Santiago urbano + Ruta 5 Norte),
+  // por eso 17 tránsitos reales confirmados por las concesionarias no se
+  // detectaron. Coordenadas vía OSM/Overpass (nunca inventadas); tarifas =
+  // monto real confirmado por Integro Corp/Consulta AGP en ese cruce. Todas
+  // tratadas como tarifa plana (TBFP=TBP=TS) por ser gantries free-flow
+  // interurbanos sin banda horaria conocida -- corregir si aparece evidencia
+  // de sobretarifa punta.
+  { codigo: 'RT78T1', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Américo Vespucio (Troncal T1)', lat: -33.4848, lon: -70.7410 },
+  { codigo: 'RT78T2', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Rinconada (Troncal T2)',        lat: -33.4956, lon: -70.7772 },
+  { codigo: 'RDM-ANG',    concesionaria: 'Ruta del Maipo', tramo: 'Nueva Angostura (km 54)', lat: -33.9076, lon: -70.7312 },
+  { codigo: 'RDM-MAIPO',  concesionaria: 'Ruta del Maipo', tramo: 'Río Maipo (km 19)',       lat: -33.6626, lon: -70.6679 },
+  // Coordenada triangulada (sin tag de nombre directo en OSM), confianza
+  // media-alta -- ver investigación 2026-10-13.
+  { codigo: 'RDM-QUINTA', concesionaria: 'Ruta del Maipo', tramo: 'Quinta (km 162)',         lat: -34.7962, lon: -71.0481 },
+  { codigo: 'RDMA-RCLARO', concesionaria: 'Ruta del Maule', tramo: 'Río Claro (km 220)', lat: -35.2097, lon: -71.4113 },
+  { codigo: 'RDMA-RETIRO', concesionaria: 'Ruta del Maule', tramo: 'Retiro (km 322)',    lat: -36.0092, lon: -71.7324 },
+  // Acceso Norte a Concepción (Región del Biobío) -- NO es Ruta 68 como
+  // parecía por el nombre en el correo de AGP ("RutaPass"), confirmado con
+  // díptico oficial MOP. Monto solo estimado por Smart Report, sin
+  // confirmación de la concesionaria todavía.
+  { codigo: 'AGUAMAR', concesionaria: 'Acceso Norte a Concepción', tramo: 'Peaje Troncal Agua Amarilla (km 60)', lat: -36.7300, lon: -72.8602 },
 ];
 // Bindings mutables reales que usa el resto del archivo (bandaHeuristica,
 // grupoGeometriaPara, mensajePasada, etc. las leen como closure sobre el
@@ -458,6 +490,13 @@ const PARES_DIRECCIONALES = {
   PA13:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA14', tramoAlterno: 'Río Mapocho – Alameda' },
   PA16:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA15', tramoAlterno: '14 de la Fama – Río Mapocho' },
   PA17:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA18', tramoAlterno: 'Américo Vespucio Norte – 14 de la Fama' },
+  // PA3/PA4 (extremo sur, nudo La Capilla-Calera de Tango) -- agregados
+  // 2026-10-13 a partir del cruce real de AGP (ver correo Sergio Hidalgo):
+  // mismo gantry físico, confirmado con coordenadas OSM a solo 90m de
+  // distancia (igual patrón que P10/P11, PC101/PC102). PA3 (tramo "La
+  // Capilla – Colón", northbound) es el código principal con geocerca real;
+  // PA4 ("Calera de Tango – La Capilla", southbound) es el alterno.
+  PA3:   { eje: 'lat', positivoEsAlterno: false, alterno: 'PA4',  tramoAlterno: 'Calera de Tango – La Capilla' },
   // Vespucio Norte occidental (ver PORTICOS) — mismo corredor E-O que
   // Vespucio Sur, misma convención de longitud.
   P6:    { eje: 'lon', positivoEsAlterno: true,  alterno: 'P5',   tramoAlterno: 'Costanera Norte – Condell' },
@@ -650,6 +689,16 @@ const TARIFAS_FALLBACK = {
   PA15: { TBFP: 425, TBP: 850,  TS: 1275 },
   PA17: { TBFP: 462, TBP: 925,  TS: 1387 },
   PA18: { TBFP: 462, TBP: 925,  TS: 1387 },
+  // PA1/PA2/PA3/PA4 (extensión sur, La Capilla/Los Guindos/Calera de Tango)
+  // agregados 2026-10-13 -- cada uno con UNA sola lectura real confirmada
+  // por Integro Corp/Consulta AGP (correo AGP), todas fuera de cualquier
+  // ventana punta genérica (06:43-06:50 y 23:02-23:03), así que se toman
+  // como TBFP y se repiten en TBP/TS por falta de tarifario oficial con
+  // bandas -- corregir si aparece evidencia real de sobretarifa punta.
+  PA1:  { TBFP: 868, TBP: 868, TS: 868 },
+  PA2:  { TBFP: 868, TBP: 868, TS: 868 },
+  PA3:  { TBFP: 585, TBP: 585, TS: 585 },
+  PA4:  { TBFP: 130, TBP: 130, TS: 130 },
   '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
   '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
   // 5.1/5.3/5.4 agregados 2026-09-15 (ver PORTICOS y PARES_DIRECCIONALES
@@ -683,6 +732,19 @@ const TARIFAS_FALLBACK = {
   PTACOLORADA: { TBFP: 3150, TBP: 3150, TS: 3150 },
   TOTORAL:     { TBFP: 2900, TBP: 2900, TS: 2900 },
   PTOVIEJO:    { TBFP: 1750, TBP: 1750, TS: 1750 },
+  // Interurbanas agregadas 2026-10-13 a partir del cruce real de AGP (ver
+  // PORTICOS arriba) -- tarifa plana, monto = lo confirmado por la
+  // concesionaria (Integro Corp/Consulta AGP) en ese cruce.
+  RT78T1:      { TBFP: 718,  TBP: 718,  TS: 718  },
+  RT78T2:      { TBFP: 330,  TBP: 330,  TS: 330  },
+  'RDM-ANG':    { TBFP: 3800, TBP: 3800, TS: 3800 },
+  'RDM-MAIPO':  { TBFP: 621,  TBP: 621,  TS: 621  },
+  'RDM-QUINTA': { TBFP: 3800, TBP: 3800, TS: 3800 },
+  'RDMA-RCLARO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
+  'RDMA-RETIRO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
+  // Monto solo estimado por Smart Report (GPS), sin confirmación de la
+  // concesionaria todavía -- ver nota en PORTICOS.
+  AGUAMAR:     { TBFP: 4400, TBP: 4400, TS: 4400 },
   // Costanera Norte — tarifario oficial 2026 MOP
   // (concesiones.mop.gob.cl/uploads/sites/4/2026/07/COSTANERA-NORTE.pdf).
   P0:    { TBFP: 150, TBP: 288,  TS: 437  },
