@@ -2,20 +2,27 @@
 // SVG y mismas animaciones que el panel). Uso:
 //   npx tsx scripts/tracky-preview.mts <salida.html>
 import fs from "node:fs";
-import { trackyCaraSvg, TRACKY_ANCHO, TRACKY_ALTO } from "../app/components/trackyOverlay";
+import { CABEZA, CUERPO, trackyCaraSvg } from "../app/components/trackyOverlay";
 
 const salida = process.argv[2];
-const img = fs.readFileSync("public/tracky.webp").toString("base64");
+const b64 = (f: string) => fs.readFileSync(f).toString("base64");
+const img = b64("public/tracky.webp"), cabeza = b64("public/tracky-cabeza.webp"), perfil = b64("public/tracky-perfil.webp");
 const css = fs.readFileSync("app/globals.css", "utf8");
 const animaciones = css.slice(css.indexOf("/* ── Tracky animado"));
-const cara = trackyCaraSvg();
+const cara = trackyCaraSvg(CUERPO);
+const caraCabeza = trackyCaraSvg(CABEZA);
 
 const tracky = (alto: number, estado: string) => {
-  const ancho = Math.round((alto * TRACKY_ANCHO) / TRACKY_ALTO);
+  const ancho = Math.round((alto * CUERPO.ancho) / CUERPO.alto);
   return `<div class="tk-tracky tk-${estado} marco" data-estado="${estado}" style="width:${ancho}px;height:${alto}px" role="img" aria-label="Tracky">
   <div class="tk-flota capa"><img src="data:image/webp;base64,${img}" alt="" class="capa">
-  <svg viewBox="0 0 ${TRACKY_ANCHO} ${TRACKY_ALTO}" class="capa" aria-hidden="true">${cara}</svg></div></div>`;
+  <svg viewBox="0 0 ${CUERPO.ancho} ${CUERPO.alto}" class="capa" aria-hidden="true">${cara}</svg></div></div>`;
 };
+
+const avatar = (tam: number, estado: string) => `<div class="tk-tracky tk-${estado} avatar" style="width:${tam}px;height:${tam}px" role="img" aria-label="Tracky">
+  <div class="tk-mece capa"><div class="tk-giro-frente capa"><img src="data:image/webp;base64,${cabeza}" alt="" class="capa">
+  <svg viewBox="0 0 ${CABEZA.ancho} ${CABEZA.alto}" class="capa" aria-hidden="true">${caraCabeza}</svg></div>
+  <img src="data:image/webp;base64,${perfil}" alt="" class="tk-giro-perfil capa"></div></div>`;
 
 const html = `<title>Tracky en movimiento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -44,19 +51,21 @@ button:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
 .fila { display: flex; align-items: flex-end; gap: 10px; }
 .burbuja { background: var(--burbuja); color: var(--fg); border-radius: 12px; padding: 8px 12px; font-size: 14px; line-height: 1.45; max-width: 46ch; box-shadow: 0 1px 1px rgba(0,0,0,.08); min-width: 0; }
 .etiqueta { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--suave); font-weight: 700; }
+.avatar { position: relative; overflow: hidden; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.06); flex-shrink: 0; }
+.figuras { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 24px; }
 ${animaciones}
 </style>
 <main>
   <div><div class="etiqueta">Bot de Renovaciones</div><h1>Tracky en movimiento</h1></div>
   <section class="escenario">
-    <div id="grande">${tracky(380, "normal")}</div>
+    <div class="figuras" id="grande">${tracky(360, "normal")}${avatar(170, "normal")}</div>
     <div class="estados">
-      <p>Es el render original de Tracky con la cara redibujada en vectores encima, para poder animarla sin tocar el resto del dibujo.</p>
+      <p>Son los renders de Tracky con la cara redibujada en vectores encima, para animarla sin tocar el resto del dibujo.</p>
       <ul class="lista">
-        <li>Flota suave sobre su sombra.</li>
-        <li>Los corazones laten y parpadean cada pocos segundos.</li>
+        <li>Cuerpo entero: flota, los ojos se achinan de alegría y las mejillas brillan.</li>
+        <li>Avatar: se mece y cada 9 segundos gira la cabeza a perfil y vuelve.</li>
         <li>El pin de GPS de la cabeza emite señal.</li>
-        <li>Mientras responde, mueve la boca.</li>
+        <li>Mientras responde, mueve la boca (y deja de girar).</li>
       </ul>
       <div class="botones" role="group" aria-label="Estado de Tracky">
         <button id="b-normal" aria-pressed="true" data-e="normal">Esperando</button>
@@ -67,15 +76,14 @@ ${animaciones}
   </section>
   <section class="chat" aria-label="Ejemplo en el chat del panel">
     <div class="etiqueta">Así se ve en el chat del panel</div>
-    <div class="fila">${tracky(56, "normal")}<div class="burbuja">Hola Alex Meléndez 👋, soy Tracky, tu bot de Tracklink. Quiero informarte que el servicio asociado a la patente PRBA-01 vence el 5 de diciembre.</div></div>
-    <div class="fila">${tracky(56, "hablando")}<div class="burbuja">Tracky está escribiendo…</div></div>
+    <div class="fila">${avatar(36, "normal")}<div class="burbuja">¡Hola Alex Meléndez! Soy Tracky, tu nueva asistente virtual de renovaciones. Te quiero informar que el servicio Tracklink asociado a la patente PRBA-01 vence el 5 de diciembre y quiero ayudarte a mantener tu servicio activo sin interrupciones 💙</div></div>
+    <div class="fila">${avatar(36, "hablando")}<div class="burbuja">Tracky está escribiendo…</div></div>
   </section>
 </main>
 <script>
-  const grande = document.querySelector("#grande .tk-tracky");
+  const grandes = document.querySelectorAll("#grande .tk-tracky");
   document.querySelectorAll("button[data-e]").forEach(b => b.addEventListener("click", () => {
-    grande.classList.remove("tk-normal", "tk-hablando", "tk-feliz");
-    grande.classList.add("tk-" + b.dataset.e);
+    grandes.forEach(g => { g.classList.remove("tk-normal", "tk-hablando", "tk-feliz"); g.classList.add("tk-" + b.dataset.e); });
     document.querySelectorAll("button[data-e]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
   }));
 </script>`;
