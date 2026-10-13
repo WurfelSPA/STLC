@@ -2,21 +2,20 @@
 // SVG y mismas animaciones que el panel). Uso:
 //   npx tsx scripts/tracky-preview.mts <salida.html>
 import fs from "node:fs";
-import { CABEZA, CUERPO, trackyCaraSvg } from "../app/components/trackyOverlay";
+import { CABEZA, CABEZA_COMPLETA, trackyCaraSvg } from "../app/components/trackyOverlay";
+import { ESCENARIO, marionetaHtml } from "../app/components/trackyPiezas";
 
 const salida = process.argv[2];
 const b64 = (f: string) => fs.readFileSync(f).toString("base64");
-const img = b64("public/tracky.webp"), cabeza = b64("public/tracky-cabeza.webp"), perfil = b64("public/tracky-perfil.webp");
+const cabeza = b64("public/tracky-cabeza.webp"), perfil = b64("public/tracky-perfil.webp");
 const css = fs.readFileSync("app/globals.css", "utf8");
 const animaciones = css.slice(css.indexOf("/* ── Tracky animado"));
-const cara = trackyCaraSvg(CUERPO);
 const caraCabeza = trackyCaraSvg(CABEZA);
+const marioneta = marionetaHtml(id => `data:image/webp;base64,${b64(`public/tracky/${id}.webp`)}`, trackyCaraSvg(CABEZA_COMPLETA));
 
 const tracky = (alto: number, estado: string) => {
-  const ancho = Math.round((alto * CUERPO.ancho) / CUERPO.alto);
-  return `<div class="tk-tracky tk-${estado} marco" data-estado="${estado}" style="width:${ancho}px;height:${alto}px" role="img" aria-label="Tracky">
-  <div class="tk-flota capa"><img src="data:image/webp;base64,${img}" alt="" class="capa">
-  <svg viewBox="0 0 ${CUERPO.ancho} ${CUERPO.alto}" class="capa" aria-hidden="true">${cara}</svg></div></div>`;
+  const ancho = Math.round((alto * ESCENARIO.ancho) / ESCENARIO.alto);
+  return `<div class="tk-tracky tk-${estado} tk-marioneta marco" style="width:${ancho}px;height:${alto}px" role="img" aria-label="Tracky">${marioneta}</div>`;
 };
 
 const avatar = (tam: number, estado: string) => `<div class="tk-tracky tk-${estado} avatar" style="width:${tam}px;height:${tam}px" role="img" aria-label="Tracky">
@@ -39,7 +38,7 @@ h1 { font-size: clamp(28px, 5vw, 40px); font-weight: 800; margin: 0; text-wrap: 
 p { margin: 0; color: var(--suave); line-height: 1.5; max-width: 62ch; }
 .escenario { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
 @media (max-width: 640px) { .escenario { grid-template-columns: 1fr; justify-items: center; } }
-.marco { position: relative; overflow: hidden; border-radius: 22px; background: linear-gradient(#cdcede, #f4f3fc); max-width: 100%; flex-shrink: 0; }
+.marco { position: relative; overflow: hidden; border-radius: 22px; background: #ffffff; max-width: 100%; flex-shrink: 0; }
 .capa { position: absolute; inset: 0; width: 100%; height: 100%; }
 .estados { display: grid; gap: 12px; }
 .botones { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -60,12 +59,13 @@ ${animaciones}
   <section class="escenario">
     <div class="figuras" id="grande">${tracky(360, "normal")}${avatar(170, "normal")}</div>
     <div class="estados">
-      <p>Son los renders de Tracky con la cara redibujada en vectores encima, para animarla sin tocar el resto del dibujo.</p>
+      <p>Tracky armado con sus piezas (cabeza, perfil, tronco, brazos y ruedas), cada una animada por separado, con la cara dibujada en vectores encima.</p>
       <ul class="lista">
-        <li>Cuerpo entero: flota, los ojos se achinan de alegría y las mejillas brillan.</li>
-        <li>Avatar: se mece y cada 9 segundos gira la cabeza a perfil y vuelve.</li>
+        <li>Saluda con la mano derecha cada pocos segundos; el otro brazo se mece.</li>
+        <li>La cabeza se ladea y cada 9 segundos gira a perfil y vuelve.</li>
+        <li>El cuerpo respira sobre las ruedas, los ojos se achinan de alegría y las mejillas brillan.</li>
         <li>El pin de GPS de la cabeza emite señal.</li>
-        <li>Mientras responde, mueve la boca (y deja de girar).</li>
+        <li>Mientras responde, mueve la boca. Cuando alguien renueva ("Feliz"), saluda más seguido.</li>
       </ul>
       <div class="botones" role="group" aria-label="Estado de Tracky">
         <button id="b-normal" aria-pressed="true" data-e="normal">Esperando</button>

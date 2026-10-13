@@ -53,6 +53,22 @@ export const CABEZA: GeometriaTracky = {
   pin: { cx: 237, cy: 184 - DY_CABEZA, r: 16 },
 };
 
+// Misma cabeza, en el original completo (427×640): la usa la marioneta, que
+// posiciona cada pieza con su imagen entera.
+export const CABEZA_COMPLETA: GeometriaTracky = desplazar({ ...CABEZA, id: "tkm" }, DY_CABEZA, 640);
+
+function desplazar(g: GeometriaTracky, dy: number, alto: number): GeometriaTracky {
+  const p = ([x, y]: Pt): Pt => [x, y + dy];
+  return {
+    ...g, alto,
+    ojos: g.ojos.map(o => ({ ...o, p0: p(o.p0), c: p(o.c), p2: p(o.p2) })) as [Ojo, Ojo],
+    boca: { ...g.boca, y: g.boca.y + dy },
+    mejillas: g.mejillas.map(e => ({ ...e, cy: e.cy + dy })) as [Elipse, Elipse],
+    tapas: g.tapas.map(e => ({ ...e, cy: e.cy + dy })),
+    pin: g.pin && { ...g.pin, cy: g.pin.cy + dy },
+  };
+}
+
 // Boca abierta (media luna con borde superior recto e inclinado), en su caja.
 function pathBoca({ x, y, w, h }: Caja): string {
   const X = (f: number) => (x + f * w).toFixed(1), Y = (f: number) => (y + f * h).toFixed(1);

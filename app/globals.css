@@ -80,6 +80,45 @@ body {
   from { transform: scaleY(0.45); }
   to { transform: scaleY(1.15); }
 }
+/* Marioneta (TrackyAnimado): piezas posicionadas en % del escenario 1024×1536
+   (app/components/trackyPiezas.ts); cada brazo/cabeza gira en su pivote. */
+.tk-marioneta .tk-m-escenario { position: absolute; inset: 4%; }
+.tk-marioneta .tk-m-pieza { position: absolute; }
+.tk-marioneta .tk-m-img, .tk-marioneta .tk-m-capa { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
+.tk-marioneta .tk-m-cuerpo { position: absolute; inset: 0; animation: tk-respira 3.4s ease-in-out infinite; }
+.tk-marioneta .tk-m-rueda { animation: tk-rueda 3.4s ease-in-out infinite; transform-origin: 50% 75%; }
+.tk-marioneta .tk-m-brazo-izq { animation: tk-brazo-mece 3.4s ease-in-out infinite; }
+.tk-marioneta .tk-m-brazo-der { animation: tk-saludo 7s ease-in-out infinite; }
+.tk-marioneta .tk-m-cabeza { animation: tk-ladea 5s ease-in-out infinite; }
+.tk-feliz.tk-marioneta .tk-m-brazo-der { animation-duration: 3s; }
+.tk-hablando.tk-marioneta .tk-m-cabeza { animation-duration: 2.2s; }
+
+@keyframes tk-respira {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.3%); }
+}
+@keyframes tk-rueda {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-2.5deg); }
+}
+@keyframes tk-brazo-mece {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(6deg); }
+}
+@keyframes tk-saludo {
+  0%, 52%, 100% { transform: rotate(0deg); }
+  58% { transform: rotate(-30deg); }
+  64% { transform: rotate(-12deg); }
+  70% { transform: rotate(-30deg); }
+  76% { transform: rotate(-12deg); }
+  82% { transform: rotate(-30deg); }
+  90% { transform: rotate(0deg); }
+}
+@keyframes tk-ladea {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tk-tracky * { animation: none !important; }
   .tk-tracky .tk-giro-perfil { opacity: 0; }
