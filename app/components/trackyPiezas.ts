@@ -72,8 +72,7 @@ export function marionetaHtml(src: (id: string) => string, cara: string): string
   <div class="tk-m-pieza tk-m-brazo-izq" style="${estilo(pieza("brazo-izq"))}">${img("brazo-izq")}</div>
   <div class="tk-m-pieza tk-m-brazo-der" style="${estilo(pieza("brazo-der"))}">${img("brazo-der")}</div>
   <div class="tk-m-pieza tk-m-cabeza" style="${estilo(pieza("cabeza"))}">
-    <div class="tk-giro-frente tk-m-capa">${img("cabeza")}<svg viewBox="0 0 427 640" class="tk-m-img" aria-hidden="true">${cara}</svg></div>
-    ${img("perfil", "tk-giro-perfil")}
+    ${img("cabeza")}<svg viewBox="0 0 427 640" class="tk-m-img" aria-hidden="true">${cara}</svg>
   </div>
 </div>
 </div>`;

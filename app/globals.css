@@ -39,11 +39,8 @@ body {
 .tk-hablando .tk-flota { animation-duration: 1.8s; }
 .tk-feliz .tk-ojos { animation-duration: 1.6s; }
 .tk-feliz .tk-flota { animation-duration: 1.2s; }
-/* Avatar: se mece y cada 9 s gira a perfil y vuelve (frente se aplasta, perfil se abre). */
+/* Avatar: la cabeza se mece de lado a lado. */
 .tk-tracky .tk-mece { animation: tk-mece 4s ease-in-out infinite; transform-origin: 50% 90%; }
-.tk-tracky .tk-giro-frente { animation: tk-giro-frente 9s ease-in-out infinite; }
-.tk-tracky .tk-giro-perfil { animation: tk-giro-perfil 9s ease-in-out infinite; transform: scaleX(0); opacity: 0; }
-.tk-hablando .tk-giro-frente, .tk-hablando .tk-giro-perfil { animation: none; }
 
 @keyframes tk-flota {
   0%, 100% { transform: translateY(0) scale(1.02); }
@@ -61,16 +58,6 @@ body {
 @keyframes tk-mece {
   0%, 100% { transform: rotate(-3deg) translateY(0); }
   50% { transform: rotate(3deg) translateY(-2%); }
-}
-@keyframes tk-giro-frente {
-  0%, 70% { transform: scaleX(1); opacity: 1; }
-  73%, 85% { transform: scaleX(0); opacity: 0; }
-  88%, 100% { transform: scaleX(1); opacity: 1; }
-}
-@keyframes tk-giro-perfil {
-  0%, 73% { transform: scaleX(0); opacity: 0; }
-  76%, 82% { transform: scaleX(1); opacity: 1; }
-  85%, 100% { transform: scaleX(0); opacity: 0; }
 }
 @keyframes tk-pulso {
   0% { transform: scale(1); opacity: 0.85; }
@@ -121,5 +108,4 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .tk-tracky * { animation: none !important; }
-  .tk-tracky .tk-giro-perfil { opacity: 0; }
 }

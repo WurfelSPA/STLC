@@ -7,10 +7,10 @@ import { ESCENARIO, marionetaHtml } from "./trackyPiezas";
 // diseñador. Animaciones en globals.css (clases tk-*); respetan
 // prefers-reduced-motion.
 //   - TrackyAnimado: cuerpo entero armado como marioneta (saluda con un brazo,
-//     el otro se mece, la cabeza se ladea y gira a perfil, el cuerpo respira
+//     el otro se mece, la cabeza se mueve de lado a lado, el cuerpo respira
 //     sobre las ruedas, la cara se anima).
-//   - TrackyAvatar: solo la cabeza en un círculo, para el chat; cada tanto gira
-//     a perfil y vuelve.
+//   - TrackyAvatar: solo la cabeza en un círculo, para el chat; se mece.
+//   (El giro de cabeza a perfil se probó y se descartó a pedido de Tracklink.)
 // En estado "hablando" mueve la boca; en "feliz" saluda más seguido.
 export type EstadoTracky = "normal" | "hablando" | "feliz";
 
@@ -47,14 +47,10 @@ export function TrackyAvatar({ tamano = 48, estado = "normal", className = "" }:
       aria-label="Tracky, la asistente de renovaciones"
     >
       <div className="tk-mece absolute inset-0">
-        <div className="tk-giro-frente absolute inset-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/tracky-cabeza.webp" alt="" className="absolute inset-0 w-full h-full select-none" draggable={false} />
-          <svg viewBox={`0 0 ${CABEZA.ancho} ${CABEZA.alto}`} className="absolute inset-0 w-full h-full" aria-hidden="true"
-            dangerouslySetInnerHTML={{ __html: CARA_CABEZA }} />
-        </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/tracky-perfil.webp" alt="" className="tk-giro-perfil absolute inset-0 w-full h-full select-none" draggable={false} />
+        <img src="/tracky-cabeza.webp" alt="" className="absolute inset-0 w-full h-full select-none" draggable={false} />
+        <svg viewBox={`0 0 ${CABEZA.ancho} ${CABEZA.alto}`} className="absolute inset-0 w-full h-full" aria-hidden="true"
+          dangerouslySetInnerHTML={{ __html: CARA_CABEZA }} />
       </div>
     </div>
   );

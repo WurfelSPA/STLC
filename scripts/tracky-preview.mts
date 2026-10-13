@@ -7,7 +7,7 @@ import { ESCENARIO, marionetaHtml } from "../app/components/trackyPiezas";
 
 const salida = process.argv[2];
 const b64 = (f: string) => fs.readFileSync(f).toString("base64");
-const cabeza = b64("public/tracky-cabeza.webp"), perfil = b64("public/tracky-perfil.webp");
+const cabeza = b64("public/tracky-cabeza.webp");
 const css = fs.readFileSync("app/globals.css", "utf8");
 const animaciones = css.slice(css.indexOf("/* ── Tracky animado"));
 const caraCabeza = trackyCaraSvg(CABEZA);
@@ -19,9 +19,8 @@ const tracky = (alto: number, estado: string) => {
 };
 
 const avatar = (tam: number, estado: string) => `<div class="tk-tracky tk-${estado} avatar" style="width:${tam}px;height:${tam}px" role="img" aria-label="Tracky">
-  <div class="tk-mece capa"><div class="tk-giro-frente capa"><img src="data:image/webp;base64,${cabeza}" alt="" class="capa">
-  <svg viewBox="0 0 ${CABEZA.ancho} ${CABEZA.alto}" class="capa" aria-hidden="true">${caraCabeza}</svg></div>
-  <img src="data:image/webp;base64,${perfil}" alt="" class="tk-giro-perfil capa"></div></div>`;
+  <div class="tk-mece capa"><img src="data:image/webp;base64,${cabeza}" alt="" class="capa">
+  <svg viewBox="0 0 ${CABEZA.ancho} ${CABEZA.alto}" class="capa" aria-hidden="true">${caraCabeza}</svg></div></div>`;
 
 const html = `<title>Tracky en movimiento</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -59,10 +58,10 @@ ${animaciones}
   <section class="escenario">
     <div class="figuras" id="grande">${tracky(360, "normal")}${avatar(170, "normal")}</div>
     <div class="estados">
-      <p>Tracky armado con sus piezas (cabeza, perfil, tronco, brazos y ruedas), cada una animada por separado, con la cara dibujada en vectores encima.</p>
+      <p>Tracky armado con sus piezas (cabeza, tronco, brazos y ruedas), cada una animada por separado, con la cara dibujada en vectores encima.</p>
       <ul class="lista">
         <li>Saluda con la mano derecha cada pocos segundos; el otro brazo se mece.</li>
-        <li>La cabeza se ladea y cada 9 segundos gira a perfil y vuelve.</li>
+        <li>La cabeza se mueve suavemente de lado a lado.</li>
         <li>El cuerpo respira sobre las ruedas, los ojos se achinan de alegría y las mejillas brillan.</li>
         <li>El pin de GPS de la cabeza emite señal.</li>
         <li>Mientras responde, mueve la boca. Cuando alguien renueva ("Feliz"), saluda más seguido.</li>
