@@ -2143,7 +2143,12 @@ async function main() {
   // parado ahí. Por eso antes de detectar se consulta cuándo fue la ÚLTIMA
   // pasada real ya guardada de cada vehículo+pórtico, y no se vuelve a
   // contar si pasaron menos de VENTANA_MISMA_PASADA_MS desde esa última vez.
-  const VENTANA_MISMA_PASADA_MS = 3 * 60 * 60 * 1000; // 3 horas
+  // Bajado de 3h a 20min 2026-10-14: 3h bloqueaba pasadas reales separadas del
+  // mismo código el mismo día (confirmado real con TTXR-82 13-oct: cruce real
+  // a las 12:03 bloqueado por un candidato dudoso -- ni siquiera confirmado --
+  // de las 10:51). El dedup de pings consecutivos del MISMO cruce ya lo cubre
+  // MIN_GAP_MS (2 min) aparte, así que 3h era mucho más de lo necesario.
+  const VENTANA_MISMA_PASADA_MS = 20 * 60 * 1000; // 20 minutos
 
   // Se lee una sola vez por corrida (no por vehículo) — no cambia entre
   // vehículos y no vale la pena una consulta repetida por cada uno.
