@@ -1336,7 +1336,7 @@ async function guardarCheckpoint(key, fecha) {
 }
 
 async function obtenerVehiculosPorticos() {
-  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa, unit_id_ftc927, imei_ftc927');
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id, patente, unit_id, imei, empresa, unit_id_ftc927, imei_ftc927, backfill_pendiente_desde');
   if (error) throw new Error(`Error leyendo vehiculos: ${error.message}`);
   return data || [];
 }
@@ -1982,9 +1982,36 @@ async function main() {
   const porticosCheckpoint = esBackfill ? null : await obtenerCheckpoint(PORTICOS_CHECKPOINT_KEY, 2 * 60 * 60_000);
   const OVERLAP_MS = 5 * 60_000;
   const ahora = esBackfill ? new Date(BACKFILL_HASTA) : new Date();
-  const start = esBackfill
+  let start = esBackfill
     ? new Date(BACKFILL_DESDE)
     : new Date(Math.min(santamartaCheckpoint.getTime(), porticosCheckpoint.getTime()) - OVERLAP_MS);
+
+  // Alta con backfill automático (2026-10-14): si algún vehículo tiene
+  // backfill_pendiente_desde (seteado al agregarlo, ver
+  // agregarVehiculoPorticosAction en el portal), se extiende el inicio de la
+  // consulta hasta ahí -- así no hace falta un backfill manual cuando la
+  // instalación física fue antes del alta en Supabase (bug real: 18
+  // tránsitos perdidos de VHRX66/TTXR82, 2026-10-09). La flag se limpia más
+  // abajo recién si esta corrida termina bien. Tope de 14 días: una fecha
+  // más vieja probablemente es un error de tipeo o necesita revisión manual,
+  // no que la corrida de cada 30 min intente sola (arriesga el timeout de
+  // 10 min del job con un reportTravel demasiado grande).
+  const TOPE_BACKFILL_AUTOMATICO_MS = 14 * 24 * 60 * 60 * 1000;
+  const vehiculosConBackfillPendiente = [];
+  if (!esBackfill) {
+    for (const v of vehiculosPorticos) {
+      if (!v.backfill_pendiente_desde) continue;
+      const desdeMs = new Date(v.backfill_pendiente_desde).getTime();
+      if (desdeMs >= start.getTime()) { vehiculosConBackfillPendiente.push(v); continue; } // ya cubierto, solo falta limpiar la flag
+      if (Date.now() - desdeMs > TOPE_BACKFILL_AUTOMATICO_MS) {
+        console.log(`[backfill-auto] ⚠️ ${v.patente}: backfill_pendiente_desde (${fmtTL(new Date(desdeMs))}) supera el tope de 14 días -- requiere backfill manual, no se extiende la ventana sola.`);
+        continue;
+      }
+      console.log(`[backfill-auto] ${v.patente}: extendiendo inicio de consulta a ${fmtTL(new Date(desdeMs))} (alta con instalación anterior).`);
+      start = new Date(desdeMs);
+      vehiculosConBackfillPendiente.push(v);
+    }
+  }
 
   const unidadesDeteccion = obtenerUnidadesDeteccion(vehiculosPorticos);
 
@@ -2469,6 +2496,15 @@ async function main() {
     }
   }
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
+  // Limpia backfill_pendiente_desde solo si esta corrida llegó hasta acá sin
+  // tirar excepción -- si reportTravel o el guardado fallan antes, la flag
+  // queda intacta y la próxima corrida (30 min) reintenta la misma extensión.
+  if (vehiculosConBackfillPendiente.length) {
+    const ids = vehiculosConBackfillPendiente.map((v) => v.id);
+    const { error: errLimpiarBackfill } = await supabase.from('porticos_vehiculos').update({ backfill_pendiente_desde: null }).in('id', ids);
+    if (errLimpiarBackfill) console.log(`[backfill-auto] ⚠️ No se pudo limpiar backfill_pendiente_desde: ${errLimpiarBackfill.message}`);
+    else console.log(`[backfill-auto] ✅ backfill_pendiente_desde limpiado para: ${vehiculosConBackfillPendiente.map((v) => v.patente).join(', ')}`);
+  }
   if (esBackfill) {
     console.log('[backfill] Listo -- se omiten HealthCheck, alias, odómetro diario, AVO y TODOS los checkpoints a propósito (efecto colateral innecesario de una corrida puntual sobre un rango viejo).');
     console.log(`=== Sync tlchile [BACKFILL] completo ===`);

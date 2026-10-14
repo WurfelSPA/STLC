@@ -116,6 +116,15 @@ function VehiculosSeccion({ vehiculos, clientes }: { vehiculos: Vehiculo[]; clie
                   className="border border-gray-300 px-2 py-1 rounded text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Fecha de instalación (opcional, si fue antes de hoy)</label>
+                <input
+                  type="date"
+                  name="fechaInstalacion"
+                  max={new Date().toISOString().slice(0, 10)}
+                  className="border border-gray-300 px-2 py-1 rounded text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
               <button disabled={pending} className="bg-blue-800 text-white text-sm px-4 py-1.5 rounded hover:bg-blue-700 disabled:opacity-50">
                 {pending ? "Agregando..." : "Agregar a pórticos"}
               </button>

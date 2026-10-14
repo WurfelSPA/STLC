@@ -63,6 +63,7 @@ export async function agregarVehiculoPorticosAction(_state: VehiculoActionState,
   const imei = String(formData.get("imei") || "").trim();
   const unitIdRaw = String(formData.get("unitId") || "").trim();
   const empresa = String(formData.get("empresa") || "").trim();
+  const fechaInstalacionRaw = String(formData.get("fechaInstalacion") || "").trim();
 
   if (!patente || !unitIdRaw) {
     return { error: "Faltan datos del vehículo — selecciónalo de la búsqueda de Tracklink." };
@@ -91,6 +92,25 @@ export async function agregarVehiculoPorticosAction(_state: VehiculoActionState,
     .maybeSingle();
   const siguienteOrden = (maxOrden?.orden ?? 0) + 1;
 
+  // Si no se indica fecha de instalación, se usa "ahora" -- no cambia nada
+  // en la práctica (ya es el comportamiento normal: el checkpoint rodante
+  // siempre es más reciente), pero deja el mecanismo siempre activo y
+  // probado en vez de un camino especial que solo se usa a veces.
+  // Validada como fecha simple (YYYY-MM-DD) del <input type="date">, se
+  // interpreta como medianoche hora Chile -- de ahí en adelante no importa
+  // la hora exacta, solo que cubra el día completo de instalación.
+  let backfillPendienteDesde = new Date().toISOString();
+  if (fechaInstalacionRaw) {
+    const fecha = new Date(`${fechaInstalacionRaw}T00:00:00-03:00`);
+    if (Number.isNaN(fecha.getTime())) {
+      return { error: "Fecha de instalación inválida." };
+    }
+    if (fecha.getTime() > Date.now()) {
+      return { error: "La fecha de instalación no puede ser futura." };
+    }
+    backfillPendienteDesde = fecha.toISOString();
+  }
+
   const { error } = await supabase.from("porticos_vehiculos").insert({
     patente,
     imei: imei || null,
@@ -99,6 +119,7 @@ export async function agregarVehiculoPorticosAction(_state: VehiculoActionState,
     es_prueba_interna: false,
     orden: siguienteOrden,
     origen: "tracklink",
+    backfill_pendiente_desde: backfillPendienteDesde,
   });
 
   if (error) {
@@ -106,7 +127,7 @@ export async function agregarVehiculoPorticosAction(_state: VehiculoActionState,
   }
 
   revalidatePath("/porticos-admin");
-  return { success: `Vehículo ${patente} agregado. Aparecerá en la próxima corrida del sync (cada 20 min) o al presionar "Actualizar ahora" en el portal.` };
+  return { success: `Vehículo ${patente} agregado. El sync (cada 30 min) va a reprocesar automáticamente desde ${fechaInstalacionRaw || "hoy"}, sin backfill manual.` };
 }
 
 export async function eliminarVehiculoPorticosAction(id: string) {
