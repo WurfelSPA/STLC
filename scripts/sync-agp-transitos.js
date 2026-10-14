@@ -86,15 +86,20 @@ function codigoInterno(autopista, puntoCobro) {
     };
     return MAP_CN[p] || null;
   }
-  // Autopista Central: mismo criterio ya validado en sync-smartreport.js
-  // para esta misma concesionaria (código público = nuestro código interno,
-  // "PA19"/"PA37"/etc, sin tabla de traducción) -- agregado 2026-10-14 para
-  // VHRX-66/TTXR-82 (Lucano, piloto AGP). El resto de concesionarias
-  // (Vespucio Sur, Ruta del Maipo/Maule, Ruta 78) queda sin mapear a
-  // propósito hasta ver el formato REAL del campo puntoCobro en una corrida
-  // real -- no adivinar acá, un mapeo mal hecho pisaría monto_agp con el
-  // código equivocado en vez de simplemente no mapear.
-  if (a.startsWith('AUTOPISTA CENTRAL')) return p.split(' ')[0];
+  // Autopista Central: confirmado con datos reales 2026-10-14 (corrida real
+  // de VHRX-66/TTXR-82) que el campo puntoCobro viene como "<nombre> -
+  // <código>" (ej. "Avda Santa María Oriente - PA16", "Carlos Valdovinos
+  // Poniente - PA24") -- el código real es lo último después del " - ", NO
+  // la primera palabra como se asumió al principio (esa primera versión
+  // sacaba "AVDA"/"SAN"/"CARLOS" en vez de "PA16"/"PA25"/"PA24", 0 de 75
+  // tránsitos reales calzaban). El resto de concesionarias (Vespucio Sur,
+  // Ruta del Maipo/Maule, Ruta 78) queda sin mapear a propósito hasta ver su
+  // formato real también -- no adivinar, un mapeo mal hecho pisaría
+  // monto_agp con el código equivocado en vez de simplemente no mapear.
+  if (a.startsWith('AUTOPISTA CENTRAL')) {
+    const partes = p.split(' - ');
+    return partes[partes.length - 1].trim().split(' ')[0] || null;
+  }
   return null;
 }
 
