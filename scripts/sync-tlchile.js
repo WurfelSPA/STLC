@@ -1929,6 +1929,83 @@ async function estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo) {
   }
 }
 
+// Recorrido GPS completo por día (2026-10-14, pedido del usuario: el mapa
+// del portal solo conectaba los pórticos detectados con líneas rectas,
+// porque nunca se guardaba el track GPS completo -- solo lo que matchea un
+// pórtico del catálogo). Guarda en porticos_recorrido_diario, downsampled
+// (no cada ping de 30s) para no crecer sin límite. Reutiliza los MISMOS
+// puntos que ya pide el loop de detección -- cero consultas extra a
+// TrackGTS.
+const DOWNSAMPLE_DISTANCIA_M = 80;
+const DOWNSAMPLE_TIEMPO_MS = 60_000;
+const RECORRIDO_MAX_PUNTOS_POR_DIA = 3000; // tope defensivo, no debería acercarse con el downsample de arriba
+
+function diaChile(fecha) {
+  const p = partesChile(fecha);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+// Conserva un punto si pasaron >= DOWNSAMPLE_DISTANCIA_M o >=
+// DOWNSAMPLE_TIEMPO_MS desde el último conservado -- alcanza para que la
+// línea del mapa siga la forma real de la vía sin guardar cada ping.
+// Siempre conserva el primer y último punto del lote.
+function downsamplePuntos(puntos) {
+  if (puntos.length <= 2) return puntos;
+  const resultado = [puntos[0]];
+  let ultimo = puntos[0];
+  for (let i = 1; i < puntos.length - 1; i++) {
+    const p = puntos[i];
+    const d = haversineMetros(ultimo.lat, ultimo.lon, p.lat, p.lon);
+    const t = p.time.getTime() - ultimo.time.getTime();
+    if (d >= DOWNSAMPLE_DISTANCIA_M || t >= DOWNSAMPLE_TIEMPO_MS) { resultado.push(p); ultimo = p; }
+  }
+  resultado.push(puntos[puntos.length - 1]);
+  return resultado;
+}
+
+async function guardarRecorridoDiario(vehiculoId, dispositivo, puntos) {
+  if (!puntos.length) return;
+  const porDia = new Map();
+  for (const p of puntos) {
+    const dia = diaChile(p.time);
+    if (!porDia.has(dia)) porDia.set(dia, []);
+    porDia.get(dia).push(p);
+  }
+  for (const [dia, puntosDelDia] of porDia) {
+    const { data: existente, error: errLeer } = await supabase
+      .from('porticos_recorrido_diario')
+      .select('puntos')
+      .eq('vehiculo_id', vehiculoId).eq('dispositivo', dispositivo).eq('dia', dia)
+      .maybeSingle();
+    if (errLeer) { console.log(`[recorrido] Error leyendo recorrido previo de ${dia}: ${errLeer.message}`); continue; }
+
+    const previos = (existente?.puntos || []).map((p) => ({ lat: p.lat, lon: p.lon, time: new Date(p.ts) }));
+    const nuevos = puntosDelDia.map((p) => ({ lat: p.lat, lon: p.lon, time: p.time }));
+    const combinados = [...previos, ...nuevos].sort((a, b) => a.time - b.time);
+    // Dedupe por ts exacto (mismo punto ya guardado de una corrida anterior,
+    // por el solape de 5 min) antes de volver a aplicar el downsample sobre
+    // el conjunto combinado completo.
+    const sinDuplicados = [];
+    let ultimoTs = null;
+    for (const p of combinados) {
+      const ts = p.time.getTime();
+      if (ts === ultimoTs) continue;
+      sinDuplicados.push(p);
+      ultimoTs = ts;
+    }
+    const final = downsamplePuntos(sinDuplicados).slice(-RECORRIDO_MAX_PUNTOS_POR_DIA);
+    const puntosParaGuardar = final.map((p) => ({ lat: p.lat, lon: p.lon, ts: p.time.toISOString() }));
+
+    const { error: errGuardar } = await supabase
+      .from('porticos_recorrido_diario')
+      .upsert(
+        { vehiculo_id: vehiculoId, dispositivo, dia, puntos: puntosParaGuardar, actualizado_en: new Date().toISOString() },
+        { onConflict: 'vehiculo_id,dispositivo,dia' }
+      );
+    if (errGuardar) console.log(`[recorrido] Error guardando recorrido ${dia}: ${errGuardar.message}`);
+  }
+}
+
 // "Alerta de pórtico desconocido" (2026-10-14, optimización post-piloto AGP):
 // si un vehículo viaja a velocidad de autopista por un tramo largo sin que
 // NINGÚN pórtico del catálogo quede cerca en todo el tramo, es una señal de
@@ -2241,6 +2318,7 @@ async function main() {
       .sort((a, b) => a.time - b.time);
     console.log(`[porticos] ${vehiculo.patente} (${dispositivo}): ${puntos.length} puntos GPS válidos`);
     buscarTramosDesconocidos(puntos, vehiculo.patente, dispositivo);
+    await guardarRecorridoDiario(vehiculo.id, dispositivo, puntos);
 
     // OJO: el lookback de esta consulta tiene que ser al MENOS tan largo como
     // la ventana más larga que se usa más abajo (VENTANA_ESTACIONADO_MS, 20h),
