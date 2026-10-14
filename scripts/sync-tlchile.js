@@ -213,10 +213,18 @@ const PORTICOS_FALLBACK = [
   // una pasada real). Nueva coordenada calculada por distancia acumulada real
   // sobre el track GPS de VVJG-14, entre 2.2 y el resto de pórticos de
   // Autopista Central (Eje Gral. Velásquez) — ver PA21/PA23/PA25 abajo.
-  { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Ruta 5 Sur – Américo Vespucio',               lat: -33.510753, lon: -70.699381 },
-  { codigo: 'PA21', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Carlos Valdovinos',        lat: -33.473049, lon: -70.687728 },
-  { codigo: 'PA23', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.438662, lon: -70.691992 },
-  { codigo: 'PA25', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.408249, lon: -70.694405 },
+  // Corregido 2026-10-13: la distancia acumulada dejaba cada código ~un
+  // gantry corrido (PA19 caía sobre PA21/22, PA21 sobre PA23/24, PA23 sobre
+  // PA25/26). Confirmado con el cruce de AGP (TTXR82 8/9/13-oct: la
+  // concesionaria cobraba PA21 donde detectábamos PA19, PA26 donde
+  // detectábamos PA24, etc.) y coordenadas OSM (ref+nombre oficial).
+  // PA19/PA20 NO comparten gantry (1,5km): cada uno con geocerca propia y
+  // SENTIDO_UNICO.
+  { codigo: 'PA19', concesionaria: 'Autopista Central', tramo: 'Ruta 5 Sur – Américo Vespucio',               lat: -33.551404, lon: -70.709061 },
+  { codigo: 'PA20', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Ruta 5 Sur',               lat: -33.536473, lon: -70.707659 },
+  { codigo: 'PA21', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Carlos Valdovinos',        lat: -33.506426, lon: -70.697251 },
+  { codigo: 'PA23', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.469061, lon: -70.688127 },
+  { codigo: 'PA25', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.446740, lon: -70.692080 },
   // PA24/PA26/PA20/PA22/PA29 (sentido Norte-Sur, de vuelta) y PA28 (tramo
   // norte, ver más abajo) — mismo punto físico que su par de ida, código
   // distinto según sentido. IMPORTANTE: NO se agregan como entradas propias
@@ -228,7 +236,7 @@ const PORTICOS_FALLBACK = [
   // resuelve bien por dirección, pero la otra (sin par definido para SU
   // propio código) siempre devuelve su código tal cual, sin importar el
   // sentido real de circulación.
-  { codigo: 'PA28', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Ruta 5 Norte',                   lat: -33.391238, lon: -70.699554 },
+  { codigo: 'PA28', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – Ruta 5 Norte',                   lat: -33.382239, lon: -70.695562 },
   // Autopista Central tiene DOS ejes físicos distintos que comparten la
   // numeración "PA" pero son corredores separados: el bloque de arriba
   // (PA19/21/23/25/28) es el "Eje Gral. Velásquez"; este bloque es el
@@ -279,6 +287,10 @@ const PORTICOS_FALLBACK = [
   { codigo: 'PA31', concesionaria: 'Autopista Central', tramo: 'Carlos Valdovinos – Alameda',                 lat: -33.469011, lon: -70.656243 },
   { codigo: 'PA13', concesionaria: 'Autopista Central', tramo: 'Alameda – Río Mapocho',                       lat: -33.448923, lon: -70.659592 },
   { codigo: 'PA16', concesionaria: 'Autopista Central', tramo: 'Río Mapocho – 14 de la Fama',                 lat: -33.417186, lon: -70.678723 },
+  // PA15 separado de PA16 2026-10-13: gantries a 1,4km según OSM (antes
+  // par direccional en el punto de PA16 -- TTXR82 9-oct: detectado 16:39,
+  // la concesionaria lo cobró 16:48). Ver SENTIDO_UNICO.
+  { codigo: 'PA15', concesionaria: 'Autopista Central', tramo: '14 de la Fama – Río Mapocho',                 lat: -33.426515, lon: -70.668895 },
   { codigo: 'PA17', concesionaria: 'Autopista Central', tramo: '14 de la Fama – Américo Vespucio Norte',      lat: -33.368582, lon: -70.699104 },
   { codigo: '2.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gral. Velásquez – Ruta 5',                    lat: -33.5263, lon: -70.6941 },
   // 5.1 (alterno de 5.2, mismo punto físico, sentido contrario — ver
@@ -492,7 +504,6 @@ const PARES_DIRECCIONALES = {
   '5.4': { eje: 'lat', positivoEsAlterno: false, alterno: '5.3', tramoAlterno: 'Quilín – Las Torres' },
   PA23:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA24', tramoAlterno: 'Alameda – Carlos Valdovinos' },
   PA25:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA26', tramoAlterno: 'Río Mapocho – Alameda' },
-  PA19:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA20', tramoAlterno: 'Américo Vespucio – Ruta 5 Sur' },
   PA21:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA22', tramoAlterno: 'Carlos Valdovinos – Américo Vespucio' },
   PA28:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA29', tramoAlterno: 'Ruta 5 Norte – Río Mapocho' },
   // Eje Norte-Sur (ver PORTICOS) — misma convención de latitud que Eje Gral.
@@ -501,7 +512,6 @@ const PARES_DIRECCIONALES = {
   PA10:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA11', tramoAlterno: 'Carlos Valdovinos – Departamental' },
   PA31:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA12', tramoAlterno: 'Alameda – Carlos Valdovinos' },
   PA13:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA14', tramoAlterno: 'Río Mapocho – Alameda' },
-  PA16:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA15', tramoAlterno: '14 de la Fama – Río Mapocho' },
   PA17:  { eje: 'lat', positivoEsAlterno: false, alterno: 'PA18', tramoAlterno: 'Américo Vespucio Norte – 14 de la Fama' },
   // PA3/PA4 (extremo sur, nudo La Capilla-Calera de Tango) -- agregados
   // 2026-10-13 a partir del cruce real de AGP (ver correo Sergio Hidalgo):
@@ -578,6 +588,10 @@ const SENTIDO_UNICO = {
   PA1:   { eje: 'lat', positivo: false },
   PA2:   { eje: 'lat', positivo: true },
   PA37:  { eje: 'lat', positivo: false },
+  PA19:  { eje: 'lat', positivo: true },
+  PA20:  { eje: 'lat', positivo: false },
+  PA16:  { eje: 'lat', positivo: true },
+  PA15:  { eje: 'lat', positivo: false },
   '4.1': { eje: 'lon', positivo: false },
   '4.2': { eje: 'lon', positivo: true },
   '4.3': { eje: 'lon', positivo: true },
