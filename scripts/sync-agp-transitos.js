@@ -134,7 +134,11 @@ async function emparejarYActualizar(vehiculoId, transitos) {
       .gte('ts', new Date(tsTransito.getTime() - VENTANA_EMPAREJAR_MS).toISOString())
       .lte('ts', new Date(tsTransito.getTime() + VENTANA_EMPAREJAR_MS).toISOString());
     if (error) throw new Error(`Error buscando pasada: ${error.message}`);
-    if (!candidatas || !candidatas.length) { sinPasada++; continue; }
+    if (!candidatas || !candidatas.length) {
+      sinPasada++;
+      console.log(`[agp-transitos][sin-pasada] ${t.autopista} / "${t.puntoCobro}" -> código ${codigo}, ${t.fecha} ${t.hora} (tsTransito=${tsTransito.toISOString()}), monto $${t.monto} -- sin pasada confirmada en ±${VENTANA_EMPAREJAR_MS / 60000}min.`);
+      continue;
+    }
 
     let mejor = candidatas[0];
     let mejorDiff = Math.abs(new Date(mejor.ts).getTime() - tsTransito.getTime());
