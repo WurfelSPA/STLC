@@ -264,9 +264,14 @@ const PORTICOS_FALLBACK = [
   { codigo: 'PA1',  concesionaria: 'Autopista Central', tramo: 'La Capilla – Los Guindos',                     lat: -33.695400, lon: -70.723700 },
   { codigo: 'PA2',  concesionaria: 'Autopista Central', tramo: 'Los Guindos – La Capilla',                     lat: -33.647300, lon: -70.711600 },
   { codigo: 'PA3',  concesionaria: 'Autopista Central', tramo: 'La Capilla – Colón',                           lat: -33.622800, lon: -70.714600 },
-  { codigo: 'PA37', concesionaria: 'Autopista Central', tramo: 'Colón – Calera de Tango',                      lat: -33.624384, lon: -70.714528 },
-  { codigo: 'PA6',  concesionaria: 'Autopista Central', tramo: 'Lo Blanco – Colón',                            lat: -33.596835, lon: -70.715823 },
-  { codigo: 'PA5',  concesionaria: 'Autopista Central', tramo: 'Colón – Las Acacias',                          lat: -33.582641, lon: -70.713824 },
+  // PA37/PA5 corregidos 2026-10-13 contra OSM (ref+nombre oficial) y el
+  // cruce real de AGP del 10-oct (TTXR82): la coordenada vieja de PA37 caía
+  // sobre el gantry PA3/PA4 y la de PA6 sobre el gantry real de PA37. PA5 y
+  // PA6 son el MISMO gantry (40m) en sentidos opuestos -> PA6 pasa a ser
+  // `alterno` de PA5 (PARES_DIRECCIONALES), sin geocerca propia. PA37 cobra
+  // solo hacia el sur (ver SENTIDO_UNICO).
+  { codigo: 'PA37', concesionaria: 'Autopista Central', tramo: 'Colón – Calera de Tango',                      lat: -33.596894, lon: -70.715792 },
+  { codigo: 'PA5',  concesionaria: 'Autopista Central', tramo: 'Colón – Las Acacias',                          lat: -33.582754, lon: -70.713842 },
   { codigo: 'PA32', concesionaria: 'Autopista Central', tramo: 'Las Acacias – Lo Blanco',                      lat: -33.558862, lon: -70.710671 },
   { codigo: 'PA7',  concesionaria: 'Autopista Central', tramo: 'Las Acacias – Américo Vespucio',               lat: -33.547848, lon: -70.696958 },
   { codigo: 'PA30', concesionaria: 'Autopista Central', tramo: 'Américo Vespucio – Departamental',             lat: -33.507288, lon: -70.669319 },
@@ -285,15 +290,25 @@ const PORTICOS_FALLBACK = [
   // Coordenadas del track GPS real de VVJG-14, confirmadas porque el monto
   // coincide EXACTO con la tarifa oficial (TBFP 5.1=$122, TS 5.4=$1.149).
   { codigo: '5.2',  concesionaria: 'Vespucio Sur',      tramo: 'Quilín – Grecia',                             lat: -33.4810, lon: -70.5788 },
-  { codigo: '5.4',  concesionaria: 'Vespucio Sur',      tramo: 'Las Torres – Quilín',                         lat: -33.478990, lon: -70.578187 },
+  // 5.4 movido 2026-10-13 a su gantry real según OSM (~2km al sur de 5.2,
+  // compartido con 5.3) -- la coordenada vieja (track de VVJG-14) quedaba
+  // junto a 5.2 y generaba 5.4 + 5.2 en el mismo punto (caso real VHRX66
+  // 11-oct 22:39), perdiendo el cruce real de 5.4.
+  { codigo: '5.4',  concesionaria: 'Vespucio Sur',      tramo: 'Las Torres – Quilín',                         lat: -33.496067, lon: -70.584502 },
   // Vespucio Sur 4.1/3.1/3.3 — agregados 2026-08-28. Coordenadas tomadas del
   // propio track GPS real de VVJG-14 (frenada/parada del vehículo justo en
   // ese punto), confirmadas porque el monto coincide EXACTO con la tarifa
   // oficial investigada (311,52 / 665,24 / 520,53 — ver dashboard.html) y el
   // usuario anotó ese mismo monto en pantalla del pórtico el 2026-08-28.
-  { codigo: '4.1',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Santa Julia',            lat: -33.541545, lon: -70.640163 },
-  { codigo: '3.1',  concesionaria: 'Vespucio Sur',      tramo: 'Santa Rosa – Gran Avenida',                  lat: -33.538576, lon: -70.658991 },
-  { codigo: '3.3',  concesionaria: 'Vespucio Sur',      tramo: 'Gran Avenida – Ruta 5',                      lat: -33.534718, lon: -70.672764 },
+  // Corregidos 2026-10-13 contra OSM (ref+nombre oficial): el monto exacto
+  // confirmaba que el código se cobró en ese viaje, no DÓNDE está el gantry.
+  // 4.1 y 4.3 son gantries distintos (1,6km), no un par direccional; 3.1 va
+  // con 3.2 y 3.3 con 3.4 (antes cruzados, intercambiaba 3.2/3.4 hacia el
+  // oriente). 4.3 confirmado con VHRX66 11-oct 22:34 ($45, ~50m del gantry).
+  { codigo: '4.1',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Santa Julia',            lat: -33.529790, lon: -70.604845 },
+  { codigo: '4.3',  concesionaria: 'Vespucio Sur',      tramo: 'Coronel – Santa Julia',                      lat: -33.541153, lon: -70.615020 },
+  { codigo: '3.1',  concesionaria: 'Vespucio Sur',      tramo: 'Santa Rosa – Gran Avenida',                  lat: -33.539608, lon: -70.652943 },
+  { codigo: '3.3',  concesionaria: 'Vespucio Sur',      tramo: 'Gran Avenida – Ruta 5',                      lat: -33.533585, lon: -70.676345 },
   // 1.1/4.2 — agregados 2026-09-01, confirmados con el regreso real de
   // VVJG-14 esa noche (11m de distancia al track GPS real en ambos casos,
   // monto TBFP exacto: $532,59≈$532 y $798,89≈$798). Tarifario oficial 2026
@@ -453,11 +468,9 @@ function grupoGeometriaPara(portico) {
 // misma posición física (las dos calzadas — ida y vuelta — quedan lo
 // bastante cerca como para caer en el mismo radio de 150m), pero el código
 // y la tarifa oficial correcta dependen del sentido de viaje. Confirmado en
-// vivo el 2026-08-28 con el track GPS real de VVJG-14: mismo punto exacto,
-// "4.1" a la ida (longitud GPS decreciente, viajando hacia el poniente) y
-// "4.3" a la vuelta (longitud creciente, hacia el oriente) — mismo patrón
-// para 3.1↔3.4 y 3.3↔3.2. El monto anotado en pantalla por el usuario en
-// ambos viajes coincidió exacto con la tarifa oficial de cada código.
+// vivo el 2026-08-28 con el track GPS real de VVJG-14. Corregido 2026-10-13
+// contra OSM: 4.1/4.3 NO son un par (gantries a 1,6km, ver SENTIDO_UNICO) y
+// los pares reales son 3.1↔3.2 y 3.3↔3.4 (antes cruzados 3.1↔3.4/3.3↔3.2).
 // Vespucio Sur (anillo E-O) se resuelve por tendencia de LONGITUD: positivo =
 // longitud creciente = hacia el oriente = código alterno. Autopista Central /
 // Eje Gral. Velásquez (corredor N-S) se resuelve por tendencia de LATITUD:
@@ -465,9 +478,9 @@ function grupoGeometriaPara(portico) {
 // "Sur-Norte" del tarifario), negativo = hacia el sur = código alterno
 // ("Norte-Sur") — polaridad opuesta a Vespucio Sur, por eso `positivoEsAlterno`.
 const PARES_DIRECCIONALES = {
-  '4.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '4.3',  tramoAlterno: 'Coronel – Santa Julia' },
-  '3.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.4',  tramoAlterno: 'Ruta 5 – Gran Avenida' },
-  '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
+  '3.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
+  '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.4',  tramoAlterno: 'Ruta 5 – Gran Avenida' },
+  PA5:   { eje: 'lat', positivoEsAlterno: false, alterno: 'PA6',  tramoAlterno: 'Lo Blanco – Colón' },
   // 5.2/5.4 — tramo oriente de Vespucio Sur (Quilín/Grecia/Las Torres, La
   // Reina-Peñalolén), donde el anillo corre N-S en vez de E-O como el resto
   // de Vespucio Sur — por eso usa la MISMA convención que Autopista Central
@@ -551,6 +564,35 @@ function resolverCodigoDireccional(portico, anterior, actual) {
 // guarda en porticos_pasadas_reales.sentido para que bandaHeuristica elija
 // la ventana correcta -- no cambia qué código se guarda, solo con qué
 // horario se factura.
+// Gantries que cobran en UN solo sentido y no tienen par en la calzada
+// opuesta (o lo tienen en otro punto físico). Sin esto, un cruce en sentido
+// contrario dentro del radio de 150m se cobraba igual. Confirmado
+// 2026-10-13 con el cruce real de AGP (TTXR82 10-oct, Autopista Central
+// sur): la concesionaria cobró PA6/PA37/PA4/PA1 hacia el sur y PA2/PA3/PA5
+// hacia el norte; Tracklink informaba además PA5/PA2 a la ida y PA1/PA37/
+// PA6 a la vuelta. Vespucio Sur 4.1 (poniente) / 4.2 y 4.3 (oriente) según
+// tramo oficial en OSM -- 4.1 y 4.2 quedan a 360m, ambos dentro del radio.
+// `positivo`: true = solo cobra con tendencia creciente en `eje`
+// (lat creciente = norte, lon creciente = oriente).
+const SENTIDO_UNICO = {
+  PA1:   { eje: 'lat', positivo: false },
+  PA2:   { eje: 'lat', positivo: true },
+  PA37:  { eje: 'lat', positivo: false },
+  '4.1': { eje: 'lon', positivo: false },
+  '4.2': { eje: 'lon', positivo: true },
+  '4.3': { eje: 'lon', positivo: true },
+};
+
+// Sin punto anterior o sin movimiento neto en el eje no se puede afirmar el
+// sentido -- se deja pasar (mismo criterio conservador que calcularSentido).
+function cumpleSentidoUnico(codigo, anterior, actual) {
+  const cfg = SENTIDO_UNICO[codigo];
+  if (!cfg || !anterior) return true;
+  const tendencia = cfg.eje === 'lat' ? actual.lat - anterior.lat : actual.lon - anterior.lon;
+  if (tendencia === 0) return true;
+  return cfg.positivo ? tendencia > 0 : tendencia < 0;
+}
+
 const EJE_SENTIDO_PORTICO = {
   // Corredor Costanera Norte, orientación E-O: +lon (menos negativo) =
   // yendo al oriente = "PO". Mismo eje que P6/P17 en PARES_DIRECCIONALES,
@@ -2231,6 +2273,9 @@ async function main() {
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
           const resuelto = resolverCodigoDireccional(portico, anterior, p);
+          // Cruce en el sentido que este gantry no cobra (ver SENTIDO_UNICO)
+          // -- no es candidato, ni siquiera para porticos_comparacion_metodos.
+          if (!cumpleSentidoUnico(resuelto.codigo, anterior, p)) continue;
           const sentido = calcularSentido(resuelto.codigo, anterior, p);
           const esNuevoEnEstaCorrida = resuelto.codigo !== ultimoPortico || !ultimoTs || tsMs - ultimoTs > MIN_GAP_MS;
           if (esNuevoEnEstaCorrida) {
