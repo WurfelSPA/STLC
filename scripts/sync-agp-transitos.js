@@ -55,11 +55,14 @@ const AGP_DIAS_ATRAS = 14;
 const VENTANA_EMPAREJAR_MS = 10 * 60 * 1000; // ±10 min, igual que sync-smartreport.js
 
 // Vehículos que son clientes REALES de AGP (con TAG contratado directamente
-// con ellos, ver nota arriba) — agregar acá cuando se instale el primer FTC
-// en un vehículo de Renting Lucano. "ppu" es como lo espera la API de AGP
-// (sin guión); "patente" es como está en porticos_vehiculos.
+// con ellos, ver nota arriba) — agregado 2026-10-14: VHRX-66 y TTXR-82
+// (Lucano Rent a Car, instalados 8-oct-2026, piloto activo). "ppu" es como
+// lo espera la API de AGP (sin guión, confirmado con el PDF real que mandó
+// Sergio Hidalgo: "VHRX66"/"TTXR82"); "patente" es como está en
+// porticos_vehiculos (con guión).
 const PATENTES_AGP = [
-  // { patente: 'VLKT57', ppu: 'VLKT57' },
+  { patente: 'VHRX-66', ppu: 'VHRX66' },
+  { patente: 'TTXR-82', ppu: 'TTXR82' },
 ];
 
 // --- Mapeo de códigos de AGP a nuestro portico_codigo -----------------------
@@ -83,6 +86,15 @@ function codigoInterno(autopista, puntoCobro) {
     };
     return MAP_CN[p] || null;
   }
+  // Autopista Central: mismo criterio ya validado en sync-smartreport.js
+  // para esta misma concesionaria (código público = nuestro código interno,
+  // "PA19"/"PA37"/etc, sin tabla de traducción) -- agregado 2026-10-14 para
+  // VHRX-66/TTXR-82 (Lucano, piloto AGP). El resto de concesionarias
+  // (Vespucio Sur, Ruta del Maipo/Maule, Ruta 78) queda sin mapear a
+  // propósito hasta ver el formato REAL del campo puntoCobro en una corrida
+  // real -- no adivinar acá, un mapeo mal hecho pisaría monto_agp con el
+  // código equivocado en vez de simplemente no mapear.
+  if (a.startsWith('AUTOPISTA CENTRAL')) return p.split(' ')[0];
   return null;
 }
 
