@@ -1953,23 +1953,47 @@ async function main() {
     console.warn('[catálogo] no se pudo cargar porticos_catalogo desde Supabase, uso fallback hardcodeado:', err.message);
   }
 
+  // --- Modo backfill (opcional, 2026-10-14) -------------------------------
+  // Reprocesa un rango histórico fijo para un subconjunto de patentes, en vez
+  // del rolling-window normal por checkpoint. Pedido real: AGP reportó pasadas
+  // mal detectadas del 8 al 13 de octubre (coordenadas corregidas DESPUÉS de
+  // que esas pasadas ya habían quedado mal guardadas) -- las correcciones de
+  // catálogo aplican solo de ahí en adelante, no reprocesan solas lo viejo.
+  // Solo se activa si las 3 env vars están puestas (nunca por accidente en la
+  // corrida normal de cada 30 min). NO toca Santa Marta ni ningún checkpoint
+  // (ni Santa Marta ni pórticos ni TLCHILE_LAST_SUCCESS) para no desalinear el
+  // rolling sync real -- quien dispare esto debe borrar a mano, ANTES de
+  // correr, las filas viejas de porticos_pasadas_reales/porticos_comparacion_metodos
+  // del rango+patentes que va a reprocesar (si no, additiva: el upsert por
+  // ts+codigo no pisa una pasada vieja que haya quedado con otro código).
+  const { BACKFILL_DESDE, BACKFILL_HASTA, BACKFILL_PATENTES } = process.env;
+  const esBackfill = Boolean(BACKFILL_DESDE && BACKFILL_HASTA && BACKFILL_PATENTES);
+  const patentesBackfill = esBackfill ? BACKFILL_PATENTES.split(',').map((p) => p.trim()) : null;
+  if (esBackfill) console.log(`[backfill] Activo: ${BACKFILL_DESDE} → ${BACKFILL_HASTA}, patentes: ${patentesBackfill.join(', ')}. Sin Santa Marta, sin tocar checkpoints.`);
+
   // --- 1) Una sola sesión clásica: Santa Marta + Pórticos juntos -----------
-  const vehiculosPorticos = await obtenerVehiculosPorticos();
-  const santamartaCheckpoint = await obtenerCheckpoint(SANTAMARTA_CHECKPOINT_KEY, 2 * 60 * 60_000);
-  const porticosCheckpoint = await obtenerCheckpoint(PORTICOS_CHECKPOINT_KEY, 2 * 60 * 60_000);
+  const vehiculosPorticosTodos = await obtenerVehiculosPorticos();
+  const vehiculosPorticos = esBackfill
+    ? vehiculosPorticosTodos.filter((v) => patentesBackfill.includes(v.patente))
+    : vehiculosPorticosTodos;
+  if (esBackfill && !vehiculosPorticos.length) throw new Error(`[backfill] Ninguna patente de BACKFILL_PATENTES (${BACKFILL_PATENTES}) encontrada en porticos_vehiculos`);
+
+  const santamartaCheckpoint = esBackfill ? null : await obtenerCheckpoint(SANTAMARTA_CHECKPOINT_KEY, 2 * 60 * 60_000);
+  const porticosCheckpoint = esBackfill ? null : await obtenerCheckpoint(PORTICOS_CHECKPOINT_KEY, 2 * 60 * 60_000);
   const OVERLAP_MS = 5 * 60_000;
-  const ahora = new Date();
-  const startMs = Math.min(santamartaCheckpoint.getTime(), porticosCheckpoint.getTime()) - OVERLAP_MS;
-  const start = new Date(startMs);
+  const ahora = esBackfill ? new Date(BACKFILL_HASTA) : new Date();
+  const start = esBackfill
+    ? new Date(BACKFILL_DESDE)
+    : new Date(Math.min(santamartaCheckpoint.getTime(), porticosCheckpoint.getTime()) - OVERLAP_MS);
 
   const unidadesDeteccion = obtenerUnidadesDeteccion(vehiculosPorticos);
 
   const unitIds = [
-    ...UNIDADES_SANTAMARTA.map((u) => u.unitId),
+    ...(esBackfill ? [] : UNIDADES_SANTAMARTA.map((u) => u.unitId)),
     ...unidadesDeteccion.map((u) => u.unitId),
   ].join(',');
 
-  console.log(`=== Sync tlchile: ${fmtTL(start)} → ${fmtTL(ahora)} (${UNIDADES_SANTAMARTA.length} Santa Marta + ${unidadesDeteccion.length} pórticos [${vehiculosPorticos.length} vehículos]) ===`);
+  console.log(`=== Sync tlchile${esBackfill ? ' [BACKFILL]' : ''}: ${fmtTL(start)} → ${fmtTL(ahora)} (${esBackfill ? 0 : UNIDADES_SANTAMARTA.length} Santa Marta + ${unidadesDeteccion.length} pórticos [${vehiculosPorticos.length} vehículos]) ===`);
 
   // Todo lo que sigue depende de `rows` -- si loginYConsultarTravel agota
   // sus reintentos, NO hay nada útil que hacer este ciclo (ni Santa Marta ni
@@ -2015,8 +2039,10 @@ async function main() {
   }
 
   // --- Santa Marta -----------------------------------------------------------
+  // Se salta ENTERO en modo backfill (ver arriba): unitIds ni siquiera pide
+  // sus unidades, y no se toca su checkpoint para no desalinear el sync real.
   const porUnitIdSantaMarta = new Map(UNIDADES_SANTAMARTA.map((u) => [u.unitId, u]));
-  const registrosSantaMarta = rows
+  const registrosSantaMarta = esBackfill ? [] : rows
     .filter((r) => porUnitIdSantaMarta.has(r.unitIdA0))
     .map((r) => {
       const u = porUnitIdSantaMarta.get(r.unitIdA0);
@@ -2050,7 +2076,7 @@ async function main() {
     if (error) throw new Error(`Error al guardar historial Santa Marta: ${error.message}`);
     console.log(`[santamarta] ✅ ${registrosSantaMartaSinDuplicar.length} registros insertados/verificados.`);
   }
-  await guardarCheckpoint(SANTAMARTA_CHECKPOINT_KEY, ahora);
+  if (!esBackfill) await guardarCheckpoint(SANTAMARTA_CHECKPOINT_KEY, ahora);
 
   // --- Pórticos --------------------------------------------------------------
   const porUnitIdPorticos = new Map(unidadesDeteccion.map((u) => [u.unitId, u]));
@@ -2438,6 +2464,11 @@ async function main() {
     }
   }
   if (!totalDetecciones) console.log('[porticos] Sin pasadas nuevas en el rango consultado.');
+  if (esBackfill) {
+    console.log('[backfill] Listo -- se omiten HealthCheck, alias, odómetro diario, AVO y TODOS los checkpoints a propósito (efecto colateral innecesario de una corrida puntual sobre un rango viejo).');
+    console.log(`=== Sync tlchile [BACKFILL] completo ===`);
+    return;
+  }
   await emparejarLecturasManuales(unidadesDeteccion);
   await actualizarOdometroDiario(vehiculosPorticos, puntosPorVehiculo);
   await estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo);

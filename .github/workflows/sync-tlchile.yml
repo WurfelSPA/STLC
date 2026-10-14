@@ -18,7 +18,23 @@ on:
   schedule:
     - cron: '5,35 * * * *'
 
+  # Inputs opcionales de backfill (ver sync-tlchile.js, "Modo backfill") --
+  # solo se usan si se llenan los 3 juntos al disparar manualmente. Una
+  # corrida programada normal los recibe vacíos y sigue igual que siempre.
   workflow_dispatch:
+    inputs:
+      backfill_desde:
+        description: 'Backfill: desde (ISO con offset, ej. 2026-10-07T00:00:00-03:00). Vacío = sync normal.'
+        required: false
+        default: ''
+      backfill_hasta:
+        description: 'Backfill: hasta (ISO con offset)'
+        required: false
+        default: ''
+      backfill_patentes:
+        description: 'Backfill: patentes separadas por coma (ej. VHRX-66,TTXR-82)'
+        required: false
+        default: ''
 
 jobs:
   sync-tlchile:
@@ -71,4 +87,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BACKFILL_DESDE: ${{ github.event.inputs.backfill_desde }}
+          BACKFILL_HASTA: ${{ github.event.inputs.backfill_hasta }}
+          BACKFILL_PATENTES: ${{ github.event.inputs.backfill_patentes }}
         run: node scripts/sync-tlchile.js
