@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: chequeo de calidad del catálogo, SOLO LECTURA -- no toca
+# porticos_catalogo ni ninguna tabla, no afecta la detección en vivo.
+# Compara cada coordenada contra OpenStreetMap y avisa si hay más de 100m de
+# diferencia. Corre una vez por semana para detectar corrimientos de
+# coordenadas (como el de PA19-PA28 corregido el 2026-10-13) sin depender de
+# que un cliente externo lo note primero.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Validar catálogo contra OSM
+
+on:
+  schedule:
+    - cron: '0 13 * * 1' # lunes 10:00 hora Chile aprox. (UTC-3)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-supabasejs-v1
+
+      - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install @supabase/supabase-js
+        timeout-minutes: 5
+
+      - name: Validar catálogo contra OSM
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/validar-catalogo-osm.js
