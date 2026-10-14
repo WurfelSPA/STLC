@@ -1929,6 +1929,45 @@ async function estimarCobroAVO(vehiculosPorticos, puntosPorVehiculo) {
   }
 }
 
+// "Alerta de pórtico desconocido" (2026-10-14, optimización post-piloto AGP):
+// si un vehículo viaja a velocidad de autopista por un tramo largo sin que
+// NINGÚN pórtico del catálogo quede cerca en todo el tramo, es una señal de
+// que puede estar en una autopista tarificada que todavía no tenemos
+// catalogada -- exactamente el tipo de hueco que esta semana solo se
+// descubrió porque AGP lo cruzó a mano (faltaban Ruta del Maipo/Maule/Ruta
+// 78 enteras). Reutiliza los MISMOS puntos GPS que ya pide el loop de
+// detección normal (cero consultas extra a TrackGTS) -- es deliberadamente
+// una heurística gruesa (margen de 3x el radio normal de geocerca, "¿hay
+// ALGO catalogado cerca de este tramo?", no una detección fina) para no
+// generar ruido por cada pequeño hueco de cobertura dentro de un corredor
+// que sí conocemos.
+const UMBRAL_VELOCIDAD_DESCONOCIDO_KMH = 70;
+const DISTANCIA_MIN_TRAMO_DESCONOCIDO_M = 2000;
+const MARGEN_CERCANIA_CATALOGO_M = RADIO_GEOCERCA_M * 3;
+
+function buscarTramosDesconocidos(puntos, patente, dispositivo) {
+  let inicioTramo = null, finTramo = null, distanciaTramo = 0, tieneCercania = false;
+
+  function cerrarTramoSiAplica() {
+    if (inicioTramo && !tieneCercania && distanciaTramo >= DISTANCIA_MIN_TRAMO_DESCONOCIDO_M) {
+      console.log(`[porticos][desconocido] ⚠️ ${patente} (${dispositivo}): tramo de ${Math.round(distanciaTramo / 1000 * 10) / 10}km a velocidad de autopista (${fmtTL(inicioTramo.time)} → ${fmtTL(finTramo.time)}) sin NINGÚN pórtico catalogado cerca -- posible autopista tarificada sin catálogo. Punto de inicio: ${inicioTramo.lat},${inicioTramo.lon}`);
+    }
+    inicioTramo = null; finTramo = null; distanciaTramo = 0; tieneCercania = false;
+  }
+
+  for (let i = 1; i < puntos.length; i++) {
+    const anterior = puntos[i - 1], p = puntos[i];
+    if (p.speed == null || p.speed < UMBRAL_VELOCIDAD_DESCONOCIDO_KMH) { cerrarTramoSiAplica(); continue; }
+    if (!inicioTramo) inicioTramo = anterior;
+    distanciaTramo += haversineMetros(anterior.lat, anterior.lon, p.lat, p.lon);
+    finTramo = p;
+    if (!tieneCercania && PORTICOS.some((portico) => haversineMetros(p.lat, p.lon, portico.lat, portico.lon) <= MARGEN_CERCANIA_CATALOGO_M)) {
+      tieneCercania = true;
+    }
+  }
+  cerrarTramoSiAplica();
+}
+
 async function main() {
   const { TL_USER, TL_PASSWORD, TL_DOMAIN } = process.env;
   if (!TL_USER || !TL_PASSWORD || !TL_DOMAIN) throw new Error('Faltan TL_USER, TL_PASSWORD o TL_DOMAIN');
@@ -2201,6 +2240,7 @@ async function main() {
       .filter((p) => p.lat && p.lon && !isNaN(p.time) && p.hdop !== 0)
       .sort((a, b) => a.time - b.time);
     console.log(`[porticos] ${vehiculo.patente} (${dispositivo}): ${puntos.length} puntos GPS válidos`);
+    buscarTramosDesconocidos(puntos, vehiculo.patente, dispositivo);
 
     // OJO: el lookback de esta consulta tiene que ser al MENOS tan largo como
     // la ventana más larga que se usa más abajo (VENTANA_ESTACIONADO_MS, 20h),
