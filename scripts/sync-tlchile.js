@@ -1270,13 +1270,41 @@ function ventanaAplica(ventanaData, sentido, diaTipo, minutosDia) {
 //
 // `sentido` (2026-09-21, ver ventanaAplica arriba): PO/OP/null, solo se usa
 // cuando el pórtico tiene horario confirmado distinto por dirección.
+// Feriados legales de Chile (2026-10-14) -- API pública gratuita de Boostr,
+// confirmada en vivo: https://api.boostr.cl/holidays/<año>.json devuelve
+// 2026-10-12 "Encuentro de Dos Mundos" tal cual lo necesitamos. Se carga UNA
+// vez por corrida (no por pasada) para todos los años que toca el rango
+// consultado ese día, y se cachea en memoria -- si la API falla, esa
+// corrida sigue sin feriados reconocidos (degradación graciosa, no rompe la
+// detección) y se reintenta sola en la próxima corrida.
+let FERIADOS_CHILE = new Set(); // "YYYY-MM-DD"
+
+async function cargarFeriadosChile(anios) {
+  for (const anio of anios) {
+    try {
+      const res = await fetch(`https://api.boostr.cl/holidays/${anio}.json`);
+      const json = await res.json();
+      if (json.status !== 'success' || !Array.isArray(json.data)) throw new Error(`forma inesperada: ${JSON.stringify(json).slice(0, 200)}`);
+      for (const f of json.data) FERIADOS_CHILE.add(f.date);
+      console.log(`[feriados] ${anio}: ${json.data.length} feriados cargados.`);
+    } catch (err) {
+      console.log(`[feriados] ⚠️ No se pudo cargar feriados de ${anio} (${err.message}) -- ese año queda sin feriados reconocidos hasta la próxima corrida.`);
+    }
+  }
+}
+
 function bandaHeuristica(fecha, porticoCodigo, sentido) {
   const p = partesChile(fecha);
   const dow = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day))).getUTCDay();
   const h = Number(p.hour);
   const min = Number(p.minute);
   const minutosDia = h * 60 + min;
-  const diaTipo = dow === 0 ? 'domingo' : dow === 6 ? 'sabado' : 'habil';
+  // Feriado = tarifa de domingo, sin importar el día de la semana real --
+  // confirmado real 2026-10-14 (correo de AGP): el 12-oct ("Encuentro de Dos
+  // Mundos", lunes) cobró tarifa de domingo y nuestro sistema lo cobró como
+  // hábil normal porque solo miraba el día de la semana. Ver FERIADOS_CHILE.
+  const esFeriado = FERIADOS_CHILE.has(`${p.year}-${p.month}-${p.day}`);
+  const diaTipo = esFeriado || dow === 0 ? 'domingo' : dow === 6 ? 'sabado' : 'habil';
 
   const ventanasTS = porticoCodigo ? VENTANAS_SATURACION_PORTICO[porticoCodigo] : null;
   if (ventanaAplica(ventanasTS, sentido, diaTipo, minutosDia)) return 'TS';
@@ -2137,6 +2165,10 @@ async function main() {
   ].join(',');
 
   console.log(`=== Sync tlchile${esBackfill ? ' [BACKFILL]' : ''}: ${fmtTL(start)} → ${fmtTL(ahora)} (${esBackfill ? 0 : UNIDADES_SANTAMARTA.length} Santa Marta + ${unidadesDeteccion.length} pórticos [${vehiculosPorticos.length} vehículos]) ===`);
+
+  const aniosEnRango = new Set();
+  for (let a = start.getUTCFullYear(); a <= ahora.getUTCFullYear(); a++) aniosEnRango.add(a);
+  await cargarFeriadosChile([...aniosEnRango]);
 
   // Todo lo que sigue depende de `rows` -- si loginYConsultarTravel agota
   // sus reintentos, NO hay nada útil que hacer este ciclo (ni Santa Marta ni
