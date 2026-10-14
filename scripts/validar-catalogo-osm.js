@@ -78,7 +78,7 @@ async function nodosTollEnBbox(minLat, minLon, maxLat, maxLon) {
       node["barrier"="toll_booth"](${minLat},${minLon},${maxLat},${maxLon});
       node["highway"="toll_gantry"](${minLat},${minLon},${maxLat},${maxLon});
     );
-    out tags;
+    out;
   `;
   const json = await consultarOverpass(query);
   return (json.elements || []).map((el) => ({ lat: el.lat, lon: el.lon, name: el.tags?.name || null }));
@@ -123,8 +123,14 @@ async function main() {
       }
       let masCercano = null, distMin = Infinity;
       for (const n of nodosOsm) {
+        if (n.lat == null || n.lon == null) continue; // defensivo: nodo sin geometría utilizable
         const d = haversineMetros(p.lat, p.lon, n.lat, n.lon);
         if (d < distMin) { distMin = d; masCercano = n; }
+      }
+      if (!masCercano) {
+        resumen.sinDatos.push(`${p.codigo} (${concesionaria})`);
+        console.log(`  SIN_DATOS_OSM  ${p.codigo} — ${p.tramo} (ningún nodo con coordenadas utilizables)`);
+        continue;
       }
       if (distMin > UMBRAL_ALERTA_M) {
         resumen.revisar.push(`${p.codigo} (${concesionaria}): ${Math.round(distMin)}m del nodo OSM más cercano${masCercano.name ? ` ("${masCercano.name}")` : ' (sin nombre)'}`);
