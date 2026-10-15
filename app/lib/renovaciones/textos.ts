@@ -71,6 +71,18 @@ export function mensajeVencimiento(c: Caso, cfg: ConfigBot): string {
     MENU_OPCIONES;
 }
 
+// Variables de cada plantilla de Meta (Meta exige exactamente las que usa el
+// texto aprobado; ver el documento de textos para Tracklink):
+//   aviso inicial  -> {{1}} nombre, {{2}} marca, {{3}} patentes, {{4}} fecha de vencimiento
+//   recordatorio   -> {{1}} nombre, {{2}} marca, {{3}} patentes, {{4}} días que faltan
+//   vencimiento    -> {{1}} nombre, {{2}} marca, {{3}} patentes
+export function paramsPlantilla(c: Caso, cfg: ConfigBot, tipo: "inicial" | "recordatorio" | "vencimiento", dias: number): string[] {
+  const base = [nombreCorto(c), marca(c, cfg), patentes(c)];
+  if (tipo === "inicial") return [...base, fechaLarga(c.fecha_vencimiento)];
+  if (tipo === "recordatorio") return [...base, String(dias)];
+  return base;
+}
+
 // Servicio suspendido: se ofrece renovar (no se confirma ni se diagnostica la
 // suspensión: el bot no conoce el estado técnico del equipo).
 export function textoSuspendido(c: Caso, cfg: ConfigBot, hoy: string): string {

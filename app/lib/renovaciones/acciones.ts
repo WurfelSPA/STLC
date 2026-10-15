@@ -179,7 +179,7 @@ export async function ejecutarCampanaAction(fecha?: string): Promise<ResumenCamp
 
 export type EstadoPiloto = {
   whatsappConfigurado: boolean;
-  plantillas: Record<Hito, boolean>;
+  plantillas: Record<"inicial" | "recordatorio" | "vencimiento", boolean>;
   webhook: { creado_en: string; resultado: string; telefono: string | null; detalle: string | null }[];
   modo: "simulacion" | "produccion";
   contactos: ContactoPiloto[];
@@ -197,7 +197,11 @@ export async function estadoPilotoAction(): Promise<EstadoPiloto> {
   const hoy = hoyChile();
   return {
     whatsappConfigurado: !!(process.env.WHATSAPP_TOKEN && (process.env.WHATSAPP_PHONE_ID || process.env.WHATSAPP_PHONE_ID_TRACKLINK)),
-    plantillas: Object.fromEntries(HITO_IDS.map(h => [h, !!process.env[`WHATSAPP_TEMPLATE_${h}`]])) as Record<Hito, boolean>,
+    plantillas: {
+      inicial: !!process.env.WHATSAPP_TEMPLATE_INICIAL,
+      recordatorio: !!process.env.WHATSAPP_TEMPLATE_RECORDATORIO,
+      vencimiento: !!process.env.WHATSAPP_TEMPLATE_VENCIMIENTO,
+    },
     webhook: (logs ?? []) as EstadoPiloto["webhook"],
     modo: modoSimulacion() ? "simulacion" : "produccion",
     contactos,

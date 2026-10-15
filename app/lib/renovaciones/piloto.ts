@@ -3,8 +3,7 @@ import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Caso, Hito } from "./tipos";
 import { DIAS_PRIMER_CONTACTO, HITOS } from "./tipos";
 import { actualizarCaso, cargarConfig, cargarPiloto, obtenerCaso, registrarMensaje } from "./datos";
-import { fechaLarga, nombreCorto, patentes } from "./formato";
-import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento } from "./textos";
+import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento, paramsPlantilla } from "./textos";
 import { enviarProactivo } from "./canal";
 
 // Piloto WhatsApp: un caso de PRUEBA por cada persona del equipo en
@@ -57,11 +56,11 @@ export async function enviarAvisoPiloto(casoId: string, hito: Hito, usuarioPanel
   const cfg = await cargarConfig();
   const dias = HITOS.find(h => h.hito === hito)!.dias;
   const hoyFicticio = sumarDias(caso.fecha_vencimiento, -dias);
-  const texto = hito === "D0" ? mensajeVencimiento(caso, cfg)
-    : hito === HITOS[0].hito ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoyFicticio);
-  const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(dias)];
+  const tipo = hito === "D0" ? "vencimiento" : hito === HITOS[0].hito ? "inicial" : "recordatorio";
+  const texto = tipo === "vencimiento" ? mensajeVencimiento(caso, cfg)
+    : tipo === "inicial" ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoyFicticio);
   await registrarMensaje({ caso_id: caso.id, direccion: "nota", canal: "panel", tipo: "evento", texto: `${usuarioPanel} envió el aviso ${hito} (piloto)` });
-  await enviarProactivo(caso, hito, texto, params);
+  await enviarProactivo(caso, hito, tipo, texto, paramsPlantilla(caso, cfg, tipo, dias));
   await actualizarCaso(caso.id, {
     hitos_enviados: [...new Set([...caso.hitos_enviados, hito])],
     estado: caso.estado === "PENDIENTE" ? "CONTACTADO" : caso.estado,
@@ -76,9 +75,8 @@ export async function responderPrimerContacto(caso: Caso): Promise<boolean> {
   if (!caso.piloto || caso.hitos_enviados.length > 0) return false;
   const cfg = await cargarConfig();
   const primero = HITOS[0];
-  const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(primero.dias)];
   const actualizado = { ...caso, ultima_interaccion: new Date().toISOString() };
-  await enviarProactivo(actualizado, primero.hito, mensajeInicial(caso, cfg), params);
+  await enviarProactivo(actualizado, primero.hito, "inicial", mensajeInicial(caso, cfg), paramsPlantilla(caso, cfg, "inicial", primero.dias));
   await actualizarCaso(caso.id, { hitos_enviados: [primero.hito], estado: "CONTACTADO", paso: "MENU", ultima_interaccion: actualizado.ultima_interaccion });
   return true;
 }

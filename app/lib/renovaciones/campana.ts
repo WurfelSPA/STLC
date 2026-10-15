@@ -3,8 +3,8 @@ import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import type { Caso, Hito, Linea, Vehiculo } from "./tipos";
 import { DIAS_PRIMER_CONTACTO, ESTADOS_CERRADOS, HITOS, HITO_IDS } from "./tipos";
 import { actualizarCaso, cargarConfig, cargarGeneral, cargarSegmentos, registrarMensaje } from "./datos";
-import { diasEntre, esRutEmpresa, fechaLarga, nombreCorto, normalizarTelefono, patentes } from "./formato";
-import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento } from "./textos";
+import { diasEntre, esRutEmpresa, normalizarTelefono } from "./formato";
+import { mensajeInicial, mensajeRecordatorio, mensajeVencimiento, paramsPlantilla } from "./textos";
 import { enviarProactivo } from "./canal";
 
 // Corrida diaria (sección 3 + 5 del spec):
@@ -219,10 +219,10 @@ export async function ejecutarCampana(hoy: string, simulacion: boolean): Promise
     }
 
     const primerContacto = caso.hitos_enviados.length === 0;
-    const texto = pendiente.hito === "D0" ? mensajeVencimiento(caso, cfg)
-      : primerContacto ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoy);
-    const params = [nombreCorto(caso), cfg.lineas[caso.linea]?.nombre ?? caso.linea, patentes(caso), fechaLarga(caso.fecha_vencimiento), String(dias)];
-    await enviarProactivo(caso, pendiente.hito, texto, params);
+    const tipo = pendiente.hito === "D0" ? "vencimiento" : primerContacto ? "inicial" : "recordatorio";
+    const texto = tipo === "vencimiento" ? mensajeVencimiento(caso, cfg)
+      : tipo === "inicial" ? mensajeInicial(caso, cfg) : mensajeRecordatorio(caso, cfg, hoy);
+    await enviarProactivo(caso, pendiente.hito, tipo, texto, paramsPlantilla(caso, cfg, tipo, dias));
     await actualizarCaso(caso.id, {
       hitos_enviados: [...new Set([...caso.hitos_enviados, ...alcanzados.map(h => h.hito)])],
       estado: caso.estado === "PENDIENTE" ? "CONTACTADO" : caso.estado,

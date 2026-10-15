@@ -380,7 +380,7 @@ function Piloto() {
   };
 
   if (!estado) return <div className="text-center py-10 text-gray-500">{error || "Cargando..."}</div>;
-  const sinPlantillas = HITOS_PILOTO.filter(h => !estado.plantillas[h]);
+  const sinPlantillas = (["inicial", "recordatorio", "vencimiento"] as const).filter(t => !estado.plantillas[t]);
 
   return (
     <div className="space-y-3">
@@ -549,7 +549,7 @@ function Config({ panel }: { panel: Panel }) {
         <ul className="list-disc ml-4 space-y-0.5">
           <li>Precios para planes especiales (COORP MENSUALIZADO, SANTANDER CONSUMER, concesionarios, REFERIDO, FLOTAS) — hoy el bot los deriva a ejecutivo.</li>
           <li>Datos de transferencia para Autobahn (hoy solo link de pago).</li>
-          <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de plantillas {HITO_IDS.join("/")}.</li>
+          <li>Cuenta WhatsApp Business (Meta): número(s), verificación de empresa y aprobación de las 3 plantillas (aviso inicial, recordatorio, vencimiento).</li>
         </ul>
       </div>
     </div>

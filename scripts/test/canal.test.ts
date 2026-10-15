@@ -8,7 +8,7 @@ import type { Caso } from "@/app/lib/renovaciones/tipos";
 
 process.env.WHATSAPP_TOKEN = "t";
 process.env.WHATSAPP_PHONE_ID = "123";
-delete process.env.WHATSAPP_TEMPLATE_D20;
+delete process.env.WHATSAPP_TEMPLATE_RECORDATORIO;
 db["renov_config"] = [{ clave: "piloto", valor: { telefonos: [{ nombre: "Alex", telefono: "56951120146", linea: "TRACKLINK", vehiculos: 1 }] } }];
 db["renov_mensajes"] = [];
 
@@ -37,11 +37,11 @@ const ultimoMeta = () => (db["renov_mensajes"].at(-1)!.meta as Record<string, un
   await enviarRespuesta(caso({ simulacion: true }), "hola");
   assert.equal(enviados.length, 1, "simulación: nunca se envía");
 
-  await enviarProactivo(caso({}), "D20", "recordatorio", []);
+  await enviarProactivo(caso({}), "D20", "recordatorio", "recordatorio", []);
   assert.equal(enviados.length, 1, "sin plantilla y sin ventana de 24 h: NO se envía");
   assert.match(String(ultimoMeta().no_enviado), /24 h/);
 
-  await enviarProactivo(caso({ ultima_interaccion: new Date().toISOString() }), "D20", "recordatorio", []);
+  await enviarProactivo(caso({ ultima_interaccion: new Date().toISOString() }), "D20", "recordatorio", "recordatorio", []);
   assert.equal(enviados.length, 2, "dentro de la ventana de 24 h: se envía como texto");
 
   process.env.RENOV_BOT_MODO = "produccion";

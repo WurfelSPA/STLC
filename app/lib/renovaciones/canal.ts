@@ -14,7 +14,8 @@ import { cargarPiloto, modoSimulacion, registrarMensaje } from "./datos";
 //   WHATSAPP_TOKEN            token (permanente) del System User de Meta
 //   WHATSAPP_PHONE_ID_<LINEA> phone_number_id por marca (TRACKLINK/AUTOBAHN/TRACKCITY);
 //                             si falta, usa WHATSAPP_PHONE_ID
-//   WHATSAPP_TEMPLATE_<HITO>  plantilla aprobada por hito (D60/D30/D20/D10/D5/D0)
+//   WHATSAPP_TEMPLATE_INICIAL / _RECORDATORIO / _VENCIMIENTO
+//                             nombre de cada plantilla aprobada en Meta
 //
 // Regla de Meta: un mensaje que INICIA la conversación (o que llega >24h
 // después del último mensaje del cliente) debe ser una plantilla aprobada.
@@ -84,14 +85,17 @@ export async function enviarRespuesta(caso: Caso, texto: string, tipo = "respues
   await enviarYRegistrar(caso, tipo, texto, () => ({ type: "text", text: { body: texto, preview_url: true } }));
 }
 
-// Mensaje proactivo (primer contacto / recordatorios). Con plantilla aprobada
-// va como plantilla; Meta no acepta saltos de línea en los parámetros, así
-// que se mandan sueltos: {{1}} nombre, {{2}} marca, {{3}} patentes,
-// {{4}} fecha de vencimiento, {{5}} días restantes. Sin plantilla, solo se
-// puede mandar como texto si el cliente escribió en las últimas 24 h
-// (ventana de servicio) — útil en el piloto, antes de aprobar plantillas.
-export async function enviarProactivo(caso: Caso, hito: string, texto: string, params: string[]) {
-  const plantilla = process.env[`WHATSAPP_TEMPLATE_${hito}`];
+export type TipoPlantilla = "inicial" | "recordatorio" | "vencimiento";
+
+// Mensaje proactivo (aviso inicial / recordatorio / vencimiento). Con
+// plantilla aprobada va como plantilla: la del TIPO de mensaje, no la del
+// hito (un cliente que entra tarde a la campaña recibe igual el aviso
+// inicial). Meta no acepta saltos de línea en los parámetros: van sueltos
+// (ver paramsPlantilla en textos.ts). Sin plantilla, solo se puede mandar
+// como texto si el cliente escribió en las últimas 24 h (ventana de
+// servicio) — útil en el piloto, antes de aprobar plantillas.
+export async function enviarProactivo(caso: Caso, hito: string, tipo: TipoPlantilla, texto: string, params: string[]) {
+  const plantilla = process.env[`WHATSAPP_TEMPLATE_${tipo.toUpperCase()}`];
   await enviarYRegistrar(caso, hito, texto, () => {
     if (plantilla) {
       return {
