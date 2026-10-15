@@ -66,7 +66,10 @@ export function mensajeRecordatorio(c: Caso, cfg: ConfigBot, hoy: string): strin
 
 // Día del vencimiento.
 export function mensajeVencimiento(c: Caso, cfg: ConfigBot): string {
-  return `${saludo(c)}\nTe informo que tu servicio ${marca(c, cfg)} venció hoy.\n` +
+  const sujeto = c.cantidad_vehiculos === 1
+    ? `tu servicio ${marca(c, cfg)} de la patente ${c.vehiculos[0]?.placa}`
+    : `el servicio ${marca(c, cfg)} de tus ${c.cantidad_vehiculos} vehículos (${patentes(c)})`;
+  return `${saludo(c)}\nTe informo que ${sujeto} venció hoy.\n` +
     `Para mantener la continuidad y que estés siempre seguro, te recomiendo renovar durante el día de hoy.\n\n` +
     MENU_OPCIONES;
 }
