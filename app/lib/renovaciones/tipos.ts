@@ -117,6 +117,7 @@ export type ConfigBot = {
   lineas: Record<Linea, ConfigLinea>;
   precios: Record<Linea, Precio[]>;
   callCenter: string | null;
+  horarioEjecutiva: string | null;   // "de lunes a viernes, de 09:00 a 18:00 hrs"
 };
 
 export type Prioridad = "ALTA" | "MEDIA" | "BAJA";

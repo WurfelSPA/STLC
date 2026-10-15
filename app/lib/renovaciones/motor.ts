@@ -75,7 +75,7 @@ const SIN_MENU = [
   ["renov", "pagar", "continuar"],
   ["consulta", "pregunta", "duda"],
   ["ejecutivo", "persona", "humano", "asesor", "hablar"],
-  ["ya no tengo", "no tengo", "vendi", "cambie", "traspas"],
+  ["ya no tengo", "no tengo", "vendi", "cambie", "traspas", "traslad"],
 ];
 const SIN_EJECUTIVO = [
   ["precio", "descuento"], ["cotiz", "orden de compra", " oc"], ["tecnico", "falla", "problema"],
@@ -127,8 +127,15 @@ function derivar(ctx: Ctx, motivo: string, opts: { estado?: Estado; mensaje?: st
   ctx.r.patch.motivo = motivo;
   ctxSet(ctx, opts.origen ? { derivado: true, origen: opts.origen } : { derivado: true });
   ir(ctx, "FIN", opts.estado ?? "REQUIERE_EJECUTIVO");
-  if (opts.mensaje !== null) decir(ctx, opts.mensaje ?? T.deriva);
+  if (opts.mensaje !== null) decir(ctx, conHorario(ctx, opts.mensaje ?? T.deriva));
   ctx.r.notas.push(`Derivado a ejecutivo: ${motivo}`);
+}
+
+// Tracky atiende 24/7, pero la ejecutiva contacta en horario hábil: se avisa
+// en cada derivación (pedido de Tracklink 2026-10-15).
+function conHorario(ctx: Ctx, texto: string): string {
+  const h = ctx.cfg.horarioEjecutiva;
+  return h ? `${texto}\n\n🕘 Nuestras ejecutivas atienden ${h}; te contactaremos dentro de ese horario.` : texto;
 }
 
 function mostrarMenu(ctx: Ctx, prefijo?: string) {
@@ -207,7 +214,7 @@ async function esperarPago(ctx: Ctx) {
     ctx.r.patch.atendido = false;
     ctx.r.patch.motivo = "Validar pago de renovación";
     ctxSet(ctx, { pago_avisado: true });
-    decir(ctx, T.pagoRecibido);
+    decir(ctx, conHorario(ctx, T.pagoRecibido));
     ir(ctx, "FIN", "PAGO_POR_VALIDAR");
     ctx.r.notas.push(ctx.conAdjunto ? "Cliente envió comprobante (adjunto)" : "Cliente avisa que pagó");
     return;
@@ -297,8 +304,10 @@ function iniciarSinVehiculo(ctx: Ctx) {
   if (ctx.caso.cantidad_vehiculos > 1) {
     return derivar(ctx, "Flota: cliente indica que ya no tiene uno de los vehículos");
   }
-  decir(ctx, T.queOcurrio);
-  ir(ctx, "D_QUE_PASO", "EN_CONVERSACION");
+  // Opción 4 "Vendí o cambié mi vehículo": sí -> pedir el nuevo vehículo
+  // (oportunidad de traslado); no -> "No renueva – vehículo vendido".
+  decir(ctx, T.trasladoPregunta);
+  ir(ctx, "D1_OTRO_VEHICULO", "EN_CONVERSACION");
 }
 
 function noRenueva(ctx: Ctx, motivo: string, mensaje: string, alertarEjecutivo = false) {
@@ -309,7 +318,7 @@ function noRenueva(ctx: Ctx, motivo: string, mensaje: string, alertarEjecutivo =
     ctx.r.patch.atendido = false;
     ctxSet(ctx, { derivado: true, origen: "retencion" });
   }
-  decir(ctx, mensaje);
+  decir(ctx, alertarEjecutivo ? conHorario(ctx, mensaje) : mensaje);
   ir(ctx, "FIN", "NO_RENUEVA");
   ctx.r.notas.push(`No renueva: ${motivo}`);
 }
@@ -363,7 +372,12 @@ export async function procesarEntrada(
   switch (caso.paso) {
     case "MENU": {
       // "Quiero traspasar mi GPS" ya dice qué pasó: directo a pedir el nuevo vehículo.
-      if (/traspas/.test(t) && caso.cantidad_vehiculos === 1) {
+      // "No quiero renovar" contiene "renovar": la negación se lee antes que las opciones.
+      if (/\bno (quiero|deseo|voy a|vamos a) renovar|no me interesa|\bcancelar\b/.test(t)) {
+        await responderConsulta(ctx, "no_quiere_renovar");
+        break;
+      }
+      if (/traspas|traslad/.test(t) && caso.cantidad_vehiculos === 1) {
         ctxSet(ctx, { via: "traspaso" });
         decir(ctx, T.cambioVehiculo);
         ir(ctx, "D_NUEVA_PATENTE");
@@ -430,7 +444,7 @@ export async function procesarEntrada(
 
     case "D_QUE_PASO": {
       const n = opcion(ctx.texto, SIN_QUE_PASO);
-      if (n === 1) { decir(ctx, T.otroVehiculo); ir(ctx, "D1_OTRO_VEHICULO"); break; }
+      if (n === 1) { decir(ctx, T.trasladoPregunta); ir(ctx, "D1_OTRO_VEHICULO"); break; }
       if (n === 2) { ctxSet(ctx, { via: "cambio" }); decir(ctx, T.cambioVehiculo); ir(ctx, "D_NUEVA_PATENTE"); break; }
       if (n === 3) { decir(ctx, T.motivoNoUso); ir(ctx, "D3_MOTIVO"); break; }
       if (n === 4) { decir(ctx, T.cuentaMotivo); ir(ctx, "D4_TEXTO"); break; }
@@ -441,7 +455,7 @@ export async function procesarEntrada(
       const r = siNo(ctx.texto);
       if (r === true) { ctxSet(ctx, { via: "venta" }); decir(ctx, T.pideNuevaPatente); ir(ctx, "D_NUEVA_PATENTE"); break; }
       if (r === false) { noRenueva(ctx, "Vehículo vendido", T.vendidoSinOtro); break; }
-      noEntendi(ctx, T.otroVehiculo);
+      noEntendi(ctx, T.trasladoPregunta);
       break;
     }
     case "D_NUEVA_PATENTE":
@@ -472,7 +486,7 @@ export async function procesarEntrada(
       // si no, recordamos que un ejecutivo lo contactará.
       const { intencion } = await clasificar(ctx.texto);
       if (caso.estado === "PAGO_POR_VALIDAR" || intencion === "no_reconocida") {
-        decir(ctx, caso.estado === "RENOVADO" ? T.finAmable : T.yaDerivado);
+        decir(ctx, caso.estado === "RENOVADO" ? T.finAmable : conHorario(ctx, T.yaDerivado));
         break;
       }
       await responderConsulta(ctx, intencion);
@@ -496,7 +510,7 @@ function textoPaso(ctx: Ctx, paso: Paso): string {
     case "C_MOTIVO": return T.ejecutivoMotivo;
     case "C_OTRO": return T.ejecutivoOtro;
     case "D_QUE_PASO": return T.queOcurrio;
-    case "D1_OTRO_VEHICULO": return T.otroVehiculo;
+    case "D1_OTRO_VEHICULO": return T.trasladoPregunta;
     case "D_NUEVA_PATENTE": return T.pideNuevaPatente;
     case "D3_MOTIVO": return T.motivoNoUso;
     case "D3_OTRO":

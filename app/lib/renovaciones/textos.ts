@@ -10,7 +10,7 @@ export const MENU_OPCIONES =
   "1. Renovar mi servicio\n" +
   "2. Tengo una consulta\n" +
   "3. Hablar con un ejecutivo\n" +
-  "4. Ya no tengo este vehículo / quiero traspasar mi sistema de seguridad y conectividad GPS\n" +
+  "4. Vendí o cambié mi vehículo\n" +
   "5. Salir";
 
 // Navegación que se agrega al final de cada respuesta (motor.ts decide cuál).
@@ -31,7 +31,7 @@ function marca(c: Caso, cfg: ConfigBot) {
 
 // Recordatorios: saludo corto (la presentación completa va en el primer mensaje).
 function saludo(c: Caso) {
-  return `Hola ${nombreCorto(c)}, soy ${NOMBRE_BOT}, tu asistente virtual de renovaciones.`;
+  return `¡Hola, ${nombreCorto(c)}! Soy ${NOMBRE_BOT}, tu asistente virtual de renovaciones.`;
 }
 
 function descripcionVehiculos(c: Caso, cfg: ConfigBot): string {
@@ -47,7 +47,7 @@ function descripcionVehiculos(c: Caso, cfg: ConfigBot): string {
 
 // Primer mensaje (texto definido por Tracklink, correo F. López 2026-10-08).
 export function mensajeInicial(c: Caso, cfg: ConfigBot): string {
-  return `¡Hola ${nombreCorto(c)}! Soy ${NOMBRE_BOT}, tu nueva asistente virtual de renovaciones. ` +
+  return `¡Hola, ${nombreCorto(c)}! Soy ${NOMBRE_BOT}, tu nueva asistente virtual de renovaciones. ` +
     `Estoy aquí para que renovar tu conectividad sea más fácil, resolver tus dudas y conectarte con una ejecutiva cuando lo necesites.\n\n` +
     `Te quiero informar que ${descripcionVehiculos(c, cfg)} y quiero ayudarte a mantener tu servicio activo sin interrupciones 💙\n\n` +
     MENU_OPCIONES;
@@ -144,7 +144,8 @@ export const T = {
   ejecutivoOtro: "Cuéntame brevemente el motivo y se lo paso al ejecutivo.",
   queOcurrio:
     "¿Qué ocurrió con el vehículo?\n1. Lo vendí\n2. Lo cambié por otro vehículo / quiero traspasar el GPS a otro vehículo\n3. Ya no utilizo el servicio\n4. Otro motivo",
-  otroVehiculo: "Entiendo. ¿Tienes actualmente otro vehículo donde quieras mantener tu servicio? (Sí / No)",
+  // Opción 4 (texto de Tracklink 2026-10-15).
+  trasladoPregunta: "¿Quieres trasladar tu GPS a otro vehículo? (Sí / No)",
   pideNuevaPatente: "¡Genial! Indícame la patente del nuevo vehículo (y marca/modelo si la tienes a mano).",
   cambioVehiculo:
     "Perfecto, podemos revisar la posibilidad de mantener tu servicio en el nuevo vehículo. " +

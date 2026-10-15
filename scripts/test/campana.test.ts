@@ -70,7 +70,7 @@ const salientes = (u: string) => (db["renov_mensajes"] ?? []).filter(m => m.caso
   assert.equal(r.envios.D20, 1, "W&L vence en 16 días: su primer contacto cae en el hito D20");
   assert.equal(r.sinTelefono, 1);
   assert.equal(caso("sintel").requiere_ejecutivo, true);
-  assert.match(String(salientes("persona1")[0].texto), /^¡Hola Cliente Prueba! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
+  assert.match(String(salientes("persona1")[0].texto), /^¡Hola, Cliente! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
   assert.match(String(salientes("persona1")[0].texto), /el servicio Tracklink asociado a la patente AAAA-11/);
   assert.match(String(salientes("auto1")[0].texto), /el servicio AUTOBAHN asociado/);
   console.log("✔ Día 30: casos creados, flota consolidada, exclusiones, primer contacto");

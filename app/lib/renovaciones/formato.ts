@@ -55,9 +55,15 @@ export function sinAcentos(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-export function nombreCorto(c: Pick<Caso, "nombre" | "usuario">): string {
+// Cómo saluda Tracky: a las personas por su primer nombre ("¡Hola, Francisca!",
+// pedido de Tracklink 2026-10-15); a las empresas por su nombre completo. Los
+// nombres vienen de TrackGTS en mayúsculas o minúsculas: se capitalizan.
+export function nombreCorto(c: Pick<Caso, "nombre" | "usuario"> & { tipo_cliente?: string }): string {
   const n = (c.nombre ?? "").trim();
-  return n || c.usuario;
+  if (!n) return c.usuario;
+  if (c.tipo_cliente === "empresa") return n;
+  const primero = n.split(/\s+/)[0];
+  return primero.charAt(0).toLocaleUpperCase("es-CL") + primero.slice(1).toLocaleLowerCase("es-CL");
 }
 
 export function patentes(c: Pick<Caso, "vehiculos">): string {

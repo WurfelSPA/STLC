@@ -19,6 +19,7 @@ const cfg: ConfigBot = {
     TRACKCITY: [],
   },
   callCenter: null,
+  horarioEjecutiva: null,
 };
 
 const clasificar: Clasificador = async t => ({ intencion: clasificarPorReglas(t) ?? "no_reconocida", fuente: "reglas" });
@@ -117,17 +118,28 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
   });
 
   await prueba("D3: cualquier motivo de no renovación pasa a ejecutiva con prioridad alta", async () => {
-    const { caso } = await conversar(nuevoCaso(), ["4", "3", "5"]);
+    const { caso, log } = await conversar(nuevoCaso(), ["no quiero renovar", "5"]);
     assert.equal(caso.estado, "NO_RENUEVA");
     assert.equal(caso.motivo, "Contrató otro proveedor");
+    assert.ok(log.some(l => l.includes("Una ejecutiva revisará tu caso")));
     assert.equal(caso.requiere_ejecutivo, true);
     assert.equal(calcularPrioridad(caso, "2026-09-01"), "ALTA");
   });
 
   await prueba("Mensaje inicial con el texto de Tracklink y la marca del cliente", async () => {
     const t = mensajeInicial(nuevoCaso({ linea: "AUTOBAHN" }), cfg);
-    assert.match(t, /^¡Hola Francisca López! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
+    assert.match(t, /^¡Hola, Francisca! Soy Tracky, tu nueva asistente virtual de renovaciones\./);
     assert.match(t, /el servicio Autobahn asociado a la patente RPLB-98 vence el 10 de octubre/);
+    assert.match(t, /4\. Vendí o cambié mi vehículo/);
+    // Empresas: nombre completo; personas en mayúsculas: primer nombre capitalizado.
+    assert.match(mensajeInicial(nuevoCaso({ nombre: "SITELECOM SPA", tipo_cliente: "empresa" }), cfg), /^¡Hola, SITELECOM SPA!/);
+    assert.match(mensajeInicial(nuevoCaso({ nombre: "JOSE ACUÑA" }), cfg), /^¡Hola, Jose!/);
+  });
+
+  await prueba("Derivación avisa el horario de la ejecutiva", async () => {
+    const conH = { ...cfg, horarioEjecutiva: "de lunes a viernes, de 09:00 a 18:00 hrs" };
+    const r = await procesarEntrada(nuevoCaso({ paso: "C_MOTIVO" }), "2", conH, clasificar);
+    assert.ok(r.respuestas.at(-1)!.includes("Nuestras ejecutivas atienden de lunes a viernes, de 09:00 a 18:00 hrs"));
   });
 
   await prueba("B: consulta no reconocida deriva con el mensaje del spec", async () => {
@@ -142,14 +154,15 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
     assert.equal(caso.contexto.origen, "C");
   });
 
-  await prueba("D1: vendí, sin otro vehículo -> NO_RENUEVA vehículo vendido", async () => {
-    const { caso } = await conversar(nuevoCaso(), ["4", "1", "no"]);
+  await prueba("D: 4 -> ¿trasladar el GPS? no -> NO_RENUEVA vehículo vendido", async () => {
+    const { caso, log } = await conversar(nuevoCaso(), ["4", "no"]);
+    assert.ok(log.some(l => l.includes("¿Quieres trasladar tu GPS a otro vehículo?")));
     assert.equal(caso.estado, "NO_RENUEVA");
     assert.equal(caso.motivo, "Vehículo vendido");
   });
 
-  await prueba("D1: vendí, sí tengo otro -> CAMBIO_VEHICULO oportunidad", async () => {
-    const { caso } = await conversar(nuevoCaso(), ["4", "lo vendí", "sí", "KXPT-21 Toyota RAV4"]);
+  await prueba("D: 'vendí mi auto' -> ¿trasladar? sí -> patente -> oportunidad de traslado", async () => {
+    const { caso } = await conversar(nuevoCaso(), ["vendí mi auto", "sí", "KXPT-21 Toyota RAV4"]);
     assert.equal(caso.estado, "CAMBIO_VEHICULO");
     assert.match(String(caso.motivo), /KXPT-21/);
   });
@@ -161,7 +174,7 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
   });
 
   await prueba("D3: ya no uso, motivo precio -> NO_RENUEVA + alerta ejecutivo", async () => {
-    const { caso } = await conversar(nuevoCaso(), ["4", "3", "1"]);
+    const { caso } = await conversar(nuevoCaso(), ["no quiero renovar", "1"]);
     assert.equal(caso.estado, "NO_RENUEVA");
     assert.equal(caso.requiere_ejecutivo, true);
   });
@@ -184,10 +197,10 @@ async function prueba(nombre: string, fn: () => Promise<void>) {
   });
 
   await prueba("Navegación: 0 vuelve paso a paso hasta el menú principal", async () => {
-    // menú -> 4 (qué ocurrió) -> 3 (motivo no uso) -> 0 -> 0
-    const { caso, log } = await conversar(nuevoCaso(), ["4", "3", "0"]);
-    assert.equal(caso.paso, "D_QUE_PASO");
-    assert.ok(log.at(-1)!.includes("¿Qué ocurrió con el vehículo?"));
+    // menú -> 4 (¿trasladar?) -> sí (pide patente) -> 0 -> 0
+    const { caso, log } = await conversar(nuevoCaso(), ["4", "sí", "0"]);
+    assert.equal(caso.paso, "D1_OTRO_VEHICULO");
+    assert.ok(log.at(-1)!.includes("¿Quieres trasladar tu GPS"));
     const { caso: c2 } = await conversar(caso, ["0"]);
     assert.equal(c2.paso, "MENU");
   });

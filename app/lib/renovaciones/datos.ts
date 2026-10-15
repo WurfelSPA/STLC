@@ -19,8 +19,8 @@ export async function cargarConfig(): Promise<ConfigBot> {
     lineas[l] = (row?.valor as ConfigLinea) ?? { nombre: l, link_pago: null, transferencia: null };
     precios[l] = (precioRows ?? []).filter(p => p.linea === l).map(p => ({ meses: p.meses, precio: p.precio }));
   }
-  const general = (cfgRows?.find(r => r.clave === "general")?.valor ?? {}) as { call_center?: string | null };
-  return { lineas, precios, callCenter: general.call_center ?? null };
+  const general = (cfgRows?.find(r => r.clave === "general")?.valor ?? {}) as { call_center?: string | null; horario_ejecutiva?: string | null };
+  return { lineas, precios, callCenter: general.call_center ?? null, horarioEjecutiva: general.horario_ejecutiva ?? null };
 }
 
 export async function cargarGeneral(): Promise<{ usuarios_excluidos: string[] }> {
