@@ -416,11 +416,35 @@ const PORTICOS_FALLBACK = [
   // de sobretarifa punta.
   { codigo: 'RT78T1', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Américo Vespucio (Troncal T1)', lat: -33.4848, lon: -70.7410 },
   { codigo: 'RT78T2', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Rinconada (Troncal T2)',        lat: -33.4956, lon: -70.7772 },
+  // RDM-ANG: AGP reporta el MISMO código con montos distintos según el
+  // tránsito ($3800 en casi todos los casos reales vistos, pero $1000 en uno
+  // -- 09-oct-2026, VHRX-66). Ruta del Maipo parece ser un sistema de cobro
+  // abierto (como AVO, ver estimarCobroAVO) donde el monto depende del
+  // tramo real recorrido, no un flat fijo -- sin datos de entrada/salida no
+  // se puede reproducir esa fórmula, así que se deja el valor modal ($3800,
+  // la gran mayoría de los casos reales) como estimado, documentado como
+  // limitación conocida en vez de adivinar una fórmula.
   { codigo: 'RDM-ANG',    concesionaria: 'Ruta del Maipo', tramo: 'Nueva Angostura (km 54)', lat: -33.9076, lon: -70.7312 },
+  // RDM-MAIPO = código interno de AGP "RDM-TRM" (confirmado 2026-10-16: GPS
+  // real de VHRX-66 en el cruce real de ese código, 09-oct 12:15 hora Chile,
+  // cae a ~700m de esta coordenada y el monto real $621 coincide exacto con
+  // el ya cargado acá) -- mismo pórtico, agregado el mapeo en codigoInterno().
   { codigo: 'RDM-MAIPO',  concesionaria: 'Ruta del Maipo', tramo: 'Río Maipo (km 19)',       lat: -33.6626, lon: -70.6679 },
-  // Coordenada triangulada (sin tag de nombre directo en OSM), confianza
-  // media-alta -- ver investigación 2026-10-13.
-  { codigo: 'RDM-QUINTA', concesionaria: 'Ruta del Maipo', tramo: 'Quinta (km 162)',         lat: -34.7962, lon: -71.0481 },
+  // Coordenada refinada 2026-10-16 con el cruce real de AGP (RDM-QTA,
+  // VHRX-66, 09-oct 14:58 hora Chile) -- "QTA" es el código interno de AGP
+  // para este mismo pórtico "Quinta", confianza alta (antes triangulada sin
+  // cruce real, confianza media-alta).
+  { codigo: 'RDM-QUINTA', concesionaria: 'Ruta del Maipo', tramo: 'Quinta (km 162)',         lat: -34.7883, lon: -71.0461 },
+  // Gabriela y Tocornal -- gap conocido desde 2026-10-13 (sin coordenadas
+  // confirmadas), cerrado 2026-10-16 con el cruce real de AGP (códigos
+  // internos propios RDM-GABP/RDM-GABO y RDM-TOCP/RDM-TOCO según sentido,
+  // mismo monto en ambos sentidos -- un solo código/geocerca acá, igual que
+  // RDM-ANG) cruzado contra el GPS real de VHRX-66 ese mismo viaje, 09-oct
+  // 12:08/12:10 hora Chile respectivamente. Precisión de AGP es a nivel de
+  // minuto (no segundo), así que la coordenada puede tener un margen de
+  // hasta ~1,5km a lo largo de la ruta -- validar con el chequeo semanal OSM.
+  { codigo: 'RDM-GAB', concesionaria: 'Ruta del Maipo', tramo: 'Gabriela',  lat: -33.569272, lon: -70.612921 },
+  { codigo: 'RDM-TOC', concesionaria: 'Ruta del Maipo', tramo: 'Tocornal', lat: -33.6052501, lon: -70.6042576 },
   { codigo: 'RDMA-RCLARO', concesionaria: 'Ruta del Maule', tramo: 'Río Claro (km 220)', lat: -35.2097, lon: -71.4113 },
   { codigo: 'RDMA-RETIRO', concesionaria: 'Ruta del Maule', tramo: 'Retiro (km 322)',    lat: -36.0092, lon: -71.7324 },
   // Acceso Norte a Concepción (Región del Biobío) -- NO es Ruta 68 como
@@ -801,6 +825,8 @@ const TARIFAS_FALLBACK = {
   'RDM-ANG':    { TBFP: 3800, TBP: 3800, TS: 3800 },
   'RDM-MAIPO':  { TBFP: 621,  TBP: 621,  TS: 621  },
   'RDM-QUINTA': { TBFP: 3800, TBP: 3800, TS: 3800 },
+  'RDM-GAB': { TBFP: 621, TBP: 621, TS: 621 },
+  'RDM-TOC': { TBFP: 207, TBP: 207, TS: 207 },
   'RDMA-RCLARO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   'RDMA-RETIRO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   // Monto solo estimado por Smart Report (GPS), sin confirmación de la

@@ -100,6 +100,29 @@ function codigoInterno(autopista, puntoCobro) {
     const partes = p.split(' - ');
     return partes[partes.length - 1].trim().split(' ')[0] || null;
   }
+  // Ruta del Maipo: confirmado con datos reales 2026-10-16 que puntoCobro
+  // viene como "<código-propio-AGP> PPnXX - <sentido> - 0" (ej. "RDM-GABP
+  // PP12NS - Norte - Sur - 0"). El código propio de AGP es el primer token;
+  // Gabriela/Tocornal lo traen con una letra de sentido pegada al final
+  // (GABP/GABO, TOCP/TOCO) que acá se colapsa a un solo código porque cobran
+  // el mismo monto en ambos sentidos (mismo criterio que RDM-ANG, un solo
+  // pórtico/geocerca, no un par direccional). RDM-TRM es el código propio de
+  // AGP para nuestro RDM-MAIPO (mismo pórtico, confirmado por coordenada y
+  // monto real exactos) -- NO renombrar RDM-MAIPO, solo mapear acá.
+  if (a === 'RUTA DEL MAIPO') {
+    const primerToken = p.split(' ')[0] || '';
+    if (primerToken === 'RDM-TRM') return 'RDM-MAIPO';
+    if (primerToken === 'RDM-QTA') return 'RDM-QUINTA';
+    const sinSentido = primerToken.replace(/^(RDM-(?:GAB|TOC))[PO]$/, '$1');
+    return sinSentido || null;
+  }
+  // Ruta del Maule (Survías): confirmado 2026-10-16, puntoCobro = "<nombre>
+  // <sentido>" (ej. "Rio Claro SN", "Retiro NS").
+  if (a === 'SURVÍAS' || a === 'SURVIAS') {
+    if (p.startsWith('RIO CLARO')) return 'RDMA-RCLARO';
+    if (p.startsWith('RETIRO')) return 'RDMA-RETIRO';
+    return null;
+  }
   return null;
 }
 
@@ -126,14 +149,7 @@ async function emparejarYActualizar(vehiculoId, transitos) {
   let actualizadas = 0, sinMapear = 0, sinPasada = 0;
   for (const t of transitos) {
     const codigo = codigoInterno(t.autopista, t.puntoCobro);
-    if (!codigo) {
-      sinMapear++;
-      // Diagnóstico temporal 2026-10-16 para investigar las coordenadas
-      // reales de Ruta del Maipo (Gabriela/Tocornal) y la nueva concesión
-      // "Ruta Sur" que reportó Sergio -- ver [[project_agp_tracklink_integration]].
-      console.log(`[agp-transitos][sin-mapear] ${t.autopista} / "${t.puntoCobro}", ${t.fecha} ${t.hora}, monto $${t.monto}.`);
-      continue;
-    }
+    if (!codigo) { sinMapear++; continue; }
 
     const tsTransito = new Date(`${normalizarFecha(t.fecha)}T${t.hora}:00-03:00`); // hora Chile real
     const { data: candidatas, error } = await supabase
