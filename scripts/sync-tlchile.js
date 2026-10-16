@@ -2454,6 +2454,7 @@ async function main() {
     let ultimoPortico = null;
     let ultimoTs = null;
     let ultimoPuntoValido = null;
+    const direccionVigentePorPortico = new Map();
     for (let i = 0; i < puntos.length; i++) {
       const p = puntos[i];
       // Salto de posición imposible: si el tramo desde el último punto que sí
@@ -2494,7 +2495,22 @@ async function main() {
           : { d: haversineMetros(p.lat, p.lon, portico.lat, portico.lon), puntoCruce: { lat: p.lat, lon: p.lon } };
         if (d <= RADIO_GEOCERCA_M) {
           const tsMs = p.time.getTime();
-          const resuelto = resolverCodigoDireccional(portico, anterior, p);
+          // "Lock" direccional (2026-10-16, caso real TTXR-82 09-oct PA13/PA14
+          // detectados al mismo segundo, reportado por AGP): un solo ping con
+          // ruido GPS cerca del gantry puede invertir el signo de la tendencia
+          // lat/lon de un punto a otro aunque la tendencia NETA del cruce sea
+          // clarísima (en ese caso, 13 puntos seguidos bajando en latitud --
+          // uno solo habría bastado para "voltear" el signo e inventar un
+          // segundo tránsito en sentido contrario). Una vez resuelta la
+          // dirección para esta racha de cruce (mismo pórtico, sin gap mayor a
+          // MIN_GAP_MS entre pings), se mantiene fija en vez de recalcularse en
+          // cada punto -- la primera resolución de la racha es la más
+          // confiable (el vehículo recién entra al radio, el delta es grande).
+          const vigente = direccionVigentePorPortico.get(portico.codigo);
+          const resuelto = vigente && tsMs - vigente.tsMs <= MIN_GAP_MS
+            ? vigente.resuelto
+            : resolverCodigoDireccional(portico, anterior, p);
+          direccionVigentePorPortico.set(portico.codigo, { resuelto, tsMs });
           // Cruce en el sentido que este gantry no cobra (ver SENTIDO_UNICO)
           // -- no es candidato, ni siquiera para porticos_comparacion_metodos.
           if (!cumpleSentidoUnico(resuelto.codigo, anterior, p)) continue;
