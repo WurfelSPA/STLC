@@ -706,7 +706,12 @@ const TARIFAS_FALLBACK = {
   // PA24/PA26 (sentido Norte-Sur, ver PORTICOS) — mismo monto TBFP/TBP que
   // PA23/PA25, ventana horaria distinta.
   PA24: { TBFP: 288, TBP: 576,  TS: 864  },
-  PA26: { TBFP: 422, TBP: 844,  TS: 844  },
+  // TS corregido 2026-10-16 (844→1266): quedó cargado igual al TBP como
+  // placeholder ("sin cruce real todavía"), pero el caso real reportado por
+  // AGP (TTXR-82, 08-oct 19:52, tramo Río Mapocho–Alameda, dentro de la
+  // ventana TS 18:30-20:30) cobró $1266 = 422×3 -- mismo multiplicador 3x que
+  // ya tiene confirmado su par PA24 (864=288×3), no 1x como estaba.
+  PA26: { TBFP: 422, TBP: 844,  TS: 1266 },
   // PA20/PA22 (sentido Norte-Sur, ver PORTICOS) — mismo monto flat que PA19/PA21.
   PA20: { TBFP: 413, TBP: 413,  TS: 413  },
   PA22: { TBFP: 512, TBP: 512,  TS: 512  },
