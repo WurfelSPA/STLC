@@ -126,7 +126,14 @@ async function emparejarYActualizar(vehiculoId, transitos) {
   let actualizadas = 0, sinMapear = 0, sinPasada = 0;
   for (const t of transitos) {
     const codigo = codigoInterno(t.autopista, t.puntoCobro);
-    if (!codigo) { sinMapear++; continue; }
+    if (!codigo) {
+      sinMapear++;
+      // Diagnóstico temporal 2026-10-16 para investigar las coordenadas
+      // reales de Ruta del Maipo (Gabriela/Tocornal) y la nueva concesión
+      // "Ruta Sur" que reportó Sergio -- ver [[project_agp_tracklink_integration]].
+      console.log(`[agp-transitos][sin-mapear] ${t.autopista} / "${t.puntoCobro}", ${t.fecha} ${t.hora}, monto $${t.monto}.`);
+      continue;
+    }
 
     const tsTransito = new Date(`${normalizarFecha(t.fecha)}T${t.hora}:00-03:00`); // hora Chile real
     const { data: candidatas, error } = await supabase
