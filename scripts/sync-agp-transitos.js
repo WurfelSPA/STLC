@@ -149,7 +149,13 @@ async function emparejarYActualizar(vehiculoId, transitos) {
   let actualizadas = 0, sinMapear = 0, sinPasada = 0;
   for (const t of transitos) {
     const codigo = codigoInterno(t.autopista, t.puntoCobro);
-    if (!codigo) { sinMapear++; continue; }
+    if (!codigo) {
+      sinMapear++;
+      // Diagnostico temporal 2026-10-20 para listar codigos de Vespucio Sur
+      // sin mapear y pedirselos a AGP.
+      console.log(`[agp-transitos][sin-mapear] ${t.autopista} / "${t.puntoCobro}"`);
+      continue;
+    }
 
     const tsTransito = new Date(`${normalizarFecha(t.fecha)}T${t.hora}:00-03:00`); // hora Chile real
     const { data: candidatas, error } = await supabase
