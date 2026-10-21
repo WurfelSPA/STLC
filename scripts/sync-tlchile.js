@@ -416,6 +416,20 @@ const PORTICOS_FALLBACK = [
   // de sobretarifa punta.
   { codigo: 'RT78T1', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Américo Vespucio (Troncal T1)', lat: -33.4848, lon: -70.7410 },
   { codigo: 'RT78T2', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Rinconada (Troncal T2)',        lat: -33.4956, lon: -70.7772 },
+  // Plazas T3/T4/T6/T7/T8/T10 -- gap conocido desde 2026-10-16, cerrado
+  // 2026-10-20 con el correo de Sergio Hidalgo (AGP): tarifario RutaPass
+  // "Auto o Camioneta" validado contra 12.611 pasadas reales (01-may a
+  // 20-oct, mismo monto en ambos sentidos). Coordenadas = referencia OSM que
+  // mandó AGP (ellos mismos dicen "no tenemos coordenadas propias, hay que
+  // confirmarlas" -- OSM solo tiene un nodo por calzada, sin indicar
+  // sentido). T4: AGP reporta 2 nodos candidatos a 1,5km, se usa el que
+  // marcaron como el principal. No hay T5 ni T9 (confirmado, no existen).
+  { codigo: 'RT78T3',  concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Padre Hurtado (Troncal T3)', lat: -33.55283, lon: -70.81390 },
+  { codigo: 'RT78T4',  concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Malloco (Troncal T4)',        lat: -33.58781, lon: -70.84505 },
+  { codigo: 'RT78T6',  concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Talagante (Troncal T6)',      lat: -33.64290, lon: -70.87563 },
+  { codigo: 'RT78T7',  concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'El Paico (Troncal T7)',       lat: -33.68482, lon: -70.94317 },
+  { codigo: 'RT78T8',  concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Melipilla (Troncal T8)',      lat: -33.66930, lon: -71.15072 },
+  { codigo: 'RT78T10', concesionaria: 'Autopista del Sol (Ruta 78)', tramo: 'Puangue (Troncal T10)',       lat: -33.64748, lon: -71.36018 },
   // RDM-ANG: AGP reporta el MISMO código con montos distintos según el
   // tránsito ($3800 en casi todos los casos reales vistos, pero $1000 en uno
   // -- 09-oct-2026, VHRX-66). Ruta del Maipo parece ser un sistema de cobro
@@ -452,6 +466,17 @@ const PORTICOS_FALLBACK = [
   // díptico oficial MOP. Monto solo estimado por Smart Report, sin
   // confirmación de la concesionaria todavía.
   { codigo: 'AGUAMAR', concesionaria: 'Acceso Norte a Concepción', tramo: 'Peaje Troncal Agua Amarilla (km 60)', lat: -36.7300, lon: -72.8602 },
+  // "Ruta Sur" -- concesión que faltaba por completo en el catálogo,
+  // detectada 2026-10-20 (correo Sergio Hidalgo, 5 tránsitos reales de
+  // TTXR-82 sin capturar entre el 14 y el 17-oct). Códigos propios de AGP:
+  // SCL (Santa Clara), LMA (Las Maicas), LANM (Los Ángeles). Coordenadas
+  // trianguladas con el GPS real de TTXR-82 en los timestamps exactos que
+  // dio Sergio -- Santa Clara y Las Maicas confirmadas con 2 cruces
+  // independientes cada una (14-oct y 17-oct, calzan dentro de ~1,5km);
+  // Los Ángeles con un solo cruce (14-oct), confianza media.
+  { codigo: 'SCL',  concesionaria: 'Ruta Sur', tramo: 'Santa Clara',   lat: -36.918,   lon: -72.344   },
+  { codigo: 'LMA',  concesionaria: 'Ruta Sur', tramo: 'Las Maicas',    lat: -37.8096,  lon: -72.3352  },
+  { codigo: 'LANM', concesionaria: 'Ruta Sur', tramo: 'Los Ángeles',   lat: -37.4859317, lon: -72.4042552 },
 ];
 // Bindings mutables reales que usa el resto del archivo (bandaHeuristica,
 // grupoGeometriaPara, mensajePasada, etc. las leen como closure sobre el
@@ -784,28 +809,29 @@ const TARIFAS_FALLBACK = {
   PA2:  { TBFP: 868, TBP: 868, TS: 868 },
   PA3:  { TBFP: 585, TBP: 585, TS: 585 },
   PA4:  { TBFP: 130, TBP: 130, TS: 130 },
-  '2.2':{ TBFP: 251, TBP: 502,  TS: 754  },
-  '5.2':{ TBFP: 290, TBP: 581,  TS: 871  },
-  // 5.1/5.3/5.4 agregados 2026-09-15 (ver PORTICOS y PARES_DIRECCIONALES
-  // arriba) — mismos valores que el catálogo de referencia de dashboard.html
-  // (CONCESIONARIAS_TARIFARIO), ahora confirmados con cruces reales: 5.1
-  // TBFP=$122 y 5.4 TS=$1.149 coinciden exactos con lo visto en pantalla.
-  // 5.3 (alterno de 5.4) sin cruce real todavía, misma fuente que el resto.
-  '5.1':{ TBFP: 122, TBP: 243,  TS: 365  },
-  '5.3':{ TBFP: 552, TBP: 1103, TS: 1655 },
-  '5.4':{ TBFP: 383, TBP: 766,  TS: 1149 },
-  // 1.1/4.2 — ver PORTICOS arriba (fuente y confirmación).
-  '1.1':{ TBFP: 533, TBP: 1065, TS: 1065 },
-  '4.2':{ TBFP: 266, TBP: 533,  TS: 799  },
-  '4.1':{ TBFP: 312, TBP: 623,  TS: 623  },
-  '3.1':{ TBFP: 333, TBP: 665,  TS: 998  },
-  '3.3':{ TBFP: 260, TBP: 521,  TS: 781  },
-  // Códigos "alternos" (sentido contrario) de 4.1/3.1/3.3 — ver
-  // PARES_DIRECCIONALES_VESPUCIO_SUR. Confirmados 2026-08-28 con el monto
-  // real anotado por el usuario al volver por el mismo tramo.
-  '4.3':{ TBFP: 45,  TBP: 90,   TS: 136  },
-  '3.4':{ TBFP: 121, TBP: 241,  TS: 362  },
-  '3.2':{ TBFP: 472, TBP: 945,  TS: 1417 },
+  // Vespucio Sur -- reemplazado 2026-10-20 con el tarifario oficial 2026
+  // (vespuciosur.cl/tarifas, Categoría 1) que mandó Sergio Hidalgo (AGP),
+  // validado contra 15.690 pasadas reales de Categoría 1 (23-jul a 20-oct,
+  // todas calzaron con la banda horaria cargada en VENTANAS de abajo). La
+  // concesionaria cobra truncado al peso (no redondeado), por eso estos
+  // valores difieren en $1 de los que había antes (que venían redondeados).
+  // 4.1/1.1: TS "no aplica" según AGP -- se deja TS=TBP (nunca cobra más
+  // que TBP, mismo efecto práctico que "no hay tercera banda").
+  '1.3':{ TBFP: 532, TBP: 1065, TS: 1597 },
+  '2.2':{ TBFP: 251, TBP: 502,  TS: 753  },
+  '3.4':{ TBFP: 120, TBP: 241,  TS: 361  },
+  '3.2':{ TBFP: 472, TBP: 944,  TS: 1416 },
+  '4.3':{ TBFP: 45,  TBP: 90,   TS: 135  },
+  '4.2':{ TBFP: 266, TBP: 532,  TS: 798  },
+  '5.4':{ TBFP: 382, TBP: 765,  TS: 1148 },
+  '5.2':{ TBFP: 290, TBP: 580,  TS: 871  },
+  '5.1':{ TBFP: 121, TBP: 243,  TS: 364  },
+  '5.3':{ TBFP: 551, TBP: 1103, TS: 1655 },
+  '4.1':{ TBFP: 311, TBP: 623,  TS: 623  },
+  '3.1':{ TBFP: 332, TBP: 665,  TS: 997  },
+  '3.3':{ TBFP: 260, TBP: 520,  TS: 780  },
+  '1.1':{ TBFP: 532, TBP: 1065, TS: 1065 },
+  '2.1':{ TBFP: 251, TBP: 502,  TS: 753  },
   // Ruta 5 Norte — tarifas planas (sin banda horaria oficial), mismo monto
   // en las 3 columnas para que el cálculo de banda no cambie el resultado.
   LAMPA:       { TBFP: 900,  TBP: 900,  TS: 900  },
@@ -820,8 +846,28 @@ const TARIFAS_FALLBACK = {
   // Interurbanas agregadas 2026-10-13 a partir del cruce real de AGP (ver
   // PORTICOS arriba) -- tarifa plana, monto = lo confirmado por la
   // concesionaria (Integro Corp/Consulta AGP) en ese cruce.
+  // RT78T1/T2: AGP confirmó 2026-10-20 (12.611 pasadas reales) que SÍ existe
+  // una sobretarifa 1,5x ($1077/$495 respectivamente), pero solo se activa en
+  // salidas/regresos de fin de semana largo -- no es una ventana horaria fija
+  // (ej. aparece un miércoles 19:09, un jueves 18:03) y los bordes reales son
+  // más anchos que las muestras que mandaron. Sin una regla confiable de
+  // cuándo aplica, se deja la tarifa Normal como única banda (falla raro,
+  // solo en esos días puntuales, en vez de aplicar mal la sobretarifa en
+  // cruces normales). Mismo criterio para T3/T4/T6/T7/T8/T10 de abajo.
   RT78T1:      { TBFP: 718,  TBP: 718,  TS: 718  },
   RT78T2:      { TBFP: 330,  TBP: 330,  TS: 330  },
+  RT78T3:      { TBFP: 225,  TBP: 225,  TS: 225  },
+  RT78T4:      { TBFP: 225,  TBP: 225,  TS: 225  },
+  RT78T6:      { TBFP: 375,  TBP: 375,  TS: 375  },
+  RT78T7:      { TBFP: 375,  TBP: 375,  TS: 375  },
+  RT78T8:      { TBFP: 599,  TBP: 599,  TS: 599  },
+  RT78T10:     { TBFP: 1161, TBP: 1161, TS: 1161 },
+  // Ruta Sur -- montos confirmados por AGP en los tránsitos reales del
+  // 14/17-oct (ver PORTICOS arriba). Tarifa plana, sin banda horaria
+  // conocida todavía (un solo monto visto por plaza).
+  SCL:  { TBFP: 3400, TBP: 3400, TS: 3400 },
+  LMA:  { TBFP: 3400, TBP: 3400, TS: 3400 },
+  LANM: { TBFP: 800,  TBP: 800,  TS: 800  },
   'RDM-ANG':    { TBFP: 3800, TBP: 3800, TS: 3800 },
   'RDM-MAIPO':  { TBFP: 621,  TBP: 621,  TS: 621  },
   'RDM-QUINTA': { TBFP: 3800, TBP: 3800, TS: 3800 },
@@ -1085,17 +1131,27 @@ function esMasCercaDeCaleteraQueDeAutopista(grupo, lat, lon) {
 // hasta que se confirme su ventana oficial real.
 // Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
 const VENTANAS_PUNTA_PORTICO_FALLBACK = {
-  '4.1': null,
-  // Confirmado 2026-08-28: lectura real de 2.2 en pantalla fue $251,22 tanto
-  // a la ida (07:24, dentro de la ventana genérica 07-09h que habría dado
-  // erróneamente TBP/$502) como a la vuelta (15:17, fuera de ventana
-  // genérica) — mismo monto TBFP en ambos casos, sin banda punta L-V.
-  '2.2': null,
-  // Confirmado 2026-08-31: lecturas reales de 1.1 ($532,59→$532) y 4.2
-  // ($798,89→$798) a las 18:21 y 18:46 — ambas dentro de la ventana
-  // genérica 18-21h (que habría dado erróneamente TBP) mostraron TBFP.
-  '1.1': null,
-  '4.2': null,
+  // Vespucio Sur -- reemplazado 2026-10-20 con el tarifario oficial que
+  // mandó Sergio Hidalgo (AGP), validado contra 15.690 pasadas reales de
+  // Categoría 1 (23-jul a 20-oct, todas calzaron). "El inicio queda
+  // incluido y el final no" (AGP). Feriados se cobran con horario de
+  // domingo y festivo incluso si caen sábado -- ya lo hace `diaTipo` acá
+  // mismo (esFeriado fuerza 'domingo' sin importar el día de la semana).
+  '1.3': { habil: [[8 * 60 + 30, 9 * 60 + 30]], sabado: [[18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '2.2': { habil: [[17 * 60, 17 * 60 + 30]], sabado: [[18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '3.4': { habil: [[17 * 60, 18 * 60 + 30], [19 * 60 + 30, 20 * 60]], sabado: [[13 * 60, 15 * 60], [18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '3.2': { habil: [[17 * 60, 18 * 60 + 30], [19 * 60 + 30, 20 * 60]], sabado: [[13 * 60, 15 * 60], [18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '4.3': { habil: [[8 * 60 + 30, 9 * 60 + 30], [18 * 60, 18 * 60 + 30], [19 * 60 + 30, 20 * 60]], sabado: [[18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '4.2': { habil: [[8 * 60 + 30, 9 * 60 + 30], [18 * 60, 18 * 60 + 30], [19 * 60 + 30, 20 * 60]], sabado: [[18 * 60, 21 * 60]], domingo: [[19 * 60, 22 * 60]] },
+  '5.4': { habil: [[8 * 60 + 30, 9 * 60 + 30]] },
+  '5.2': { habil: [[8 * 60 + 30, 9 * 60 + 30]] },
+  '2.1': { habil: [[8 * 60 + 30, 9 * 60 + 30]] },
+  '5.1': { habil: [[20 * 60, 22 * 60]], sabado: [[13 * 60, 15 * 60], [20 * 60, 22 * 60]] },
+  '5.3': { habil: [[20 * 60, 22 * 60]], sabado: [[13 * 60, 15 * 60], [20 * 60, 22 * 60]] },
+  '4.1': { sabado: [[13 * 60, 15 * 60], [20 * 60, 22 * 60]], domingo: [[21 * 60, 23 * 60]] },
+  '3.1': { habil: [[7 * 60, 7 * 60 + 30], [8 * 60 + 30, 9 * 60 + 30]], sabado: [[13 * 60, 15 * 60], [20 * 60, 22 * 60]], domingo: [[21 * 60, 23 * 60]] },
+  '3.3': { habil: [[7 * 60, 7 * 60 + 30], [8 * 60 + 30, 9 * 60 + 30]], sabado: [[13 * 60, 15 * 60], [20 * 60, 22 * 60]], domingo: [[21 * 60, 23 * 60]] },
+  '1.1': { sabado: [[11 * 60, 14 * 60], [19 * 60, 22 * 60]] },
   PA19: null,
   PA21: null,
   PA23: [[7 * 60, 10 * 60]],
@@ -1182,6 +1238,21 @@ let VENTANAS_PUNTA_PORTICO = VENTANAS_PUNTA_PORTICO_FALLBACK;
 // por horario fijo, y no se puede modelar con esta heurística.
 // Copia de emergencia — ver nota en PORTICOS_FALLBACK arriba.
 const VENTANAS_SATURACION_PORTICO_FALLBACK = {
+  // Vespucio Sur -- reemplazado 2026-10-20, misma fuente que
+  // VENTANAS_PUNTA_PORTICO_FALLBACK (tarifario oficial AGP, "TS existe solo
+  // en día laboral" -- por eso son arrays simples, igual que antes). 4.1 y
+  // 1.1 no tienen entrada acá: AGP confirma que no aplica TS para esos dos.
+  '1.3': [[7 * 60 + 30, 8 * 60 + 30]],
+  '2.2': [[18 * 60 + 30, 19 * 60 + 30]],
+  '3.4': [[18 * 60 + 30, 19 * 60 + 30]],
+  '3.2': [[18 * 60 + 30, 19 * 60 + 30]],
+  '4.3': [[7 * 60 + 30, 8 * 60 + 30], [18 * 60 + 30, 19 * 60 + 30]],
+  '4.2': [[7 * 60 + 30, 8 * 60 + 30], [18 * 60 + 30, 19 * 60 + 30]],
+  '5.4': [[7 * 60 + 30, 8 * 60 + 30]],
+  '5.2': [[7 * 60 + 30, 8 * 60 + 30]],
+  '2.1': [[7 * 60 + 30, 8 * 60 + 30]],
+  '5.1': [[19 * 60, 20 * 60]],
+  '5.3': [[19 * 60, 20 * 60]],
   '3.1': [[7 * 60 + 30, 8 * 60 + 30]],
   '3.3': [[7 * 60 + 30, 8 * 60 + 30]],
   PA28: [[7 * 60 + 30, 8 * 60 + 30]],

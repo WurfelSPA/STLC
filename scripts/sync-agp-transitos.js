@@ -123,6 +123,34 @@ function codigoInterno(autopista, puntoCobro) {
     if (p.startsWith('RETIRO')) return 'RDMA-RETIRO';
     return null;
   }
+  // Vespucio Sur: confirmado 2026-10-20 (correo Sergio Hidalgo con el
+  // tarifario oficial), puntoCobro viene como "PdC<codigo>" (ej. "PdC5.1",
+  // "PdC1.3") -- el código propio ya coincide 1:1 con nuestro catálogo
+  // ("5.1", "1.3"), solo hay que sacarle el prefijo "PDC".
+  if (a === 'VESPUCIO SUR') {
+    return p.startsWith('PDC') ? p.slice(3) : null;
+  }
+  // RutaPass (Ruta 78, Ruta 68, Ruta 66, Itata): confirmado 2026-10-20,
+  // puntoCobro viene como "T<n> - <nombre> <sentido> [R78]" (ej. "T2 -
+  // Rinconada Oriente [R78]"). Solo mapeamos las plazas "[R78]" (Autopista
+  // del Sol, el resto no está en nuestro catálogo todavía); el primer token
+  // ("T2") más el prefijo "RT78" da nuestro código.
+  if (a.startsWith('RUTAPASS')) {
+    if (!p.endsWith('[R78]')) return null;
+    const plaza = p.split(' - ')[0]?.trim();
+    return plaza ? `RT78${plaza}` : null;
+  }
+  // Ruta Sur: agregada 2026-10-20 a partir de 5 transitos reales que
+  // reportó Sergio (AGP) sin cruce de pasada -- nunca vimos el formato
+  // real de "autopista"/"puntoCobro" de esta concesionaria, así que este
+  // mapeo es tentativo (busca el código de AGP como token suelto en
+  // cualquiera de los dos campos) hasta confirmar con un dato real nuevo.
+  if (a.includes('RUTA SUR') || p.includes('SANTA CLARA') || p.includes('LAS MAICAS') || p.includes('LOS ANGELES') || p.includes('LOS ÁNGELES')) {
+    if (/\bSCL\b/.test(p) || p.includes('SANTA CLARA')) return 'SCL';
+    if (/\bLMA\b/.test(p) || p.includes('LAS MAICAS')) return 'LMA';
+    if (/\bLANM\b/.test(p) || p.includes('LOS ANGELES') || p.includes('LOS ÁNGELES')) return 'LANM';
+    return null;
+  }
   return null;
 }
 
