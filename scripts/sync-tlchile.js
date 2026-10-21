@@ -346,6 +346,11 @@ const PORTICOS_FALLBACK = [
   { codigo: 'TONGOY',       concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Acceso sur Tongoy (Lateral)',  lat: -30.3517, lon: -71.4323 },
   { codigo: 'GUANAQUEROS',  concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Guanaqueros (Lateral)',        lat: -30.1974, lon: -71.3880 },
   { codigo: 'PTACOLORADA',  concesionaria: 'Ruta 5 Norte (Ruta del Algarrobo)', tramo: 'Km 554, La Higuera (Punta Colorada)', lat: -29.3710, lon: -71.0732 },
+  // Cachiyuyo Troncal -- la concesión "Ruta del Algarrobo" (La Serena-
+  // Vallenar, 2 sub-tramos de 86+101 km) tiene 2 plazas troncales, no 1:
+  // Punta Colorada (ya arriba) y esta, más al norte. Nodo OSM con `name`
+  // exacto ("Peaje Cachiyuyo Troncal"), confirmado independiente 2026-10-21.
+  { codigo: 'CACHIYUYO', concesionaria: 'Ruta 5 Norte (Ruta del Algarrobo)', tramo: 'Cachiyuyo Troncal', lat: -29.0867, lon: -70.9169 },
   // Troncal Norte -- la concesión "Ruta del Elqui" (Los Vilos-La Serena,
   // km283 a ~473) tiene 2 plazas troncales oficiales, no 1: Troncal Sur (ya
   // arriba) y esta, al norte de Tongoy (prensa 2026: $4.250 c/u, mismo
@@ -947,9 +952,15 @@ const TARIFAS_FALLBACK = {
   TRONCALNORTE:{ TBFP: 4250, TBP: 4250, TS: 4250 },
   TONGOY:      { TBFP: 1100, TBP: 1100, TS: 1100 },
   GUANAQUEROS: { TBFP: 1100, TBP: 1100, TS: 1100 },
-  PTACOLORADA: { TBFP: 3150, TBP: 3150, TS: 3150 },
-  TOTORAL:     { TBFP: 2900, TBP: 2900, TS: 2900 },
-  PTOVIEJO:    { TBFP: 1750, TBP: 1750, TS: 1750 },
+  // Corregidas 2026-10-21: el valor anterior (3150/2900/1750) no coincidía
+  // con el tag `charge` del nodo OSM real de cada peaje (verificado directo,
+  // 2 nodos por plaza, mismo monto en ambos) -- origen del valor viejo
+  // desconocido (commit 8326cce, ago-2026, sin fuente citada).
+  PTACOLORADA: { TBFP: 2900, TBP: 2900, TS: 2900 },
+  // Verificado 2026-10-21, mismo tag `charge` de OSM que Punta Colorada.
+  CACHIYUYO:   { TBFP: 2900, TBP: 2900, TS: 2900 },
+  TOTORAL:     { TBFP: 2600, TBP: 2600, TS: 2600 },
+  PTOVIEJO:    { TBFP: 2600, TBP: 2600, TS: 2600 },
   // Talca-Chillán -- oficial MOP jul-2023 (díptico TACHI), probablemente
   // reajustada desde. Troncal $2.800, lateral (Cocharcas) $700.
   'RT5-RIOCLARO': { TBFP: 2800, TBP: 2800, TS: 2800 },
