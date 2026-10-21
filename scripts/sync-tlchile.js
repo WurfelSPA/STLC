@@ -465,6 +465,31 @@ const PORTICOS_FALLBACK = [
   // hasta ~1,5km a lo largo de la ruta -- validar con el chequeo semanal OSM.
   { codigo: 'RDM-GAB', concesionaria: 'Ruta del Maipo', tramo: 'Gabriela',  lat: -33.569272, lon: -70.612921 },
   { codigo: 'RDM-TOC', concesionaria: 'Ruta del Maipo', tramo: 'Tocornal', lat: -33.6052501, lon: -70.6042576 },
+  // Requínoa/Rosario -- gap conocido desde 2026-10-13 (sin coordenadas
+  // confirmadas por nadie, ni AGP ni OSM con nombre). Cerrado 2026-10-21
+  // cruzando 2 fuentes: una tabla de Autofact con el km exacto de cada
+  // plaza (Requínoa Poniente km 99,7 / Oriente km 101,5; Rosario Poniente
+  // km 107,5 / Oriente km 107,2 -- la misma tabla confirma Gabriela km 4,9
+  // y Tocornal km 7,5 EXACTOS a lo ya cargado, buena señal de que el resto
+  // de la tabla es confiable) contra 5 nodos `barrier=toll_booth` reales
+  // mapeados en OSM en esa zona (sin nombre/ref, pero geográficamente
+  // ordenados igual que la tabla de kms).
+  // Requínoa Poniente/Oriente quedan a 1,8km entre sí -- son 2 estructuras
+  // físicas distintas (no el mismo gantry por los 2 sentidos, a diferencia
+  // de Gabriela/Tocornal), así que van como 2 códigos separados.
+  // Poniente = la de menor km, nodo más al norte -- es la única con monto
+  // real confirmado por AGP ($900, 2 veces, archivo Tag Interurbano ago-26).
+  { codigo: 'RDM-REQ-PTE', concesionaria: 'Ruta del Maipo', tramo: 'Requínoa Poniente (km 99,7)', lat: -34.28197, lon: -70.81868 },
+  // Oriente: coordenada real (nodo OSM), sin monto confirmado todavía --
+  // se deja sin entrada en TARIFAS (monto_estimado queda null, no se
+  // adivina) hasta tener un cruce real.
+  { codigo: 'RDM-REQ-OTE', concesionaria: 'Ruta del Maipo', tramo: 'Requínoa Oriente (km 101,5)', lat: -34.28899, lon: -70.82191 },
+  // Rosario Poniente/Oriente quedan a solo ~300m -- mismo nudo, un código
+  // alcanza (el radio de geocerca de 150m cubre ambos lados igual). Sin
+  // monto confirmado (el único dato real de AGP para Rosario fue $0, no
+  // sirve de referencia) -- sin entrada en TARIFAS, mismo criterio que
+  // Requínoa Oriente.
+  { codigo: 'RDM-ROS', concesionaria: 'Ruta del Maipo', tramo: 'Rosario', lat: -34.34667, lon: -70.84072 },
   { codigo: 'RDMA-RCLARO', concesionaria: 'Ruta del Maule', tramo: 'Río Claro (km 220)', lat: -35.2097, lon: -71.4113 },
   { codigo: 'RDMA-RETIRO', concesionaria: 'Ruta del Maule', tramo: 'Retiro (km 322)',    lat: -36.0092, lon: -71.7324 },
   // Acceso Norte a Concepción (Región del Biobío) -- NO es Ruta 68 como
@@ -887,6 +912,11 @@ const TARIFAS_FALLBACK = {
   'RDM-QUINTA': { TBFP: 3800, TBP: 3800, TS: 3800 },
   'RDM-GAB': { TBFP: 621, TBP: 621, TS: 621 },
   'RDM-TOC': { TBFP: 207, TBP: 207, TS: 207 },
+  // RDM-REQ-PTE: único monto real que tenemos para Requínoa ($900, 2 veces,
+  // archivo Tag Interurbano ago-2026) -- muestra débil, pero es lo único
+  // disponible. RDM-REQ-OTE y RDM-ROS quedan sin entrada acá a propósito
+  // (ver PORTICOS arriba) -- se detectan pero el monto queda null.
+  'RDM-REQ-PTE': { TBFP: 900, TBP: 900, TS: 900 },
   'RDMA-RCLARO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   'RDMA-RETIRO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   // Monto solo estimado por Smart Report (GPS), sin confirmación de la

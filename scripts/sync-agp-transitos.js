@@ -116,6 +116,16 @@ function codigoInterno(autopista, puntoCobro) {
     const sinSentido = primerToken.replace(/^(RDM-(?:GAB|TOC))[PO]$/, '$1');
     return sinSentido || null;
   }
+  // Requínoa/Rosario: confirmado 2026-10-21, AGP los reporta como
+  // "Requínoa Poniente (vía Norte-Sur)" / "Rosario Oriente (vía
+  // Sur-Norte)" (correo Sergio Hidalgo) -- no el formato "RDM-XXX PPnXX"
+  // de Gabriela/Tocornal/Angostura, así que van aparte.
+  if (p.startsWith('REQUÍNOA') || p.startsWith('REQUINOA')) {
+    if (p.includes('PONIENTE')) return 'RDM-REQ-PTE';
+    if (p.includes('ORIENTE')) return 'RDM-REQ-OTE';
+    return null;
+  }
+  if (p.startsWith('ROSARIO')) return 'RDM-ROS';
   // Ruta del Maule (Survías): confirmado 2026-10-16, puntoCobro = "<nombre>
   // <sentido>" (ej. "Rio Claro SN", "Retiro NS").
   if (a === 'SURVÍAS' || a === 'SURVIAS') {
