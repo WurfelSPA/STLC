@@ -346,8 +346,36 @@ const PORTICOS_FALLBACK = [
   { codigo: 'TONGOY',       concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Acceso sur Tongoy (Lateral)',  lat: -30.3517, lon: -71.4323 },
   { codigo: 'GUANAQUEROS',  concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Guanaqueros (Lateral)',        lat: -30.1974, lon: -71.3880 },
   { codigo: 'PTACOLORADA',  concesionaria: 'Ruta 5 Norte (Ruta del Algarrobo)', tramo: 'Km 554, La Higuera (Punta Colorada)', lat: -29.3710, lon: -71.0732 },
+  // Troncal Norte -- la concesión "Ruta del Elqui" (Los Vilos-La Serena,
+  // km283 a ~473) tiene 2 plazas troncales oficiales, no 1: Troncal Sur (ya
+  // arriba) y esta, al norte de Tongoy (prensa 2026: $4.250 c/u, mismo
+  // monto). Nodo OSM sin `name` pero coincide en zona exacta ("al norte de
+  // Tongoy") con 2 toll_booth reales en el eje troncal (no en el ramal
+  // costero de Tongoy/Guanaqueros) -- confianza media, falta cruce real.
+  { codigo: 'TRONCALNORTE', concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Norte de Tongoy (Troncal Norte)', lat: -30.3303, lon: -71.2442 },
   { codigo: 'TOTORAL',      concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 732, norte de Vallenar (Totoral)', lat: -27.9971, lon: -70.5658 },
   { codigo: 'PTOVIEJO',     concesionaria: 'Ruta 5 Norte (Valles del Desierto)', tramo: 'Km 841, norte de Copiapó (Puerto Viejo)', lat: -27.3482, lon: -70.6364 },
+  // Talca-Chillán (Survías Maule-Ñuble) -- 2 troncales oficiales confirmados
+  // por díptico MOP (ago-2023): Río Claro (norte, límite con Ruta del
+  // Maipo) y Retiro (sur, cerca de Chillán). Tarifa oficial auto/camioneta
+  // troncal $2.800 (jul-2023, probablemente reajustada desde). Coordenadas
+  // sin `name` en OSM -- Río Claro: cluster de 2 toll_gantry + 2 toll_booth
+  // con teléfono de área Talca (+56 73), justo en el límite norte real de
+  // la concesión (km~220, sector San Rafael). Retiro: nodo OSM nombrado
+  // "Peaje Chillán", única plaza troncal cerca del extremo sur de la
+  // concesión -- confianza media en ambas, falta cruce real.
+  { codigo: 'RT5-RIOCLARO', concesionaria: 'Ruta 5 Sur (Talca-Chillán)', tramo: 'Río Claro / Camarico (límite norte)', lat: -35.2097, lon: -71.4113 },
+  { codigo: 'RT5-RETIRO',   concesionaria: 'Ruta 5 Sur (Talca-Chillán)', tramo: 'Retiro (cercanías de Chillán)',      lat: -36.5593, lon: -72.0952 },
+  // Cocharcas -- lateral de la misma concesión Talca-Chillán, único de los
+  // ~15 laterales del tramo con nodo OSM que trae `name` Y `operator`
+  // exactos ("Talca Chillán Sociedad Concesionaria S.A."). El resto de los
+  // laterales (Morza, Teno, Curicó, Molina, Lontué, San Fernando, Tambo,
+  // Chimbarongo, Rancagua, Rengo, Pelequén, Requínoa, Rosario -- todos
+  // reales, confirmados por el gráfico oficial de ingresos MOP) NO se
+  // cargan: sus nodos OSM no traen nombre, así que no hay forma confiable
+  // de asignarles coordenada sin arriesgar un error -- solo cobran a quien
+  // sale/entra por esa rampa local, no a quien va de paso.
+  { codigo: 'RT5-COCHARCAS', concesionaria: 'Ruta 5 Sur (Talca-Chillán)', tramo: 'Lateral Cocharcas', lat: -36.5245, lon: -72.0724 },
   // Costanera Norte completo (P0-P9, EP/EV/SB) — agregado 2026-09-01, ver
   // fuentes en TARIFAS abajo. El P3 de esta concesionaria ya estaba cargado
   // (arriba, junto a P8/P11/P13) y coincide exacto con esta misma fuente
@@ -914,11 +942,19 @@ const TARIFAS_FALLBACK = {
   LASVEGAS:    { TBFP: 2900, TBP: 2900, TS: 2900 },
   PICHIDANGUI: { TBFP: 2900, TBP: 2900, TS: 2900 },
   TRONCALSUR:  { TBFP: 4250, TBP: 4250, TS: 4250 },
+  // Tentativo (prensa 2026, no díptico oficial) -- mismo monto que Troncal
+  // Sur, consistente con que son los 2 troncales de la misma concesión.
+  TRONCALNORTE:{ TBFP: 4250, TBP: 4250, TS: 4250 },
   TONGOY:      { TBFP: 1100, TBP: 1100, TS: 1100 },
   GUANAQUEROS: { TBFP: 1100, TBP: 1100, TS: 1100 },
   PTACOLORADA: { TBFP: 3150, TBP: 3150, TS: 3150 },
   TOTORAL:     { TBFP: 2900, TBP: 2900, TS: 2900 },
   PTOVIEJO:    { TBFP: 1750, TBP: 1750, TS: 1750 },
+  // Talca-Chillán -- oficial MOP jul-2023 (díptico TACHI), probablemente
+  // reajustada desde. Troncal $2.800, lateral (Cocharcas) $700.
+  'RT5-RIOCLARO': { TBFP: 2800, TBP: 2800, TS: 2800 },
+  'RT5-RETIRO':   { TBFP: 2800, TBP: 2800, TS: 2800 },
+  'RT5-COCHARCAS':{ TBFP: 700,  TBP: 700,  TS: 700  },
   // Interurbanas agregadas 2026-10-13 a partir del cruce real de AGP (ver
   // PORTICOS arriba) -- tarifa plana, monto = lo confirmado por la
   // concesionaria (Integro Corp/Consulta AGP) en ese cruce.
