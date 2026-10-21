@@ -492,6 +492,22 @@ const PORTICOS_FALLBACK = [
   { codigo: 'RDM-ROS', concesionaria: 'Ruta del Maipo', tramo: 'Rosario', lat: -34.34667, lon: -70.84072 },
   { codigo: 'RDMA-RCLARO', concesionaria: 'Ruta del Maule', tramo: 'Río Claro (km 220)', lat: -35.2097, lon: -71.4113 },
   { codigo: 'RDMA-RETIRO', concesionaria: 'Ruta del Maule', tramo: 'Retiro (km 322)',    lat: -36.0092, lon: -71.7324 },
+  // Ruta 68 (Santiago-Valparaíso/Viña, Rutas del Pacífico) -- gap total
+  // hasta 2026-10-21 (ningún vehículo monitoreado la había recorrido nunca).
+  // No hay tarifario oficial publicado por la concesionaria (búsqueda web
+  // 2026-10-21, solo notas de prensa con cifras no verificadas: $2.700
+  // normal / $4.000 punta auto-camioneta); además un artículo de
+  // infraestructurapublica.cl indica que recién está "contemplada" la
+  // incorporación de telepeaje en todo el troncal, así que la concesión
+  // podría seguir en transición. Coordenadas sí confirmadas por OSM (nodos
+  // reales con nombre). Sin cruce real todavía -- primera prioridad para el
+  // próximo vehículo nuevo del piloto.
+  { codigo: 'R68-LOPRADO',    concesionaria: 'Ruta 68 (Rutas del Pacífico)', tramo: 'Troncal Lo Prado',  lat: -33.4565, lon: -70.8985 },
+  // Único de los 3 con un monto etiquetado en OSM (no de prensa) -- pero sin
+  // fecha de verificación (`check_date`), así que se carga como tentativo,
+  // no confirmado. Corregir en cuanto haya un cruce real.
+  { codigo: 'R68-ZAPATA',     concesionaria: 'Ruta 68 (Rutas del Pacífico)', tramo: 'Zapata',            lat: -33.3711, lon: -71.2997 },
+  { codigo: 'R68-TRONCALSUR', concesionaria: 'Ruta 68 (Rutas del Pacífico)', tramo: 'Troncal Sur',       lat: -33.0632, lon: -71.4342 },
   // Acceso Norte a Concepción (Región del Biobío) -- NO es Ruta 68 como
   // parecía por el nombre en el correo de AGP ("RutaPass"), confirmado con
   // díptico oficial MOP. Monto solo estimado por Smart Report, sin
@@ -917,6 +933,10 @@ const TARIFAS_FALLBACK = {
   // disponible. RDM-REQ-OTE y RDM-ROS quedan sin entrada acá a propósito
   // (ver PORTICOS arriba) -- se detectan pero el monto queda null.
   'RDM-REQ-PTE': { TBFP: 900, TBP: 900, TS: 900 },
+  // R68-ZAPATA: monto tentativo (etiquetado en OSM, sin fecha de
+  // verificación) -- R68-LOPRADO y R68-TRONCALSUR quedan sin entrada acá a
+  // propósito, ver PORTICOS arriba.
+  'R68-ZAPATA': { TBFP: 2300, TBP: 2300, TS: 2300 },
   'RDMA-RCLARO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   'RDMA-RETIRO':{ TBFP: 3300, TBP: 3300, TS: 3300 },
   // Monto solo estimado por Smart Report (GPS), sin confirmación de la
