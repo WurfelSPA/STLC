@@ -524,6 +524,27 @@ const PORTICOS_FALLBACK = [
   { codigo: 'SCL',  concesionaria: 'Ruta Sur', tramo: 'Santa Clara',   lat: -36.918,   lon: -72.344   },
   { codigo: 'LMA',  concesionaria: 'Ruta Sur', tramo: 'Las Maicas',    lat: -37.8096,  lon: -72.3352  },
   { codigo: 'LANM', concesionaria: 'Ruta Sur', tramo: 'Los Ángeles',   lat: -37.4859317, lon: -72.4042552 },
+  // Costa Arauco / sur de Los Ángeles -- gap total hasta 2026-10-21, cerrado
+  // a pedido del correo a AGP/Tracklink sobre rutas interurbanas ciegas.
+  // Coordenadas confirmadas por nodos OSM reales con `name` idéntico al
+  // oficial MOP/concesionaria (alta confianza). Sin tarifa confirmada en
+  // ninguna -- los dípticos MOP revisados solo reportan tráfico/ingresos, no
+  // monto por plaza; costarauco.cl no publica tarifario online. Sin cruce
+  // real todavía en ninguna de las 7.
+  // Ruta 5 Sur, tramo Los Ángeles-Collipulli (concesionaria exacta sin
+  // confirmar para estas 2 -- quedaron fuera del corredor "Ruta de la
+  // Araucanía" investigado, podrían ser de otra concesión del mismo tramo).
+  { codigo: 'R5S-RENAICO', concesionaria: 'Ruta 5 Sur (Biobío, concesión por confirmar)', tramo: 'Peaje Troncal Renaico', lat: -37.6747, lon: -72.5952 },
+  { codigo: 'R5S-COIHUE',  concesionaria: 'Ruta 5 Sur (Biobío, concesión por confirmar)', tramo: 'Peaje Troncal Coihue',  lat: -37.5575, lon: -72.5800 },
+  // Ruta 5 Sur, tramo Collipulli-Temuco -- concesión "Ruta de la Araucanía"
+  // (Grupo ISA VIAS), vence 31-oct-2026, en relicitación (free-flow previsto).
+  { codigo: 'R5S-PUA',   concesionaria: 'Ruta de la Araucanía', tramo: 'Púa (km 623)',          lat: -38.3628, lon: -72.3859 },
+  { codigo: 'R5S-QUEPE', concesionaria: 'Ruta de la Araucanía', tramo: 'Troncal Quepe (km 693)', lat: -38.9157, lon: -72.6242 },
+  // Ruta 160, concesión "Costa Arauco" (ex Acciona, costarauco.cl),
+  // Tres Pinos-Acceso Norte a Coronel, pasa por Lota/Arauco/Curanilahue.
+  { codigo: 'RCA-CHIVILINGO', concesionaria: 'Costa Arauco', tramo: 'Chivilingo',   lat: -37.1492, lon: -73.1741 },
+  { codigo: 'RCA-PILPILCO',   concesionaria: 'Costa Arauco', tramo: 'Pilpilco',     lat: -37.5744, lon: -73.4153 },
+  { codigo: 'RCA-CURANILAHUE',concesionaria: 'Costa Arauco', tramo: 'Curanilahue',  lat: -37.3840, lon: -73.3399 },
 ];
 // Bindings mutables reales que usa el resto del archivo (bandaHeuristica,
 // grupoGeometriaPara, mensajePasada, etc. las leen como closure sobre el
