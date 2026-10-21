@@ -329,6 +329,12 @@ const PORTICOS_FALLBACK = [
   // 5.2/4.1/3.1/3.3/4.3/3.4/3.2.
   { codigo: '1.1',  concesionaria: 'Vespucio Sur',      tramo: 'General Velásquez – Ruta 78',                lat: -33.516561, lon: -70.712534 },
   { codigo: '4.2',  concesionaria: 'Vespucio Sur',      tramo: 'Gnmo. de Alderete – Vicuña Mackenna',        lat: -33.526802, lon: -70.602574 },
+  // 1.3 -- gap conocido desde 2026-10-20, cerrado el mismo día: el usuario
+  // mandó una coordenada de investigación web (-33.506,-70.727) que se
+  // confirmó contra OSM (nodo "P1.3 2a Transversal - Camino a Melipilla",
+  // ref=P1.3, a 136m) -- se usa la coordenada exacta del nodo OSM, no la
+  // aproximada. Confianza alta.
+  { codigo: '1.3',  concesionaria: 'Vespucio Sur',      tramo: '2ª Transversal – Camino a Melipilla',        lat: -33.5058611, lon: -70.728455 },
   // Ruta 5 Norte — agregados 2026-08-27. Únicos peajes interurbanos con
   // coordenadas confiables encontradas (OpenStreetMap, cruzadas con el km
   // oficial MOP/concesionaria) — el resto del catálogo nacional (Tarifas)
@@ -541,6 +547,14 @@ function grupoGeometriaPara(portico) {
 const PARES_DIRECCIONALES = {
   '3.1': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.2',  tramoAlterno: 'Gran Avenida – Santa Rosa' },
   '3.3': { eje: 'lon', positivoEsAlterno: true,  alterno: '3.4',  tramoAlterno: 'Ruta 5 – Gran Avenida' },
+  // 2.2/2.1 -- el usuario mandó una coordenada de investigación web para 2.1
+  // que resultó estar a ~3km de cualquier pórtico real (verificado contra
+  // OSM, nada ahí); el nodo real "P2.1 Ruta 5 - General Velásquez" está a
+  // 29m de nuestro 2.2 ya catalogado -- mismo nudo vial, codificado por
+  // sentido, igual patrón que 3.3/3.4 (mismo segmento "X – Ruta 5" en el
+  // mismo tramo del anillo). Convención de signo por analogía estructural
+  // con 3.3/3.4 (mismo tipo de segmento), NO confirmada con cruce real.
+  '2.2': { eje: 'lon', positivoEsAlterno: true,  alterno: '2.1',  tramoAlterno: 'Ruta 5 – General Velásquez' },
   PA5:   { eje: 'lat', positivoEsAlterno: false, alterno: 'PA6',  tramoAlterno: 'Lo Blanco – Colón' },
   // 5.2/5.4 — tramo oriente de Vespucio Sur (Quilín/Grecia/Las Torres, La
   // Reina-Peñalolén), donde el anillo corre N-S en vez de E-O como el resto
