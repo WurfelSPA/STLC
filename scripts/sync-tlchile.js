@@ -342,6 +342,15 @@ const PORTICOS_FALLBACK = [
   { codigo: 'LAMPA',        concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 26, Lampa',                lat: -33.2356, lon: -70.7589 },
   { codigo: 'LASVEGAS',     concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 89, Llay-Llay',             lat: -32.8433, lon: -70.9893 },
   { codigo: 'PICHIDANGUI',  concesionaria: 'Ruta 5 Norte (Aconcagua)', tramo: 'Km 163, La Ligua',             lat: -32.1750, lon: -71.5207 },
+  // ⚠ Revisar: el nodo OSM en esta coordenada exacta trae name="Peaje Puerto
+  // Oscuro" / name:es="Peaje Combarbalá" (un lateral), no "Troncal Sur" --
+  // verificado 2026-10-21. Hay un nodo toll_booth sin nombre ~3km al norte
+  // (-31.4461, -71.5612) que podría ser la troncal real, pero no tiene tag
+  // que lo confirme. Cero pasadas reales registradas hasta ahora en este
+  // código, así que no hay histórico que proteger -- no se mueve la
+  // coordenada sin confirmar cuál es la troncal real (evitar cambiar un
+  // guess por otro), pero si llega una pasada real acá hay que verificar que
+  // el monto ($4.250, tarifa troncal) sea el correcto para ese punto físico.
   { codigo: 'TRONCALSUR',   concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Km 283, Canela (Troncal Sur)', lat: -31.4200, lon: -71.5704 },
   { codigo: 'TONGOY',       concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Acceso sur Tongoy (Lateral)',  lat: -30.3517, lon: -71.4323 },
   { codigo: 'GUANAQUEROS',  concesionaria: 'Ruta 5 Norte (Ruta del Elqui)', tramo: 'Guanaqueros (Lateral)',        lat: -30.1974, lon: -71.3880 },
