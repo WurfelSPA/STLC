@@ -20,7 +20,7 @@ type Vehiculo = {
   empresa: string;
   es_prueba_interna: boolean;
   orden: number;
-  cliente_usuario: string | null;
+  cliente_usuario: string[] | null;
   origen: string;
 };
 
@@ -146,7 +146,7 @@ function VehiculosSeccion({ vehiculos, clientes }: { vehiculos: Vehiculo[]; clie
             <th className="py-1">Patente</th>
             <th className="py-1">Alias</th>
             <th className="py-1">Unit ID</th>
-            <th className="py-1">Cliente asignado</th>
+            <th className="py-1">Clientes asignados</th>
             <th className="py-1"></th>
           </tr>
         </thead>
@@ -158,11 +158,17 @@ function VehiculosSeccion({ vehiculos, clientes }: { vehiculos: Vehiculo[]; clie
               <td className="py-1.5 font-mono text-gray-500">{v.unit_id}</td>
               <td className="py-1.5">
                 <select
-                  defaultValue={v.cliente_usuario || ""}
-                  onChange={(e) => startTransition(() => asignarVehiculoAction(v.id, e.target.value || null))}
+                  multiple
+                  size={Math.min(4, Math.max(2, clientes.filter((c) => !c.es_admin).length))}
+                  defaultValue={v.cliente_usuario || []}
+                  onChange={(e) =>
+                    startTransition(() =>
+                      asignarVehiculoAction(v.id, Array.from(e.target.selectedOptions).map((o) => o.value))
+                    )
+                  }
                   className="border border-gray-300 rounded text-xs px-1.5 py-1"
+                  title="Ctrl/Cmd+click para elegir más de uno — vacío = sin asignar (solo admins)"
                 >
-                  <option value="">— sin asignar (solo admins) —</option>
                   {clientes.filter((c) => !c.es_admin).map((c) => (
                     <option key={c.usuario} value={c.usuario}>{c.usuario} ({c.empresa})</option>
                   ))}
@@ -188,7 +194,7 @@ function UsuariosSeccion({ clientes, vehiculos }: { clientes: Cliente[]; vehicul
   const [state, formAction, pending] = useActionState(agregarUsuarioPorticosAction, undefined);
   const [stateClave, formActionClave, pendingClave] = useActionState(actualizarPasswordUsuarioAction, undefined);
   const [, startTransition] = useTransition();
-  const sinAsignar = vehiculos.filter((v) => !v.cliente_usuario);
+  const sinAsignar = vehiculos.filter((v) => !v.cliente_usuario || v.cliente_usuario.length === 0);
 
   return (
     <div className="bg-white border border-gray-300 rounded p-4">
@@ -256,7 +262,7 @@ function UsuariosSeccion({ clientes, vehiculos }: { clientes: Cliente[]; vehicul
               <td className="py-1.5">{c.empresa}</td>
               <td className="py-1.5">{c.es_admin ? "Todas las unidades" : "Solo asignados"}</td>
               <td className="py-1.5 font-mono text-xs text-gray-500">
-                {c.es_admin ? "—" : vehiculos.filter((v) => v.cliente_usuario === c.usuario).map((v) => v.patente).join(", ") || "ninguno"}
+                {c.es_admin ? "—" : vehiculos.filter((v) => v.cliente_usuario?.includes(c.usuario)).map((v) => v.patente).join(", ") || "ninguno"}
               </td>
               <td className="py-1.5 text-right">
                 <button

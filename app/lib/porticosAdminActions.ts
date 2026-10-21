@@ -137,10 +137,11 @@ export async function eliminarVehiculoPorticosAction(id: string) {
   revalidatePath("/porticos-admin");
 }
 
-export async function asignarVehiculoAction(vehiculoId: string, clienteUsuario: string | null) {
+export async function asignarVehiculoAction(vehiculoId: string, clientesUsuario: string[] | null) {
   await exigirAdmin();
   const supabase = getSupabaseAdmin();
-  await supabase.from("porticos_vehiculos").update({ cliente_usuario: clienteUsuario }).eq("id", vehiculoId);
+  const valor = clientesUsuario && clientesUsuario.length ? clientesUsuario : null;
+  await supabase.from("porticos_vehiculos").update({ cliente_usuario: valor }).eq("id", vehiculoId);
   revalidatePath("/porticos-admin");
 }
 
@@ -214,7 +215,7 @@ export async function agregarUsuarioPorticosAction(_state: UsuarioPorticosAction
   }
 
   if (vehiculoId) {
-    await supabase.from("porticos_vehiculos").update({ cliente_usuario: usuario.toLowerCase() }).eq("id", vehiculoId);
+    await supabase.from("porticos_vehiculos").update({ cliente_usuario: [usuario.toLowerCase()] }).eq("id", vehiculoId);
   }
 
   revalidatePath("/porticos-admin");
@@ -255,7 +256,24 @@ export async function actualizarPasswordUsuarioAction(_state: UsuarioPorticosAct
 export async function eliminarUsuarioPorticosAction(usuario: string) {
   await exigirAdmin();
   const supabase = getSupabaseAdmin();
-  await supabase.from("porticos_vehiculos").update({ cliente_usuario: null }).eq("cliente_usuario", usuario);
+
+  // cliente_usuario es un arreglo (un vehículo puede tener más de un dueño,
+  // ej. DFFD-69 es de Kcerda y AGP a la vez) -- hay que sacar solo a este
+  // usuario de cada arreglo donde aparezca, no vaciarlo entero, para no
+  // desasignarle a otros clientes un vehículo que comparten.
+  const { data: afectados } = await supabase
+    .from("porticos_vehiculos")
+    .select("id, cliente_usuario")
+    .contains("cliente_usuario", [usuario]);
+
+  for (const v of afectados ?? []) {
+    const restante = (v.cliente_usuario ?? []).filter((u: string) => u !== usuario);
+    await supabase
+      .from("porticos_vehiculos")
+      .update({ cliente_usuario: restante.length ? restante : null })
+      .eq("id", v.id);
+  }
+
   await supabase.from("porticos_clientes").delete().eq("usuario", usuario);
   revalidatePath("/porticos-admin");
 }
