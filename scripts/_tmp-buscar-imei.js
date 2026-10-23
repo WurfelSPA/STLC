@@ -19,5 +19,12 @@ const supabase = createClient(
     .select('*')
     .eq('imei', imei);
   if (errExistente) { console.error(errExistente); process.exit(1); }
-  console.log('Ya en porticos_vehiculos:', JSON.stringify(existente, null, 2));
+  console.log('Ya en porticos_vehiculos (por imei):', JSON.stringify(existente, null, 2));
+
+  const { data: porPatente, error: errPatente } = await supabase
+    .from('porticos_vehiculos')
+    .select('*')
+    .eq('patente', 'KHTC-71');
+  if (errPatente) { console.error(errPatente); process.exit(1); }
+  console.log('KHTC-71 en porticos_vehiculos:', JSON.stringify(porPatente, null, 2));
 })();
