@@ -6,6 +6,10 @@ on:
         description: 'Argumento para el script'
         required: false
         default: ''
+      arg2:
+        description: 'Segundo argumento (opcional)'
+        required: false
+        default: ''
 jobs:
   query:
     runs-on: ubuntu-latest
@@ -18,4 +22,4 @@ jobs:
       - run: npm install @supabase/supabase-js
       - env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/_tmp-buscar-imei.js "${{ github.event.inputs.arg }}"
+        run: node scripts/_tmp-buscar-imei.js "${{ github.event.inputs.arg }}" "${{ github.event.inputs.arg2 }}"

@@ -27,4 +27,14 @@ const supabase = createClient(
     .eq('patente', 'KHTC-71');
   if (errPatente) { console.error(errPatente); process.exit(1); }
   console.log('KHTC-71 en porticos_vehiculos:', JSON.stringify(porPatente, null, 2));
+
+  if (process.argv[3] === '--update') {
+    const { data: actualizado, error: errUpdate } = await supabase
+      .from('porticos_vehiculos')
+      .update({ unit_id_ftc927: 7082, imei_ftc927: imei })
+      .eq('patente', 'KHTC-71')
+      .select();
+    if (errUpdate) { console.error(errUpdate); process.exit(1); }
+    console.log('Actualizado:', JSON.stringify(actualizado, null, 2));
+  }
 })();
