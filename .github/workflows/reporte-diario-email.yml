@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: reporte diario por correo del piloto de pórticos AGP/Tracklink
+# (vehículos con pasadas, pasadas detectadas, acierto en montos urbanas/
+# interurbanas/total, pórticos en catálogo) a Emiliano, Rafael y Alex. Si no
+# hubo pasadas confirmadas ayer, el script no envía nada (ver
+# reporte-diario-email.js).
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Reporte diario pórticos (email)
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 10:00 hora Chile aprox. (UTC-3)
+
+  workflow_dispatch:
+
+jobs:
+  reporte-diario-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-reporte-diario-v1
+
+      - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install @supabase/supabase-js nodemailer
+        timeout-minutes: 5
+
+      - name: Enviar reporte diario
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRACKLINK_SMTP_PASSWORD: ${{ secrets.TRACKLINK_SMTP_PASSWORD }}
+        run: node scripts/reporte-diario-email.js
