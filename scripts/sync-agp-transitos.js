@@ -219,13 +219,22 @@ async function emparejarYActualizar(vehiculoId, transitos) {
       continue;
     }
 
+    // Sin el filtro `.is('monto_agp', null)` -- antes lo tenía, pero eso
+    // hacía que un tránsito YA emparejado en una corrida anterior (el rango
+    // de AGP_DIAS_ATRAS=14 vuelve a traerlo varios días seguidos) dejara de
+    // encontrar su pasada acá, y guardarTransitoRecibido() lo registraba con
+    // pasada_id=null como si nunca se hubiera capturado -- bug real
+    // encontrado 2026-10-26 al revisar agp_transitos_recibidos recién
+    // creada (3 tránsitos del 19-oct, ya capturados de verdad, salían como
+    // "sin pasada"). Ahora se busca la pasada sin importar si monto_agp ya
+    // tiene valor, y el UPDATE de abajo solo escribe si todavía está null
+    // (no pisa un valor ya cargado).
     const { data: candidatas, error } = await supabase
       .from('porticos_pasadas_reales')
-      .select('id, ts')
+      .select('id, ts, monto_agp')
       .eq('vehiculo_id', vehiculoId)
       .eq('confirmado', true)
       .eq('portico_codigo', codigo)
-      .is('monto_agp', null)
       .gte('ts', new Date(tsTransito.getTime() - VENTANA_EMPAREJAR_MS).toISOString())
       .lte('ts', new Date(tsTransito.getTime() + VENTANA_EMPAREJAR_MS).toISOString());
     if (error) throw new Error(`Error buscando pasada: ${error.message}`);
@@ -243,13 +252,15 @@ async function emparejarYActualizar(vehiculoId, transitos) {
       if (diff < mejorDiff) { mejor = c; mejorDiff = diff; }
     }
 
-    const { error: errUpdate } = await supabase
-      .from('porticos_pasadas_reales')
-      .update({ monto_agp: Number(t.monto) })
-      .eq('id', mejor.id);
-    if (errUpdate) throw new Error(`Error actualizando pasada ${mejor.id}: ${errUpdate.message}`);
+    if (mejor.monto_agp == null) {
+      const { error: errUpdate } = await supabase
+        .from('porticos_pasadas_reales')
+        .update({ monto_agp: Number(t.monto) })
+        .eq('id', mejor.id);
+      if (errUpdate) throw new Error(`Error actualizando pasada ${mejor.id}: ${errUpdate.message}`);
+      actualizadas++;
+    }
     await guardarTransitoRecibido(vehiculoId, t, tsTransito, codigo, mejor.id);
-    actualizadas++;
   }
   console.log(`[agp-transitos] ${actualizadas} actualizadas, ${sinPasada} sin pasada confirmada cercana, ${sinMapear} sin código mapeado.`);
 }
