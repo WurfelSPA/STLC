@@ -101,34 +101,41 @@ function construirTarifas(filas) {
   return tarifas;
 }
 
-// Trae pasadas confirmadas del dispositivo principal de vehículos DEL PILOTO
-// AGP (cliente_usuario contiene 'agp' -- mismo criterio que usa la API de
-// AGP) en [desde, hasta), y arma: vehículos distintos, total de pasadas,
-// pasadas sin NINGUNA fuente de monto real todavía, y por cada fuente
-// (lectura manual, Smart Report, AGP) cuántas pasadas la tienen y cuántas de
-// esas coinciden con la tarifa estimada.
+// Trae pasadas confirmadas del dispositivo principal de TODA la flota
+// (Tracklink, no solo los 2 vehículos cliente real de AGP) en [desde,
+// hasta), y arma: vehículos distintos, total de pasadas, pasadas sin
+// NINGUNA fuente de monto real todavía, y por cada fuente (lectura manual,
+// Smart Report, AGP) cuántas pasadas la tienen y cuántas de esas coinciden
+// con la tarifa estimada.
 //
-// Bug real encontrado 2026-10-26: antes de filtrar por vehiculosAgp, el
-// reporte incluía pasadas de VVJG-14 (vehículo interno de comparación
-// GV58LAU/FTC927, cliente_usuario=null, nunca fue parte del piloto) -- 22
-// lecturas viejas (ago-sep, de antes de la corrección del tarifario de
-// Vespucio Sur del 21-oct) hundían el acierto acumulado sin reflejar nada
-// real del piloto. Con eso además salió a la luz que el cuadro anterior
-// (urbana/interurbana/acumulado + semáforo) confundió al equipo de
-// Tracklink -- reemplazado por esta comparación directa por fuente.
+// Alcance real de cada fuente (no todas cubren toda la flota, ver
+// etiquetas): "Lectura manual" y "pasadas detectadas" sí son de toda la
+// flota; "Smart Report" solo tiene datos de VVJG-14 (único vehículo dado de
+// alta en esa cuenta, ver PATENTES_SMARTREPORT en sync-smartreport.js);
+// "AGP" solo tiene datos de VHRX-66/TTXR-82 (únicos clientes reales de AGP
+// con TAG propio, ver PATENTES_AGP en sync-agp-transitos.js). Ninguna de las
+// dos limitaciones es un bug nuestro -- cada fuente externa solo tiene lo
+// que tiene.
+//
+// Antes (hasta el 26-oct) este reporte sí tenía un bug real: filtraba por
+// vehículo con cliente_usuario='agp' para el cálculo de "acierto acumulado"
+// y aun así se colaban 22 lecturas viejas de VVJG-14 (ago-sep, previas a la
+// corrección del tarifario de Vespucio Sur del 21-oct) que hundían el
+// número sin reflejar nada real. Ese "acumulado" ya no existe (el reporte
+// rediseñado solo mira "ayer"), así que no hace falta excluir ningún
+// vehículo por fecha -- un día puntual nunca arrastra data vieja.
 const FUENTES = [
   { campo: 'monto_real', etiqueta: 'Lectura manual' },
-  { campo: 'monto_smartreport', etiqueta: 'Smart Report' },
+  { campo: 'monto_smartreport', etiqueta: 'Smart Report (solo VVJG-14)' },
   { campo: 'monto_agp', etiqueta: 'AGP (solo VHRX-66/TTXR-82)' },
 ];
 
-async function calcularResumen(vehiculosAgp, tarifas, desde, hasta) {
+async function calcularResumen(tarifas, desde, hasta) {
   let query = supabase
     .from('porticos_pasadas_reales')
     .select('vehiculo_id, portico_codigo, monto_real, monto_smartreport, monto_agp')
     .eq('confirmado', true)
-    .eq('dispositivo', 'principal')
-    .in('vehiculo_id', vehiculosAgp);
+    .eq('dispositivo', 'principal');
   if (desde) query = query.gte('ts', desde.toISOString());
   if (hasta) query = query.lt('ts', hasta.toISOString());
   const { data, error } = await query;
@@ -170,15 +177,6 @@ async function calcularComparacionAgp(desde, hasta) {
   const vio = data.length;
   const capturamos = data.filter((t) => t.pasada_id != null).length;
   return { vio, capturamos };
-}
-
-async function obtenerVehiculosAgp() {
-  const { data, error } = await supabase
-    .from('porticos_vehiculos')
-    .select('id')
-    .contains('cliente_usuario', ['agp']);
-  if (error) throw error;
-  return data.map((v) => v.id);
 }
 
 async function contarPorticosCatalogo() {
@@ -230,10 +228,9 @@ async function main() {
   const { data: catalogo, error: errCatalogo } = await supabase.from('porticos_catalogo').select('codigo, tbfp, tbp, tarifa_ts');
   if (errCatalogo) throw errCatalogo;
   const tarifas = construirTarifas(catalogo);
-  const vehiculosAgp = await obtenerVehiculosAgp();
 
   const [resumenAyer, comparacionAgp, porticos] = await Promise.all([
-    calcularResumen(vehiculosAgp, tarifas, desde, hasta),
+    calcularResumen(tarifas, desde, hasta),
     calcularComparacionAgp(desde, hasta),
     contarPorticosCatalogo(),
   ]);
