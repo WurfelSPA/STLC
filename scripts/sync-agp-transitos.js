@@ -183,13 +183,42 @@ function normalizarFecha(fecha) {
   return /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : fecha.split('-').reverse().join('-');
 }
 
+// Guarda CADA tránsito que AGP reporta (calce o no con una pasada nuestra)
+// en agp_transitos_recibidos -- antes solo se logueaba el "sin pasada" y se
+// descartaba, así que nunca pudimos medir "AGP vio N, nosotros capturamos
+// M" automáticamente (el número que se reportaba antes, ej. "21 tránsitos
+// confirmados, capturamos 15", salía de cruzar el correo de Sergio a mano).
+// Pedido explícito del usuario 2026-10-26 tras una reunión con AGP/Tracklink
+// sobre reportar esto en el correo diario. onConflict por la unique
+// (vehiculo_id, ts_transito, punto_cobro) -- AGP_DIAS_ATRAS=14 hace que el
+// mismo tránsito se vuelva a recibir varios días seguidos, upsert evita
+// duplicarlo y de paso permite que un tránsito "sin pasada" se actualice
+// solo si calza más adelante (ej. llega la pasada un día después).
+async function guardarTransitoRecibido(vehiculoId, t, tsTransito, codigo, pasadaId) {
+  const { error } = await supabase.from('agp_transitos_recibidos').upsert({
+    vehiculo_id: vehiculoId,
+    ts_transito: tsTransito.toISOString(),
+    autopista: t.autopista,
+    punto_cobro: t.puntoCobro,
+    codigo_interno: codigo,
+    monto: Number(t.monto),
+    pasada_id: pasadaId,
+  }, { onConflict: 'vehiculo_id,ts_transito,punto_cobro' });
+  if (error) throw new Error(`Error guardando agp_transitos_recibidos: ${error.message}`);
+}
+
 async function emparejarYActualizar(vehiculoId, transitos) {
   let actualizadas = 0, sinMapear = 0, sinPasada = 0;
   for (const t of transitos) {
     const codigo = codigoInterno(t.autopista, t.puntoCobro);
-    if (!codigo) { sinMapear++; continue; }
-
     const tsTransito = new Date(`${normalizarFecha(t.fecha)}T${t.hora}:00-03:00`); // hora Chile real
+
+    if (!codigo) {
+      sinMapear++;
+      await guardarTransitoRecibido(vehiculoId, t, tsTransito, null, null);
+      continue;
+    }
+
     const { data: candidatas, error } = await supabase
       .from('porticos_pasadas_reales')
       .select('id, ts')
@@ -203,6 +232,7 @@ async function emparejarYActualizar(vehiculoId, transitos) {
     if (!candidatas || !candidatas.length) {
       sinPasada++;
       console.log(`[agp-transitos][sin-pasada] ${t.autopista} / "${t.puntoCobro}" -> código ${codigo}, ${t.fecha} ${t.hora} (tsTransito=${tsTransito.toISOString()}), monto $${t.monto} -- sin pasada confirmada en ±${VENTANA_EMPAREJAR_MS / 60000}min.`);
+      await guardarTransitoRecibido(vehiculoId, t, tsTransito, codigo, null);
       continue;
     }
 
@@ -218,6 +248,7 @@ async function emparejarYActualizar(vehiculoId, transitos) {
       .update({ monto_agp: Number(t.monto) })
       .eq('id', mejor.id);
     if (errUpdate) throw new Error(`Error actualizando pasada ${mejor.id}: ${errUpdate.message}`);
+    await guardarTransitoRecibido(vehiculoId, t, tsTransito, codigo, mejor.id);
     actualizadas++;
   }
   console.log(`[agp-transitos] ${actualizadas} actualizadas, ${sinPasada} sin pasada confirmada cercana, ${sinMapear} sin código mapeado.`);

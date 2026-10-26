@@ -4,10 +4,15 @@
  * reporte-diario-email.js
  *
  * Reporte diario por correo del estado del piloto de pórticos (AGP/Tracklink):
- * vehículos con pasadas, pasadas detectadas, acierto en montos (urbanas /
- * interurbanas / total, ayer y acumulado) y tamaño del catálogo. Pensado
- * para correr una vez al día, 10:00 hora Chile, sobre lo sucedido el día
- * anterior.
+ * vehículos con pasadas, pasadas detectadas, acierto en montos por fuente
+ * (lectura manual, Smart Report, AGP) y cuántos tránsitos vio AGP que
+ * nosotros no capturamos. Pensado para correr una vez al día, 10:00 hora
+ * Chile, sobre lo sucedido el día anterior.
+ *
+ * Rediseñado 2026-10-26 a pedido del equipo de Tracklink -- la versión
+ * anterior (acierto urbana/interurbana/acumulado con semáforo) confundió
+ * más de lo que aclaró. Reemplazada por una comparación directa por fuente,
+ * solo del día anterior (sin "acumulado").
  *
  * Regla de silencio: si no hubo ninguna pasada confirmada ayer, no se envía
  * nada -- un correo de puros ceros no aporta y satura la bandeja.
@@ -37,20 +42,6 @@ const DESTINATARIOS = [
   'rafael.nieto@tracklink.cl',
   'alex.melendez@tracklink.cl',
 ];
-
-// Concesionarias urbanas (Santiago) -- todo lo que NO esté en esta lista se
-// clasifica como interurbana. A propósito es una lista chica y cerrada de lo
-// urbano (prácticamente no cambia) en vez de enumerar cada concesión
-// interurbana, que sigue creciendo cada vez que se cierra un hueco nuevo de
-// catálogo (ver ESTADO.md) -- así un pórtico interurbano nuevo cae solo en
-// el grupo correcto sin tener que tocar este archivo.
-const CONCESIONARIAS_URBANAS = new Set([
-  'Autopista Central',
-  'Vespucio Norte',
-  'Vespucio Sur',
-  'Costanera Norte',
-  'Vespucio Oriente (AVO)',
-]);
 
 // Mismo criterio que montosPosiblesPortico/toleranciaMonto en
 // sync-tlchile.js, documentado en tracklink-porticos-portal/docs/ESTADO.md
@@ -112,23 +103,29 @@ function construirTarifas(filas) {
 
 // Trae pasadas confirmadas del dispositivo principal de vehículos DEL PILOTO
 // AGP (cliente_usuario contiene 'agp' -- mismo criterio que usa la API de
-// AGP) en [desde, hasta) (o todo el histórico si se omiten), y arma:
-// vehículos distintos, total de pasadas, pasadas sin ningún monto real
-// todavía, y acierto en montos desglosado urbana/interurbana/total (solo
-// sobre pasadas CON monto real, AVO y pórticos sin tarifa cargada quedan
-// fuera del cálculo de acierto).
+// AGP) en [desde, hasta), y arma: vehículos distintos, total de pasadas,
+// pasadas sin NINGUNA fuente de monto real todavía, y por cada fuente
+// (lectura manual, Smart Report, AGP) cuántas pasadas la tienen y cuántas de
+// esas coinciden con la tarifa estimada.
 //
-// Bug real encontrado 2026-10-26: antes de este filtro, el reporte incluía
-// pasadas de VVJG-14 (vehículo interno de comparación GV58LAU/FTC927,
-// cliente_usuario=null, nunca fue parte del piloto) -- 22 lecturas viejas
-// (ago-sep, de antes de la corrección del tarifario de Vespucio Sur del
-// 21-oct) hundían el acierto urbano acumulado a 88.6% sin que reflejara
-// nada real del piloto. `vehiculosAgp` abajo es el mismo filtro que ya usa
-// /api/agp/pasadas en el portal.
+// Bug real encontrado 2026-10-26: antes de filtrar por vehiculosAgp, el
+// reporte incluía pasadas de VVJG-14 (vehículo interno de comparación
+// GV58LAU/FTC927, cliente_usuario=null, nunca fue parte del piloto) -- 22
+// lecturas viejas (ago-sep, de antes de la corrección del tarifario de
+// Vespucio Sur del 21-oct) hundían el acierto acumulado sin reflejar nada
+// real del piloto. Con eso además salió a la luz que el cuadro anterior
+// (urbana/interurbana/acumulado + semáforo) confundió al equipo de
+// Tracklink -- reemplazado por esta comparación directa por fuente.
+const FUENTES = [
+  { campo: 'monto_real', etiqueta: 'Lectura manual' },
+  { campo: 'monto_smartreport', etiqueta: 'Smart Report' },
+  { campo: 'monto_agp', etiqueta: 'AGP (solo VHRX-66/TTXR-82)' },
+];
+
 async function calcularResumen(vehiculosAgp, tarifas, desde, hasta) {
   let query = supabase
     .from('porticos_pasadas_reales')
-    .select('vehiculo_id, portico_codigo, concesionaria, monto_real, monto_smartreport, monto_agp')
+    .select('vehiculo_id, portico_codigo, monto_real, monto_smartreport, monto_agp')
     .eq('confirmado', true)
     .eq('dispositivo', 'principal')
     .in('vehiculo_id', vehiculosAgp);
@@ -139,20 +136,40 @@ async function calcularResumen(vehiculosAgp, tarifas, desde, hasta) {
 
   const vehiculos = new Set();
   let pendientes = 0;
-  const grupos = { urbana: { ok: 0, total: 0 }, interurbana: { ok: 0, total: 0 } };
+  const porFuente = Object.fromEntries(FUENTES.map((f) => [f.campo, { ok: 0, total: 0 }]));
 
   for (const p of data) {
     vehiculos.add(p.vehiculo_id);
-    const montoReal = p.monto_real ?? p.monto_smartreport ?? p.monto_agp;
-    if (montoReal == null) { pendientes++; continue; }
-    const coincide = dentroDeTolerancia(Number(montoReal), montosPosibles(tarifas, p.portico_codigo));
-    if (coincide === null) continue; // sin tarifa cargada, no se puede evaluar
-    const grupo = CONCESIONARIAS_URBANAS.has(p.concesionaria) ? 'urbana' : 'interurbana';
-    grupos[grupo].total++;
-    if (coincide) grupos[grupo].ok++;
+    if (p.monto_real == null && p.monto_smartreport == null && p.monto_agp == null) { pendientes++; continue; }
+    for (const { campo } of FUENTES) {
+      const monto = p[campo];
+      if (monto == null) continue;
+      const coincide = dentroDeTolerancia(Number(monto), montosPosibles(tarifas, p.portico_codigo));
+      if (coincide === null) continue; // sin tarifa cargada, no se puede evaluar
+      porFuente[campo].total++;
+      if (coincide) porFuente[campo].ok++;
+    }
   }
 
-  return { vehiculos: vehiculos.size, pasadas: data.length, pendientes, grupos };
+  return { vehiculos: vehiculos.size, pasadas: data.length, pendientes, porFuente };
+}
+
+// Tránsitos que AGP reportó para sus vehículos cliente real (VHRX-66/
+// TTXR-82, ver PATENTES_AGP en sync-agp-transitos.js) en [desde, hasta),
+// hayan calzado o no con una pasada nuestra -- permite mostrar "AGP vio N,
+// nosotros capturamos M", a diferencia del acierto en montos (que solo mira
+// lo que ya calzó). Agregado 2026-10-26 a pedido explícito del equipo de
+// Tracklink en la reunión del 26-oct.
+async function calcularComparacionAgp(desde, hasta) {
+  const { data, error } = await supabase
+    .from('agp_transitos_recibidos')
+    .select('pasada_id')
+    .gte('ts_transito', desde.toISOString())
+    .lt('ts_transito', hasta.toISOString());
+  if (error) throw error;
+  const vio = data.length;
+  const capturamos = data.filter((t) => t.pasada_id != null).length;
+  return { vio, capturamos };
 }
 
 async function obtenerVehiculosAgp() {
@@ -172,53 +189,36 @@ async function contarPorticosCatalogo() {
   return count;
 }
 
-// Umbrales propios (no vienen de AGP): la meta acordada es 99% con ±1% de
-// desvío, así que 🟢 cubre esa meta o mejor, 🟡 marca que se está desviando
-// pero no es grave, 🔴 es un salto grande que merece mirar hoy mismo.
-function semaforo(pct) {
-  if (pct === null) return '⚪';
-  if (pct >= 98) return '🟢';
-  if (pct >= 95) return '🟡';
-  return '🔴';
-}
 function celdaAcierto(ok, total) {
-  if (total === 0) return { html: `${semaforo(null)} sin datos para evaluar`, pct: null };
-  const pct = (ok / total) * 100;
-  return { html: `${semaforo(pct)} ${pct.toFixed(1)}% (${ok}/${total})`, pct };
+  if (total === 0) return 'sin datos para evaluar';
+  return `${ok} (${((ok / total) * 100).toFixed(0)}%)`;
 }
 
-function filaTabla(etiqueta, ayer, acumulado) {
-  return `<tr>
-    <td style="padding:6px 10px;border:1px solid #ddd;">${etiqueta}</td>
-    <td style="padding:6px 10px;border:1px solid #ddd;">${ayer}</td>
-    <td style="padding:6px 10px;border:1px solid #ddd;">${acumulado}</td>
-  </tr>`;
-}
-
-function construirHtml({ fechaHoy, fechaAyer, ayer, acumulado, porticos }) {
-  const acAyer = celdaAcierto(ayer.grupos.urbana.ok + ayer.grupos.interurbana.ok, ayer.grupos.urbana.total + ayer.grupos.interurbana.total);
-  const acAcum = celdaAcierto(acumulado.grupos.urbana.ok + acumulado.grupos.interurbana.ok, acumulado.grupos.urbana.total + acumulado.grupos.interurbana.total);
-  const urbAyer = celdaAcierto(ayer.grupos.urbana.ok, ayer.grupos.urbana.total);
-  const urbAcum = celdaAcierto(acumulado.grupos.urbana.ok, acumulado.grupos.urbana.total);
-  const interAyer = celdaAcierto(ayer.grupos.interurbana.ok, ayer.grupos.interurbana.total);
-  const interAcum = celdaAcierto(acumulado.grupos.interurbana.ok, acumulado.grupos.interurbana.total);
+function construirHtml({ fechaAyer, resumen, comparacionAgp, porticos }) {
+  const filasFuente = FUENTES.map(({ campo, etiqueta }) => {
+    const { ok, total } = resumen.porFuente[campo];
+    return `<tr>
+      <td style="padding:6px 10px;border:1px solid #ddd;">${etiqueta}</td>
+      <td style="padding:6px 10px;border:1px solid #ddd;">${total}</td>
+      <td style="padding:6px 10px;border:1px solid #ddd;">${celdaAcierto(ok, total)}</td>
+    </tr>`;
+  }).join('');
 
   return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
     <p>Resumen automático del piloto de pórticos correspondiente a ayer (${fechaAyer}).</p>
     <table style="border-collapse:collapse;">
       <tr style="background:#f2f2f2;">
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Métrica</th>
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Ayer</th>
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Acumulado</th>
+        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Fuente</th>
+        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Pasadas de ayer con esa fuente</th>
+        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Coinciden con nuestro monto estimado</th>
       </tr>
-      ${filaTabla('Vehículos con pasadas', ayer.vehiculos, '—')}
-      ${filaTabla('Pasadas detectadas', ayer.pasadas, acumulado.pasadas)}
-      ${filaTabla('Acierto en montos, urbanas', urbAyer.html, urbAcum.html)}
-      ${filaTabla('Acierto en montos, interurbanas', interAyer.html, interAcum.html)}
-      ${filaTabla('Acierto en montos, total', acAyer.html, acAcum.html)}
-      ${filaTabla('Pendientes de confirmar', `${ayer.pendientes} pasadas sin monto real todavía`, '—')}
-      ${filaTabla('Pórticos en catálogo', porticos, '—')}
+      ${filasFuente}
     </table>
+    <p>Vehículos con pasadas: ${resumen.vehiculos}<br>
+    Pasadas detectadas: ${resumen.pasadas}<br>
+    Pendientes de confirmar (ninguna fuente todavía): ${resumen.pendientes}<br>
+    AGP vio ${comparacionAgp.vio} tránsito(s) de VHRX-66/TTXR-82 ayer, capturamos ${comparacionAgp.capturamos} de esos<br>
+    Pórticos en catálogo: ${porticos}</p>
     <p style="color:#888;font-size:12px;">Mensaje generado automáticamente.</p>
   </div>`;
 }
@@ -232,9 +232,9 @@ async function main() {
   const tarifas = construirTarifas(catalogo);
   const vehiculosAgp = await obtenerVehiculosAgp();
 
-  const [resumenAyer, resumenAcumulado, porticos] = await Promise.all([
+  const [resumenAyer, comparacionAgp, porticos] = await Promise.all([
     calcularResumen(vehiculosAgp, tarifas, desde, hasta),
-    calcularResumen(vehiculosAgp, tarifas, null, null),
+    calcularComparacionAgp(desde, hasta),
     contarPorticosCatalogo(),
   ]);
 
@@ -244,10 +244,9 @@ async function main() {
   }
 
   const html = construirHtml({
-    fechaHoy: fechaCorta(ahora),
     fechaAyer: fechaCorta(desde),
-    ayer: resumenAyer,
-    acumulado: resumenAcumulado,
+    resumen: resumenAyer,
+    comparacionAgp,
     porticos,
   });
 
