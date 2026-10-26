@@ -110,17 +110,28 @@ function construirTarifas(filas) {
   return tarifas;
 }
 
-// Trae pasadas confirmadas del dispositivo principal en [desde, hasta)
-// (o todo el histórico si se omiten) y arma: vehículos distintos, total de
-// pasadas, pasadas sin ningún monto real todavía, y acierto en montos
-// desglosado urbana/interurbana/total (solo sobre pasadas CON monto real,
-// AVO y pórticos sin tarifa cargada quedan fuera del cálculo de acierto).
-async function calcularResumen(tarifas, desde, hasta) {
+// Trae pasadas confirmadas del dispositivo principal de vehículos DEL PILOTO
+// AGP (cliente_usuario contiene 'agp' -- mismo criterio que usa la API de
+// AGP) en [desde, hasta) (o todo el histórico si se omiten), y arma:
+// vehículos distintos, total de pasadas, pasadas sin ningún monto real
+// todavía, y acierto en montos desglosado urbana/interurbana/total (solo
+// sobre pasadas CON monto real, AVO y pórticos sin tarifa cargada quedan
+// fuera del cálculo de acierto).
+//
+// Bug real encontrado 2026-10-26: antes de este filtro, el reporte incluía
+// pasadas de VVJG-14 (vehículo interno de comparación GV58LAU/FTC927,
+// cliente_usuario=null, nunca fue parte del piloto) -- 22 lecturas viejas
+// (ago-sep, de antes de la corrección del tarifario de Vespucio Sur del
+// 21-oct) hundían el acierto urbano acumulado a 88.6% sin que reflejara
+// nada real del piloto. `vehiculosAgp` abajo es el mismo filtro que ya usa
+// /api/agp/pasadas en el portal.
+async function calcularResumen(vehiculosAgp, tarifas, desde, hasta) {
   let query = supabase
     .from('porticos_pasadas_reales')
     .select('vehiculo_id, portico_codigo, concesionaria, monto_real, monto_smartreport, monto_agp')
     .eq('confirmado', true)
-    .eq('dispositivo', 'principal');
+    .eq('dispositivo', 'principal')
+    .in('vehiculo_id', vehiculosAgp);
   if (desde) query = query.gte('ts', desde.toISOString());
   if (hasta) query = query.lt('ts', hasta.toISOString());
   const { data, error } = await query;
@@ -142,6 +153,15 @@ async function calcularResumen(tarifas, desde, hasta) {
   }
 
   return { vehiculos: vehiculos.size, pasadas: data.length, pendientes, grupos };
+}
+
+async function obtenerVehiculosAgp() {
+  const { data, error } = await supabase
+    .from('porticos_vehiculos')
+    .select('id')
+    .contains('cliente_usuario', ['agp']);
+  if (error) throw error;
+  return data.map((v) => v.id);
 }
 
 async function contarPorticosCatalogo() {
@@ -210,10 +230,11 @@ async function main() {
   const { data: catalogo, error: errCatalogo } = await supabase.from('porticos_catalogo').select('codigo, tbfp, tbp, tarifa_ts');
   if (errCatalogo) throw errCatalogo;
   const tarifas = construirTarifas(catalogo);
+  const vehiculosAgp = await obtenerVehiculosAgp();
 
   const [resumenAyer, resumenAcumulado, porticos] = await Promise.all([
-    calcularResumen(tarifas, desde, hasta),
-    calcularResumen(tarifas, null, null),
+    calcularResumen(vehiculosAgp, tarifas, desde, hasta),
+    calcularResumen(vehiculosAgp, tarifas, null, null),
     contarPorticosCatalogo(),
   ]);
 
