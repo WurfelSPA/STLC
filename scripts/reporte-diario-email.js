@@ -22,8 +22,14 @@
  * también (ver PATENTES_EXCLUIDAS) -- su histórico queda intacto en la base
  * de datos, solo deja de contarse en el reporte diario.
  *
- * Pensado para correr una vez al día, 10:00 hora Chile, sobre lo sucedido el
- * día anterior.
+ * Los dos bloques miran días DISTINTOS a propósito (ver DIAS_LAG_AGP): el
+ * bloque 1 es sobre "ayer" (nuestra propia data, sin atraso). El bloque 2
+ * sobre AGP mirando "ayer" casi siempre saldría en cero -- AGP procesa de su
+ * lado de forma asíncrona y tarda 1-2 días en tener el tránsito disponible
+ * (confirmado real, ver ESTADO.md) -- así que mira unos días atrás, cuando
+ * ya es razonable que AGP haya terminado de procesar.
+ *
+ * Pensado para correr una vez al día, 10:00 hora Chile.
  *
  * Regla de silencio: si no hubo ninguna pasada confirmada ayer (ya excluyendo
  * PATENTES_EXCLUIDAS), no se envía nada -- un correo de puros ceros no aporta
@@ -95,16 +101,20 @@ function partesChile(fecha) {
   return p;
 }
 
-// Rango [00:00, 24:00) de "ayer" en hora de Chile, expresado en instantes
-// UTC reales -- se resta la cantidad de minutos transcurridos desde la
-// medianoche de Chile (medida con partesChile, no con un offset fijo) para
-// llegar al instante UTC real que esa medianoche representó.
-function rangoAyerChile(ahora) {
+// Rango [00:00, 24:00) de un día específico en hora de Chile, expresado en
+// instantes UTC reales -- se resta la cantidad de minutos transcurridos
+// desde la medianoche de Chile (medida con partesChile, no con un offset
+// fijo) para llegar al instante UTC real que esa medianoche representó.
+// `diasAtras=1` (default) es "ayer"; un valor mayor mira más atrás (ver
+// DIAS_LAG_AGP, el bloque de AGP no usa "ayer" porque ellos tardan en
+// procesar).
+function rangoDiaChile(ahora, diasAtras = 1) {
   const hoy = partesChile(ahora);
   const minutosDesdeMedianoche = Number(hoy.hour) * 60 + Number(hoy.minute) + Number(hoy.second) / 60;
   const medianocheHoyUTC = new Date(ahora.getTime() - minutosDesdeMedianoche * 60_000);
-  const medianocheAyerUTC = new Date(medianocheHoyUTC.getTime() - 24 * 60 * 60_000);
-  return { desde: medianocheAyerUTC, hasta: medianocheHoyUTC };
+  const hasta = new Date(medianocheHoyUTC.getTime() - (diasAtras - 1) * 24 * 60 * 60_000);
+  const desde = new Date(hasta.getTime() - 24 * 60 * 60_000);
+  return { desde, hasta };
 }
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -131,6 +141,12 @@ async function idsDePatentes(patentes) {
 
 const DISTANCIA_ALTA_CONFIANZA_M = 50;
 const DISTANCIA_AL_LIMITE_M = 100; // RADIO_GEOCERCA_M en sync-tlchile.js es 150
+
+// AGP tarda 1-2 días en tener un tránsito disponible para consultar (proceso
+// asíncrono de su lado, ver ESTADO.md) -- mirar "ayer" para el bloque AGP
+// casi siempre da puros ceros, no porque falte algo nuestro sino porque es
+// muy pronto. 3 días da margen para que ya haya terminado de procesar.
+const DIAS_LAG_AGP = 3;
 
 // Bloque 1: pasadas detectadas por nuestra base de datos, toda la flota
 // activa (sin PATENTES_EXCLUIDAS). Incluye salud geométrica -- distancia al
@@ -235,16 +251,13 @@ function fila(etiqueta, valor) {
   return `${etiqueta}: ${valor}<br>`;
 }
 
-function construirHtml({ fechaAyer, deteccion, agp, porticos }) {
+function construirHtml({ fechaAyer, fechaAgp, deteccion, agp, porticos }) {
   const pct = (n, total) => (total ? `${n} (${((n / total) * 100).toFixed(0)}%)` : `${n}`);
 
   return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
-    <p>Resumen automático del piloto de pórticos correspondiente a ayer (${fechaAyer}).</p>
-
-    <h3 style="margin-bottom:4px;">1. Pasadas detectadas (nuestra base de datos)</h3>
+    <h3 style="margin-bottom:4px;">1. Pasadas detectadas (nuestra base de datos) — ${fechaAyer}</h3>
     <p style="margin-top:0;">
-      ${fila('Vehículos con pasadas', deteccion.vehiculos)}
-      ${fila('Pasadas detectadas', deteccion.pasadas)}
+      ${fila('Pasadas detectadas', `${deteccion.pasadas}, repartidas entre ${deteccion.vehiculos} vehículos distintos`)}
       ${fila(`Confirmadas a menos de ${DISTANCIA_ALTA_CONFIANZA_M}m del pórtico (alta confianza)`, pct(deteccion.cercaAltaConfianza, deteccion.pasadas))}
       ${fila(`Confirmadas a ${DISTANCIA_AL_LIMITE_M}m o más (cerca del límite del radio de detección)`, pct(deteccion.alLimite, deteccion.pasadas))}
       ${fila('Con velocidad 0 al momento del cruce (posible falso positivo)', deteccion.velocidadCero)}
@@ -252,9 +265,10 @@ function construirHtml({ fechaAyer, deteccion, agp, porticos }) {
       ${fila('Pórticos en catálogo', porticos)}
     </p>
 
-    <h3 style="margin-bottom:4px;">2. Contraste con AGP (solo VHRX-66 / TTXR-82)</h3>
+    <h3 style="margin-bottom:4px;">2. Contraste con AGP (solo VHRX-66 / TTXR-82) — ${fechaAgp}</h3>
+    <p style="margin-top:0;color:#888;font-size:12px;margin-bottom:2px;">Este bloque mira ${DIAS_LAG_AGP} días atrás, no ayer -- AGP tarda 1-2 días en procesar su lado.</p>
     <p style="margin-top:0;">
-      ${fila('Tránsitos que AGP reportó ayer', agp.vio)}
+      ${fila('Tránsitos que AGP reportó ese día', agp.vio)}
       ${fila('De esos, cuántos capturamos nosotros', agp.capturamos)}
       ${fila('Pasadas capturadas con monto de AGP', agp.conMonto)}
       ${fila('De esas, cuántas coinciden con nuestra tarifa estimada', pct(agp.coinciden, agp.conMonto))}
@@ -266,7 +280,8 @@ function construirHtml({ fechaAyer, deteccion, agp, porticos }) {
 
 async function main() {
   const ahora = new Date();
-  const { desde, hasta } = rangoAyerChile(ahora);
+  const { desde, hasta } = rangoDiaChile(ahora, 1);
+  const { desde: desdeAgp, hasta: hastaAgp } = rangoDiaChile(ahora, DIAS_LAG_AGP);
 
   const { data: catalogo, error: errCatalogo } = await supabase.from('porticos_catalogo').select('codigo, tbfp, tbp, tarifa_ts');
   if (errCatalogo) throw errCatalogo;
@@ -279,7 +294,7 @@ async function main() {
 
   const [deteccion, agp, porticos] = await Promise.all([
     calcularDeteccion(idsExcluidos, desde, hasta),
-    calcularAgp(idsAgp, tarifas, desde, hasta),
+    calcularAgp(idsAgp, tarifas, desdeAgp, hastaAgp),
     contarPorticosCatalogo(),
   ]);
 
@@ -290,6 +305,7 @@ async function main() {
 
   const html = construirHtml({
     fechaAyer: fechaCorta(desde),
+    fechaAgp: fechaCorta(desdeAgp),
     deteccion,
     agp,
     porticos,
