@@ -267,6 +267,8 @@ function construirHtml({ fechaAyer, fechaAgp, deteccion, agp, porticos }) {
 
     <h3 style="margin-bottom:4px;">2. Contraste con AGP (solo VHRX-66 / TTXR-82) — ${fechaAgp}</h3>
     <p style="margin-top:0;color:#888;font-size:12px;margin-bottom:2px;">Este bloque mira ${DIAS_LAG_AGP} días atrás, no ayer -- AGP tarda 1-2 días en procesar su lado.</p>
+    <!-- NOTA_TEMPORAL_UN_SOLO_ENVIO: borrar después del correo del 27-oct-2026, ver reporte-diario-email.js -->
+    <p style="margin-top:0;color:#888;font-size:12px;margin-bottom:2px;">Nota de hoy: esta tabla (agp_transitos_recibidos) se creó recién ayer, así que todavía no acumula suficientes días -- debería empezar a mostrar datos reales en 1-2 días.</p>
     <p style="margin-top:0;">
       ${fila('Tránsitos que AGP reportó ese día', agp.vio)}
       ${fila('De esos, cuántos capturamos nosotros', agp.capturamos)}
