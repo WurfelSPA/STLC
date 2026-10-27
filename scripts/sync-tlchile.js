@@ -660,6 +660,12 @@ const PARES_DIRECCIONALES = {
   // con 3.3/3.4 (mismo tipo de segmento), NO confirmada con cruce real.
   '2.2': { eje: 'lon', positivoEsAlterno: true,  alterno: '2.1',  tramoAlterno: 'Ruta 5 – General Velásquez' },
   PA5:   { eje: 'lat', positivoEsAlterno: false, alterno: 'PA6',  tramoAlterno: 'Lo Blanco – Colón' },
+  // PA8 agregado 2026-10-27 (ver TARIFAS más abajo): mismo gantry que PA7,
+  // nunca tuvo geocerca propia porque nunca se confirmó su coordenada -- al
+  // resolverse por PARES_DIRECCIONALES usa la coordenada de PA7 (ya
+  // confirmada) y el signo de la misma convención que el resto de este
+  // corredor (eje=lat, positivoEsAlterno=false).
+  PA7:   { eje: 'lat', positivoEsAlterno: false, alterno: 'PA8',  tramoAlterno: 'Américo Vespucio – Las Acacias' },
   // 5.2/5.4 — tramo oriente de Vespucio Sur (Quilín/Grecia/Las Torres, La
   // Reina-Peñalolén), donde el anillo corre N-S en vez de E-O como el resto
   // de Vespucio Sur — por eso usa la MISMA convención que Autopista Central
@@ -866,49 +872,65 @@ const TARIFAS_FALLBACK = {
   // banda punta (07:00-10:00 y 07:00-09:30/14:30-15:00/19:00-19:30
   // respectivamente) — el monto TBP coincidió exacto con lo que el usuario
   // anotó en pantalla (576 y 844) el mismo día en ese horario.
-  PA19: { TBFP: 413, TBP: 413,  TS: 413  },
+  // Todo este bloque (PA19-PA29) RE-TRUNCADO 2026-10-27 con el correo de
+  // Sergio Hidalgo (AGP) del 22-oct: la concesionaria cobra truncado al peso,
+  // no redondeado (mismo hallazgo y mismo fix ya aplicado a Vespucio Sur el
+  // 20-oct) -- lo que el usuario "anotó en pantalla" en 2026-08-28 (576/844)
+  // es lo que muestra el pórtico físico al conductor, que SÍ redondea; el
+  // cobro real que factura la concesionaria es el truncado. Se re-leyó el PDF
+  // oficial (concesiones.mop.gob.cl/uploads/sites/4/2026/03/AUTOPISTA-CENTRAL.pdf)
+  // renderizado como imagen (no solo texto) para confirmar cada decimal.
+  // PA26 EXCLUIDO de este re-truncado: tiene un caso real confirmado por AGP
+  // (TTXR-82, 08-oct 19:52, $1266) que pesa más que la lectura del PDF.
+  PA19: { TBFP: 412, TBP: 412,  TS: 412  },
   PA21: { TBFP: 512, TBP: 512,  TS: 512  },
-  PA23: { TBFP: 288, TBP: 576,  TS: 576  },
-  PA25: { TBFP: 422, TBP: 844,  TS: 844  },
+  PA23: { TBFP: 287, TBP: 575,  TS: 575  },
+  PA25: { TBFP: 421, TBP: 843,  TS: 843  },
   // PA24/PA26 (sentido Norte-Sur, ver PORTICOS) — mismo monto TBFP/TBP que
   // PA23/PA25, ventana horaria distinta.
-  PA24: { TBFP: 288, TBP: 576,  TS: 864  },
-  // TS corregido 2026-10-16 (844→1266): quedó cargado igual al TBP como
-  // placeholder ("sin cruce real todavía"), pero el caso real reportado por
-  // AGP (TTXR-82, 08-oct 19:52, tramo Río Mapocho–Alameda, dentro de la
-  // ventana TS 18:30-20:30) cobró $1266 = 422×3 -- mismo multiplicador 3x que
-  // ya tiene confirmado su par PA24 (864=288×3), no 1x como estaba.
-  PA26: { TBFP: 422, TBP: 844,  TS: 1266 },
+  PA24: { TBFP: 287, TBP: 575,  TS: 863  },
+  // TS NO re-truncado (ver nota de arriba): caso real AGP cobró $1266 el
+  // 08-oct, se deja tal cual -- el PDF oficial 2026 ya no trae TS para este
+  // código específico (la tarifa real puede haber cambiado o el PDF no
+  // reflejar bien este caso), pero el dato de campo manda.
+  PA26: { TBFP: 421, TBP: 843,  TS: 1266 },
   // PA20/PA22 (sentido Norte-Sur, ver PORTICOS) — mismo monto flat que PA19/PA21.
-  PA20: { TBFP: 413, TBP: 413,  TS: 413  },
+  PA20: { TBFP: 412, TBP: 412,  TS: 412  },
   PA22: { TBFP: 512, TBP: 512,  TS: 512  },
   // PA28 (ida, con TS)/PA29 (vuelta, sin TS) — ver PORTICOS.
-  PA28: { TBFP: 512, TBP: 1025, TS: 1537 },
-  PA29: { TBFP: 512, TBP: 1025, TS: 1025 },
+  PA28: { TBFP: 512, TBP: 1024, TS: 1537 },
+  PA29: { TBFP: 512, TBP: 1024, TS: 1024 },
   // Eje Norte-Sur (ver PORTICOS/PARES_DIRECCIONALES) — tarifario oficial 2026
-  // MOP (concesiones.mop.gob.cl), TS = 3×TBFP por la fórmula declarada en ese
-  // PDF (no la usa bandaHeuristica hoy, solo referencia). PA31/PA13/PA16
-  // CONFIRMADOS: coincidieron exacto con el monto en pantalla el 2026-08-31
-  // (08:00/08:06/08:10, TBP en los 3 casos). PA30/PA10/PA9/PA11/PA17/PA18/
-  // PA12/PA14/PA15 son la misma fuente oficial sin cruce real todavía.
-  // PA5/PA6/PA7/PA32/PA37 agregados 2026-09-02: cada uno solo tiene UNA
-  // lectura real de Smart Report (todas a media mañana/tarde, fuera de
-  // punta) — se toma como TBFP y se deriva TBP/TS con el multiplicador
-  // 2×/3× exacto que ya se confirmó en PA30/PA9/PA31/PA13/PA10/PA11 de
-  // este mismo corredor (ver fórmula del PDF oficial, nota más abajo). No
-  // confirmado independientemente para estos 5 códigos.
-  PA37: { TBFP: 455, TBP: 910,  TS: 1365 },
-  PA6:  { TBFP: 158, TBP: 316,  TS: 474  },
-  PA5:  { TBFP: 335, TBP: 670,  TS: 1005 },
-  PA32: { TBFP: 177, TBP: 354,  TS: 531  },
-  PA7:  { TBFP: 452, TBP: 904,  TS: 1356 },
-  PA30: { TBFP: 393, TBP: 786,  TS: 1178 },
-  PA9:  { TBFP: 393, TBP: 786,  TS: 1178 },
-  // TS corregido 2026-09-23 (857→1143): era el multiplicador genérico 3x
-  // asumido para el corredor, la tabla oficial MOP confirma que este
-  // pórtico específico es 4x TBFP (285,79×4=1.143,16). Ver VENTANAS_PUNTA_PORTICO.
-  PA10: { TBFP: 286, TBP: 572,  TS: 1143 },
-  PA11: { TBFP: 286, TBP: 572,  TS: 857  },
+  // MOP (concesiones.mop.gob.cl). PA31/PA13/PA16 CONFIRMADOS: coincidieron
+  // exacto con el monto en pantalla el 2026-08-31 (08:00/08:06/08:10, TBP en
+  // los 3 casos). PA30/PA10/PA9/PA11/PA17/PA18/PA12/PA14/PA15 son la misma
+  // fuente oficial sin cruce real todavía.
+  // RE-TRUNCADO COMPLETO 2026-10-27 (correo de Sergio/AGP del 22-oct, mismo
+  // hallazgo que en PA19-29 arriba): la concesionaria trunca al peso, no
+  // redondea. Se releyó el PDF oficial renderizado como imagen para confirmar
+  // cada decimal -- varios TS que este bloque traía NO existen para categoría
+  // 1 en el PDF (columna en blanco): se corrigen a TS=TBP (mismo criterio ya
+  // usado en '1.1'/'4.1' de Vespucio Sur cuando AGP confirma que "no aplica").
+  // PA37 además traía un bug de columna: 910/1365 eran la columna de
+  // categoría 2/3 (TBFP), no TBP/TS de categoría 1 -- el PDF muestra PA37
+  // como tarifa plana (TBFP=TBP=TS=455), igual que PA2/PA4/PA1 de este mismo
+  // corredor.
+  PA37: { TBFP: 455, TBP: 455,  TS: 455  },
+  PA6:  { TBFP: 157, TBP: 315,  TS: 473  },
+  PA5:  { TBFP: 334, TBP: 669,  TS: 1003 },
+  PA32: { TBFP: 176, TBP: 353,  TS: 530  },
+  PA7:  { TBFP: 452, TBP: 904,  TS: 904  },
+  // PA8 (alterno de PA7, ver PARES_DIRECCIONALES) agregado 2026-10-27 con el
+  // correo de Sergio Hidalgo (AGP): la concesionaria cobró $452 el 13-oct
+  // 09:08 en PA8, exacto al TBFP oficial de este tramo. El PDF oficial SÍ
+  // trae ventana punta propia para PA8 (18:00-20:30, ver
+  // VENTANAS_PUNTA_PORTICO_FALLBACK) -- el cruce real de las 09:08 cae fuera
+  // de esa ventana, por eso cobró TBFP y no contradice la ventana.
+  PA8:  { TBFP: 452, TBP: 904,  TS: 904  },
+  PA30: { TBFP: 392, TBP: 785,  TS: 785  },
+  PA9:  { TBFP: 392, TBP: 785,  TS: 785  },
+  PA10: { TBFP: 285, TBP: 571,  TS: 571  },
+  PA11: { TBFP: 285, TBP: 571,  TS: 571  },
   PA31: { TBFP: 369, TBP: 738,  TS: 1107 },
   PA12: { TBFP: 369, TBP: 738,  TS: 1107 },
   PA13: { TBFP: 182, TBP: 364,  TS: 546  },
@@ -1320,10 +1342,13 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // fila PA10 Departamental-Carlos Valdovinos) Y dos cruces reales nuevos
   // (2026-09-22 07:38 y 2026-09-23 07:41, ambos TBP/$572 en pantalla): la
   // ventana real es 07:30-09:30 hábil y sábado (domingo TBFP todo el día,
-  // regla general de la concesionaria). TS oficial de este pórtico también
-  // se corrigió (857→1143, ver TARIFAS) -- no es el multiplicador genérico
-  // 3x de otros pórticos del corredor, este es 4x TBFP. Domingo agregado
-  // el mismo día: se me había pasado en la primera lectura (columna con
+  // regla general de la concesionaria). TS de este pórtico CORREGIDO de
+  // nuevo 2026-10-27: el 1143 de la corrección anterior (857→1143, "4x
+  // TBFP") resultó ser una lectura cruzada con la columna TBP de categoría 2
+  // de la misma fila -- el PDF oficial releído como imagen muestra la
+  // columna TS de categoría 1 en blanco para PA10 (sin banda de saturación),
+  // ver TARIFAS (TS=TBP ahora). Domingo agregado el mismo día (2026-09-23):
+  // se me había pasado en la primera lectura (columna con
   // desfase de alineación distinto al resto de la tabla), confirmado con
   // extracción de coordenadas x/y del PDF en vez de solo texto plano.
   PA10: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
@@ -1343,11 +1368,14 @@ const VENTANAS_PUNTA_PORTICO_FALLBACK = {
   // visualmente renderizando la página a imagen (ver scratchpad de la
   // sesión: render-pdf.mjs/crop-pdf.mjs), no solo texto plano (que pierde
   // el orden de columnas cuando el horario de una celda es más largo que
-  // el de otra en la misma columna). PA8 (A. Vespucio-Las Acacias) NO se
-  // agrega -- no tiene geocerca propia en ningún lado del código, nunca
-  // estuvo trackeado, agregarla necesitaría coordenadas reales primero.
+  // el de otra en la misma columna).
   PA5:  { habil: [[6 * 60 + 30, 7 * 60], [8 * 60, 9 * 60 + 30]], domingo: [[18 * 60, 20 * 60]] },
   PA7:  { habil: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
+  // PA8 agregado 2026-10-27 (ver TARIFAS/PARES_DIRECCIONALES): ahora SÍ tiene
+  // geocerca (resuelve a la de PA7 por sentido). Ventana propia del PDF
+  // oficial, distinta a la de PA7 (tiene sentido: es la dirección contraria,
+  // hora punta de tarde en vez de mañana).
+  PA8:  { habil: [[18 * 60, 20 * 60 + 30]] },
   PA30: { habil: [[7 * 60 + 30, 9 * 60 + 30]], sabado: [[7 * 60 + 30, 9 * 60 + 30]], domingo: [[18 * 60 + 30, 20 * 60 + 30]] },
   PA16: [[7 * 60 + 30, 9 * 60 + 30]],
   PA17: [[7 * 60, 10 * 60], [10 * 60 + 30, 15 * 60], [16 * 60 + 30, 19 * 60 + 30]],
