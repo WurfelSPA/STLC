@@ -3,19 +3,31 @@
 /**
  * reporte-diario-email.js
  *
- * Reporte diario por correo del estado del piloto de pórticos (AGP/Tracklink):
- * vehículos con pasadas, pasadas detectadas, acierto en montos por fuente
- * (lectura manual, Smart Report, AGP) y cuántos tránsitos vio AGP que
- * nosotros no capturamos. Pensado para correr una vez al día, 10:00 hora
- * Chile, sobre lo sucedido el día anterior.
+ * Reporte diario por correo del estado del piloto de pórticos (AGP/Tracklink),
+ * en 2 bloques separados para que no se mezclen universos de vehículos
+ * distintos (confusión real del cuadro anterior, ver historial de commits):
  *
- * Rediseñado 2026-10-26 a pedido del equipo de Tracklink -- la versión
- * anterior (acierto urbana/interurbana/acumulado con semáforo) confundió
- * más de lo que aclaró. Reemplazada por una comparación directa por fuente,
- * solo del día anterior (sin "acumulado").
+ *   1) Pasadas detectadas (nuestra base de datos, toda la flota activa):
+ *      vehículos con pasadas, pasadas detectadas, salud geométrica (distancia
+ *      al pórtico, velocidad al cruzar, duplicados) y tamaño del catálogo.
+ *      Es la única métrica automática que cubre a los vehículos que no son
+ *      clientes de AGP ni están en Smart Report (la mayoría de la flota).
+ *   2) Contraste con AGP (solo VHRX-66/TTXR-82, los únicos clientes reales
+ *      de AGP con TAG propio): cuántos tránsitos vio AGP, cuántos capturamos,
+ *      y de los capturados cuántos coinciden con la tarifa estimada.
  *
- * Regla de silencio: si no hubo ninguna pasada confirmada ayer, no se envía
- * nada -- un correo de puros ceros no aporta y satura la bandeja.
+ * Decisión 2026-10-27 (usuario): Smart Report ya no tiene vehículo activo
+ * (VVJG-14, único dado de alta ahí, le retiraron el GPS FTC927 la noche del
+ * 26-oct) -- se saca ese bloque del correo. VVJG-14 se excluye del bloque 1
+ * también (ver PATENTES_EXCLUIDAS) -- su histórico queda intacto en la base
+ * de datos, solo deja de contarse en el reporte diario.
+ *
+ * Pensado para correr una vez al día, 10:00 hora Chile, sobre lo sucedido el
+ * día anterior.
+ *
+ * Regla de silencio: si no hubo ninguna pasada confirmada ayer (ya excluyendo
+ * PATENTES_EXCLUIDAS), no se envía nada -- un correo de puros ceros no aporta
+ * y satura la bandeja.
  *
  * Variables de entorno esperadas (GitHub Secrets):
  *   SUPABASE_SERVICE_ROLE_KEY, TRACKLINK_SMTP_PASSWORD
@@ -42,6 +54,16 @@ const DESTINATARIOS = [
   'rafael.nieto@tracklink.cl',
   'alex.melendez@tracklink.cl',
 ];
+
+// Vehículo(s) de prueba interna dados de baja -- se excluyen del bloque 1
+// (pasadas detectadas) para que el reporte no cuente algo que ya no está
+// circulando. El histórico queda intacto en Supabase, esto solo afecta este
+// reporte. VVJG-14: le retiraron el GPS FTC927 la noche del 26-oct-2026.
+const PATENTES_EXCLUIDAS = ['VVJG-14'];
+
+// Únicos clientes reales de AGP con TAG propio (mismo criterio que
+// PATENTES_AGP en sync-agp-transitos.js -- mantener sincronizado si cambia).
+const PATENTES_AGP = ['VHRX-66', 'TTXR-82'];
 
 // Mismo criterio que montosPosiblesPortico/toleranciaMonto en
 // sync-tlchile.js, documentado en tracklink-porticos-portal/docs/ESTADO.md
@@ -101,111 +123,39 @@ function construirTarifas(filas) {
   return tarifas;
 }
 
-// Trae pasadas confirmadas del dispositivo principal de TODA la flota
-// (Tracklink, no solo los 2 vehículos cliente real de AGP) en [desde,
-// hasta), y arma: vehículos distintos, total de pasadas, pasadas sin
-// NINGUNA fuente de monto real todavía, y por cada fuente (lectura manual,
-// Smart Report, AGP) cuántas pasadas la tienen y cuántas de esas coinciden
-// con la tarifa estimada.
-//
-// Alcance real de cada fuente (no todas cubren toda la flota, ver
-// etiquetas): "Lectura manual" y "pasadas detectadas" sí son de toda la
-// flota; "Smart Report" solo tiene datos de VVJG-14 (único vehículo dado de
-// alta en esa cuenta, ver PATENTES_SMARTREPORT en sync-smartreport.js);
-// "AGP" solo tiene datos de VHRX-66/TTXR-82 (únicos clientes reales de AGP
-// con TAG propio, ver PATENTES_AGP en sync-agp-transitos.js). Ninguna de las
-// dos limitaciones es un bug nuestro -- cada fuente externa solo tiene lo
-// que tiene.
-//
-// Antes (hasta el 26-oct) este reporte sí tenía un bug real: filtraba por
-// vehículo con cliente_usuario='agp' para el cálculo de "acierto acumulado"
-// y aun así se colaban 22 lecturas viejas de VVJG-14 (ago-sep, previas a la
-// corrección del tarifario de Vespucio Sur del 21-oct) que hundían el
-// número sin reflejar nada real. Ese "acumulado" ya no existe (el reporte
-// rediseñado solo mira "ayer"), así que no hace falta excluir ningún
-// vehículo por fecha -- un día puntual nunca arrastra data vieja.
-const FUENTES = [
-  { campo: 'monto_real', etiqueta: 'Lectura manual' },
-  { campo: 'monto_smartreport', etiqueta: 'Smart Report (solo VVJG-14)' },
-  { campo: 'monto_agp', etiqueta: 'AGP (solo VHRX-66/TTXR-82)' },
-];
-
-async function calcularResumen(tarifas, desde, hasta) {
-  let query = supabase
-    .from('porticos_pasadas_reales')
-    .select('vehiculo_id, portico_codigo, monto_real, monto_smartreport, monto_agp')
-    .eq('confirmado', true)
-    .eq('dispositivo', 'principal');
-  if (desde) query = query.gte('ts', desde.toISOString());
-  if (hasta) query = query.lt('ts', hasta.toISOString());
-  const { data, error } = await query;
+async function idsDePatentes(patentes) {
+  const { data, error } = await supabase.from('porticos_vehiculos').select('id').in('patente', patentes);
   if (error) throw error;
-
-  const vehiculos = new Set();
-  let pendientes = 0;
-  const porFuente = Object.fromEntries(FUENTES.map((f) => [f.campo, { ok: 0, total: 0 }]));
-
-  for (const p of data) {
-    vehiculos.add(p.vehiculo_id);
-    if (p.monto_real == null && p.monto_smartreport == null && p.monto_agp == null) { pendientes++; continue; }
-    for (const { campo } of FUENTES) {
-      const monto = p[campo];
-      if (monto == null) continue;
-      const coincide = dentroDeTolerancia(Number(monto), montosPosibles(tarifas, p.portico_codigo));
-      if (coincide === null) continue; // sin tarifa cargada, no se puede evaluar
-      porFuente[campo].total++;
-      if (coincide) porFuente[campo].ok++;
-    }
-  }
-
-  return { vehiculos: vehiculos.size, pasadas: data.length, pendientes, porFuente };
+  return data.map((v) => v.id);
 }
 
-// Tránsitos que AGP reportó para sus vehículos cliente real (VHRX-66/
-// TTXR-82, ver PATENTES_AGP en sync-agp-transitos.js) en [desde, hasta),
-// hayan calzado o no con una pasada nuestra -- permite mostrar "AGP vio N,
-// nosotros capturamos M", a diferencia del acierto en montos (que solo mira
-// lo que ya calzó). Agregado 2026-10-26 a pedido explícito del equipo de
-// Tracklink en la reunión del 26-oct.
-async function calcularComparacionAgp(desde, hasta) {
-  const { data, error } = await supabase
-    .from('agp_transitos_recibidos')
-    .select('pasada_id')
-    .gte('ts_transito', desde.toISOString())
-    .lt('ts_transito', hasta.toISOString());
-  if (error) throw error;
-  const vio = data.length;
-  const capturamos = data.filter((t) => t.pasada_id != null).length;
-  return { vio, capturamos };
-}
-
-// Salud geométrica de las pasadas de ayer -- único indicador automático que
-// cubre a TODA la flota, incluidos los ~35 vehículos sin ninguna fuente
-// externa de contraste (no son clientes AGP ni están en Smart Report, y no
-// hay acceso a la facturación real de las concesionarias). No prueba que el
-// monto esté bien, pero si la detección es consistente (sin duplicados,
-// confirmada cerca del pórtico, con el vehículo en movimiento), es la mejor
-// evidencia automática disponible de que el mismo motor ya validado contra
-// AGP (98-100% de acierto en tarifas) se está comportando igual acá.
-// Agregado 2026-10-27 a pedido explícito del usuario: Smart Report/AGP no
-// son viables para el resto de la flota (son clientes de Tracklink ajenos a
-// este proyecto), así que la salud geométrica pasa a ser la métrica
-// principal para esos vehículos, no un complemento.
 const DISTANCIA_ALTA_CONFIANZA_M = 50;
 const DISTANCIA_AL_LIMITE_M = 100; // RADIO_GEOCERCA_M en sync-tlchile.js es 150
 
-async function calcularSaludGeometrica(desde, hasta) {
-  const { data, error } = await supabase
+// Bloque 1: pasadas detectadas por nuestra base de datos, toda la flota
+// activa (sin PATENTES_EXCLUIDAS). Incluye salud geométrica -- distancia al
+// pórtico, velocidad al cruzar, duplicados -- único indicador automático que
+// cubre a los vehículos sin AGP ni Smart Report (la mayoría de la flota, ver
+// nota del encabezado del archivo). No prueba que el monto esté bien, pero
+// si la detección es consistente es la mejor evidencia automática disponible
+// de que el mismo motor ya validado contra AGP (98-100% de acierto en
+// tarifas) se está comportando igual acá.
+async function calcularDeteccion(idsExcluidos, desde, hasta) {
+  let query = supabase
     .from('porticos_pasadas_reales')
     .select('vehiculo_id, portico_codigo, ts, distancia_m, velocidad_kmh')
     .eq('confirmado', true)
     .eq('dispositivo', 'principal')
     .gte('ts', desde.toISOString())
     .lt('ts', hasta.toISOString());
+  if (idsExcluidos.length) query = query.not('vehiculo_id', 'in', `(${idsExcluidos.join(',')})`);
+  const { data, error } = await query;
   if (error) throw error;
 
+  const vehiculos = new Set();
   let cercaAltaConfianza = 0, alLimite = 0, velocidadCero = 0;
   for (const p of data) {
+    vehiculos.add(p.vehiculo_id);
     if (p.distancia_m != null && p.distancia_m < DISTANCIA_ALTA_CONFIANZA_M) cercaAltaConfianza++;
     if (p.distancia_m != null && p.distancia_m >= DISTANCIA_AL_LIMITE_M) alLimite++;
     if (p.velocidad_kmh === 0) velocidadCero++;
@@ -231,7 +181,46 @@ async function calcularSaludGeometrica(desde, hasta) {
     }
   }
 
-  return { total: data.length, cercaAltaConfianza, alLimite, velocidadCero, duplicados };
+  return { vehiculos: vehiculos.size, pasadas: data.length, cercaAltaConfianza, alLimite, velocidadCero, duplicados };
+}
+
+// Bloque 2: contraste con AGP, solo VHRX-66/TTXR-82. Dos cosas distintas:
+// "vio vs capturamos" (agp_transitos_recibidos, guarda TODO lo que AGP
+// reporta, calce o no -- agregado 2026-10-26) y "de lo capturado, cuánto
+// coincide con la tarifa estimada" (porticos_pasadas_reales.monto_agp, solo
+// lo que ya calzó).
+async function calcularAgp(idsAgp, tarifas, desde, hasta) {
+  const [{ data: pasadas, error: errPasadas }, { data: transitos, error: errTransitos }] = await Promise.all([
+    supabase
+      .from('porticos_pasadas_reales')
+      .select('portico_codigo, monto_agp')
+      .eq('confirmado', true)
+      .eq('dispositivo', 'principal')
+      .in('vehiculo_id', idsAgp)
+      .not('monto_agp', 'is', null)
+      .gte('ts', desde.toISOString())
+      .lt('ts', hasta.toISOString()),
+    supabase
+      .from('agp_transitos_recibidos')
+      .select('pasada_id')
+      .gte('ts_transito', desde.toISOString())
+      .lt('ts_transito', hasta.toISOString()),
+  ]);
+  if (errPasadas) throw errPasadas;
+  if (errTransitos) throw errTransitos;
+
+  let coinciden = 0;
+  for (const p of pasadas) {
+    const coincide = dentroDeTolerancia(Number(p.monto_agp), montosPosibles(tarifas, p.portico_codigo));
+    if (coincide) coinciden++;
+  }
+
+  return {
+    vio: transitos.length,
+    capturamos: transitos.filter((t) => t.pasada_id != null).length,
+    conMonto: pasadas.length,
+    coinciden,
+  };
 }
 
 async function contarPorticosCatalogo() {
@@ -242,44 +231,35 @@ async function contarPorticosCatalogo() {
   return count;
 }
 
-function celdaAcierto(ok, total) {
-  if (total === 0) return 'sin datos para evaluar';
-  return `${ok} (${((ok / total) * 100).toFixed(0)}%)`;
+function fila(etiqueta, valor) {
+  return `${etiqueta}: ${valor}<br>`;
 }
 
-function construirHtml({ fechaAyer, resumen, comparacionAgp, salud, porticos }) {
-  const filasFuente = FUENTES.map(({ campo, etiqueta }) => {
-    const { ok, total } = resumen.porFuente[campo];
-    return `<tr>
-      <td style="padding:6px 10px;border:1px solid #ddd;">${etiqueta}</td>
-      <td style="padding:6px 10px;border:1px solid #ddd;">${total}</td>
-      <td style="padding:6px 10px;border:1px solid #ddd;">${celdaAcierto(ok, total)}</td>
-    </tr>`;
-  }).join('');
-
-  const pctSalud = (n) => (salud.total ? `${n} (${((n / salud.total) * 100).toFixed(0)}%)` : `${n}`);
+function construirHtml({ fechaAyer, deteccion, agp, porticos }) {
+  const pct = (n, total) => (total ? `${n} (${((n / total) * 100).toFixed(0)}%)` : `${n}`);
 
   return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
     <p>Resumen automático del piloto de pórticos correspondiente a ayer (${fechaAyer}).</p>
-    <table style="border-collapse:collapse;">
-      <tr style="background:#f2f2f2;">
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Fuente</th>
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Pasadas de ayer con esa fuente</th>
-        <th style="padding:6px 10px;border:1px solid #ddd;text-align:left;">Coinciden con nuestro monto estimado</th>
-      </tr>
-      ${filasFuente}
-    </table>
-    <p>Vehículos con pasadas: ${resumen.vehiculos}<br>
-    Pasadas detectadas: ${resumen.pasadas}<br>
-    Pendientes de confirmar (ninguna fuente todavía): ${resumen.pendientes}<br>
-    AGP vio ${comparacionAgp.vio} tránsito(s) de VHRX-66/TTXR-82 ayer, capturamos ${comparacionAgp.capturamos} de esos<br>
-    Pórticos en catálogo: ${porticos}</p>
 
-    <p><strong>Salud geométrica de ayer</strong> (toda la flota, con o sin fuente externa):<br>
-    Confirmadas a menos de ${DISTANCIA_ALTA_CONFIANZA_M}m del pórtico (alta confianza): ${pctSalud(salud.cercaAltaConfianza)}<br>
-    Confirmadas a ${DISTANCIA_AL_LIMITE_M}m o más (cerca del límite del radio, revisar si se repite seguido en el mismo pórtico): ${pctSalud(salud.alLimite)}<br>
-    Con velocidad 0 al momento del cruce (posible falso positivo tipo P11/PA17/P5CN): ${salud.velocidadCero}<br>
-    Duplicados (mismo vehículo y pórtico en menos de 5 min, no debería pasar): ${salud.duplicados}</p>
+    <h3 style="margin-bottom:4px;">1. Pasadas detectadas (nuestra base de datos)</h3>
+    <p style="margin-top:0;">
+      ${fila('Vehículos con pasadas', deteccion.vehiculos)}
+      ${fila('Pasadas detectadas', deteccion.pasadas)}
+      ${fila(`Confirmadas a menos de ${DISTANCIA_ALTA_CONFIANZA_M}m del pórtico (alta confianza)`, pct(deteccion.cercaAltaConfianza, deteccion.pasadas))}
+      ${fila(`Confirmadas a ${DISTANCIA_AL_LIMITE_M}m o más (cerca del límite del radio de detección)`, pct(deteccion.alLimite, deteccion.pasadas))}
+      ${fila('Con velocidad 0 al momento del cruce (posible falso positivo)', deteccion.velocidadCero)}
+      ${fila('Duplicados (mismo vehículo y pórtico en menos de 5 min, no debería pasar)', deteccion.duplicados)}
+      ${fila('Pórticos en catálogo', porticos)}
+    </p>
+
+    <h3 style="margin-bottom:4px;">2. Contraste con AGP (solo VHRX-66 / TTXR-82)</h3>
+    <p style="margin-top:0;">
+      ${fila('Tránsitos que AGP reportó ayer', agp.vio)}
+      ${fila('De esos, cuántos capturamos nosotros', agp.capturamos)}
+      ${fila('Pasadas capturadas con monto de AGP', agp.conMonto)}
+      ${fila('De esas, cuántas coinciden con nuestra tarifa estimada', pct(agp.coinciden, agp.conMonto))}
+    </p>
+
     <p style="color:#888;font-size:12px;">Mensaje generado automáticamente.</p>
   </div>`;
 }
@@ -292,23 +272,26 @@ async function main() {
   if (errCatalogo) throw errCatalogo;
   const tarifas = construirTarifas(catalogo);
 
-  const [resumenAyer, comparacionAgp, salud, porticos] = await Promise.all([
-    calcularResumen(tarifas, desde, hasta),
-    calcularComparacionAgp(desde, hasta),
-    calcularSaludGeometrica(desde, hasta),
+  const [idsExcluidos, idsAgp] = await Promise.all([
+    idsDePatentes(PATENTES_EXCLUIDAS),
+    idsDePatentes(PATENTES_AGP),
+  ]);
+
+  const [deteccion, agp, porticos] = await Promise.all([
+    calcularDeteccion(idsExcluidos, desde, hasta),
+    calcularAgp(idsAgp, tarifas, desde, hasta),
     contarPorticosCatalogo(),
   ]);
 
-  if (resumenAyer.pasadas === 0) {
+  if (deteccion.pasadas === 0) {
     console.log('[reporte-diario] Sin pasadas confirmadas ayer, se omite el envío.');
     return;
   }
 
   const html = construirHtml({
     fechaAyer: fechaCorta(desde),
-    resumen: resumenAyer,
-    comparacionAgp,
-    salud,
+    deteccion,
+    agp,
     porticos,
   });
 
@@ -326,7 +309,7 @@ async function main() {
     html,
   });
 
-  console.log(`[reporte-diario] Enviado a ${DESTINATARIOS.join(', ')} (${resumenAyer.pasadas} pasadas de ayer).`);
+  console.log(`[reporte-diario] Enviado a ${DESTINATARIOS.join(', ')} (${deteccion.pasadas} pasadas de ayer).`);
 }
 
 main().catch((err) => {
