@@ -280,6 +280,21 @@ function construirHtml({ fechaAyer, fechaAgp, deteccion, agp, porticos }) {
   </div>`;
 }
 
+// Protección contra duplicados: el cron de GitHub Actions para este
+// workflow se ha disparado a horas muy distintas cada día entre el 24 y el
+// 27-oct-2026 (a veces varias horas después de las 10:00 programadas, ver
+// "high load" en la documentación de GitHub Actions para triggers en punto)
+// -- sin esto, un disparo tardío del cron el mismo día que ya se envió
+// manualmente (o dos disparos el mismo día) manda el correo duplicado.
+// reporte_diario_log.fecha tiene PK única -- el insert falla solo (código
+// 23505) si ya se envió hoy, y ese es justo el caso que hay que detectar.
+async function yaSeEnvioHoy(fechaHoyChile) {
+  const { error } = await supabase.from('reporte_diario_log').insert({ fecha: fechaHoyChile });
+  if (!error) return false;
+  if (error.code === '23505') return true;
+  throw error;
+}
+
 async function main() {
   const ahora = new Date();
   const { desde, hasta } = rangoDiaChile(ahora, 1);
@@ -302,6 +317,15 @@ async function main() {
 
   if (deteccion.pasadas === 0) {
     console.log('[reporte-diario] Sin pasadas confirmadas ayer, se omite el envío.');
+    return;
+  }
+
+  // Se marca "enviado hoy" recién acá (no antes) -- si un día sin pasadas
+  // (silencio, arriba) de repente sí tuviera datos más tarde en una corrida
+  // posterior del mismo día, esta segunda corrida todavía puede enviar.
+  const p = partesChile(ahora);
+  if (await yaSeEnvioHoy(`${p.year}-${p.month}-${p.day}`)) {
+    console.log('[reporte-diario] Ya se envió hoy, se omite (cron disparado tarde o dos veces).');
     return;
   }
 
