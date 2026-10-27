@@ -179,6 +179,61 @@ async function calcularComparacionAgp(desde, hasta) {
   return { vio, capturamos };
 }
 
+// Salud geométrica de las pasadas de ayer -- único indicador automático que
+// cubre a TODA la flota, incluidos los ~35 vehículos sin ninguna fuente
+// externa de contraste (no son clientes AGP ni están en Smart Report, y no
+// hay acceso a la facturación real de las concesionarias). No prueba que el
+// monto esté bien, pero si la detección es consistente (sin duplicados,
+// confirmada cerca del pórtico, con el vehículo en movimiento), es la mejor
+// evidencia automática disponible de que el mismo motor ya validado contra
+// AGP (98-100% de acierto en tarifas) se está comportando igual acá.
+// Agregado 2026-10-27 a pedido explícito del usuario: Smart Report/AGP no
+// son viables para el resto de la flota (son clientes de Tracklink ajenos a
+// este proyecto), así que la salud geométrica pasa a ser la métrica
+// principal para esos vehículos, no un complemento.
+const DISTANCIA_ALTA_CONFIANZA_M = 50;
+const DISTANCIA_AL_LIMITE_M = 100; // RADIO_GEOCERCA_M en sync-tlchile.js es 150
+
+async function calcularSaludGeometrica(desde, hasta) {
+  const { data, error } = await supabase
+    .from('porticos_pasadas_reales')
+    .select('vehiculo_id, portico_codigo, ts, distancia_m, velocidad_kmh')
+    .eq('confirmado', true)
+    .eq('dispositivo', 'principal')
+    .gte('ts', desde.toISOString())
+    .lt('ts', hasta.toISOString());
+  if (error) throw error;
+
+  let cercaAltaConfianza = 0, alLimite = 0, velocidadCero = 0;
+  for (const p of data) {
+    if (p.distancia_m != null && p.distancia_m < DISTANCIA_ALTA_CONFIANZA_M) cercaAltaConfianza++;
+    if (p.distancia_m != null && p.distancia_m >= DISTANCIA_AL_LIMITE_M) alLimite++;
+    if (p.velocidad_kmh === 0) velocidadCero++;
+  }
+
+  // Duplicado = mismo vehículo + mismo código de pórtico, dos confirmadas a
+  // menos de 5 min -- mismo síntoma que el bug real de doble detección
+  // corregido el 16-oct (commit 5f29f41, STLC). No detecta el caso base/
+  // alterno (serían dos CÓDIGOS distintos del mismo nudo vial, ver
+  // PARES_DIRECCIONALES) -- esta consulta es un chequeo de salud simple, no
+  // reemplaza el lock de dirección real que corre en sync-tlchile.js.
+  let duplicados = 0;
+  const porGrupo = new Map();
+  for (const p of data) {
+    const clave = `${p.vehiculo_id}|${p.portico_codigo}`;
+    if (!porGrupo.has(clave)) porGrupo.set(clave, []);
+    porGrupo.get(clave).push(new Date(p.ts).getTime());
+  }
+  for (const marcas of porGrupo.values()) {
+    marcas.sort((a, b) => a - b);
+    for (let i = 1; i < marcas.length; i++) {
+      if (marcas[i] - marcas[i - 1] < 5 * 60_000) duplicados++;
+    }
+  }
+
+  return { total: data.length, cercaAltaConfianza, alLimite, velocidadCero, duplicados };
+}
+
 async function contarPorticosCatalogo() {
   const { count, error } = await supabase
     .from('porticos_catalogo')
@@ -192,7 +247,7 @@ function celdaAcierto(ok, total) {
   return `${ok} (${((ok / total) * 100).toFixed(0)}%)`;
 }
 
-function construirHtml({ fechaAyer, resumen, comparacionAgp, porticos }) {
+function construirHtml({ fechaAyer, resumen, comparacionAgp, salud, porticos }) {
   const filasFuente = FUENTES.map(({ campo, etiqueta }) => {
     const { ok, total } = resumen.porFuente[campo];
     return `<tr>
@@ -201,6 +256,8 @@ function construirHtml({ fechaAyer, resumen, comparacionAgp, porticos }) {
       <td style="padding:6px 10px;border:1px solid #ddd;">${celdaAcierto(ok, total)}</td>
     </tr>`;
   }).join('');
+
+  const pctSalud = (n) => (salud.total ? `${n} (${((n / salud.total) * 100).toFixed(0)}%)` : `${n}`);
 
   return `<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
     <p>Resumen automático del piloto de pórticos correspondiente a ayer (${fechaAyer}).</p>
@@ -217,6 +274,12 @@ function construirHtml({ fechaAyer, resumen, comparacionAgp, porticos }) {
     Pendientes de confirmar (ninguna fuente todavía): ${resumen.pendientes}<br>
     AGP vio ${comparacionAgp.vio} tránsito(s) de VHRX-66/TTXR-82 ayer, capturamos ${comparacionAgp.capturamos} de esos<br>
     Pórticos en catálogo: ${porticos}</p>
+
+    <p><strong>Salud geométrica de ayer</strong> (toda la flota, con o sin fuente externa):<br>
+    Confirmadas a menos de ${DISTANCIA_ALTA_CONFIANZA_M}m del pórtico (alta confianza): ${pctSalud(salud.cercaAltaConfianza)}<br>
+    Confirmadas a ${DISTANCIA_AL_LIMITE_M}m o más (cerca del límite del radio, revisar si se repite seguido en el mismo pórtico): ${pctSalud(salud.alLimite)}<br>
+    Con velocidad 0 al momento del cruce (posible falso positivo tipo P11/PA17/P5CN): ${salud.velocidadCero}<br>
+    Duplicados (mismo vehículo y pórtico en menos de 5 min, no debería pasar): ${salud.duplicados}</p>
     <p style="color:#888;font-size:12px;">Mensaje generado automáticamente.</p>
   </div>`;
 }
@@ -229,9 +292,10 @@ async function main() {
   if (errCatalogo) throw errCatalogo;
   const tarifas = construirTarifas(catalogo);
 
-  const [resumenAyer, comparacionAgp, porticos] = await Promise.all([
+  const [resumenAyer, comparacionAgp, salud, porticos] = await Promise.all([
     calcularResumen(tarifas, desde, hasta),
     calcularComparacionAgp(desde, hasta),
+    calcularSaludGeometrica(desde, hasta),
     contarPorticosCatalogo(),
   ]);
 
@@ -244,6 +308,7 @@ async function main() {
     fechaAyer: fechaCorta(desde),
     resumen: resumenAyer,
     comparacionAgp,
+    salud,
     porticos,
   });
 
