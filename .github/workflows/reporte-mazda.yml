@@ -1,0 +1,69 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Action: reporte semanal "Clientes Mazda" para Derco (lunes).
+# Consulta TrackGTS (cliente mconnect), arma el Excel en memoria y lo entrega
+# al webhook de n8n, que lo envía desde soporte@tracklink.cl. Ver
+# scripts/reporte-mazda.js.
+#
+# Horario: 11:20 UTC = 08:20 hora Chile en verano (07:20 en invierno). El
+# minuto :20 queda lejos de sync-tlchile (:05 y :35) y de los reportes
+# semanales de Santa Marta/Kadel/Enerfrost (05:00-05:40 UTC), que usan la
+# misma cuenta TrackGTS y chocan por rate limit si autentican a la vez.
+#
+# Modo: el cron usa la variable de repositorio REPORTE_MAZDA_MODO ("prueba"
+# si no está definida). Para pasar a Derco: Settings → Variables → Actions →
+# REPORTE_MAZDA_MODO = produccion. El disparo manual permite elegir el modo.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Reporte semanal Mazda (Derco)
+
+on:
+  schedule:
+    - cron: '20 11 * * 1'
+
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: 'prueba = solo Tracklink/Alex, produccion = Derco'
+        required: true
+        default: prueba
+        type: choice
+        options: [prueba, produccion]
+
+jobs:
+  reporte-mazda:
+    runs-on: ubuntu-latest
+    # Peor caso: 4 intentos de login con 7 min de espera (~21 min) + primera
+    # geocodificación de ~360 puntos a 1 consulta/s (~7 min).
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Cachear node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-reporte-mazda-v1
+
+      - name: Instalar dependencias
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install --no-save @supabase/supabase-js exceljs
+        timeout-minutes: 5
+
+      - name: Generar y enviar reporte
+        env:
+          TL_USER: ${{ secrets.TL_USER }}
+          TL_PASSWORD: ${{ secrets.TL_PASSWORD }}
+          TL_DOMAIN: ${{ secrets.TL_DOMAIN }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MAZDA_WEBHOOK_URL: https://wurfel.app.n8n.cloud/webhook/reporte-mazda
+          MAZDA_WEBHOOK_TOKEN: ${{ secrets.MAZDA_WEBHOOK_TOKEN }}
+          MODO: ${{ github.event.inputs.modo || vars.REPORTE_MAZDA_MODO || 'prueba' }}
+        run: node scripts/reporte-mazda.js
