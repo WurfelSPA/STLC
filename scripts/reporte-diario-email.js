@@ -69,7 +69,8 @@ const PATENTES_EXCLUIDAS = ['VVJG-14'];
 
 // Únicos clientes reales de AGP con TAG propio (mismo criterio que
 // PATENTES_AGP en sync-agp-transitos.js -- mantener sincronizado si cambia).
-const PATENTES_AGP = ['VHRX-66', 'TTXR-82'];
+// TTXR-31/VTHC-65/VCVG-14 agregadas 2026-10-29 (confirmado por Rafael Nieto).
+const PATENTES_AGP = ['VHRX-66', 'TTXR-82', 'TTXR-31', 'VTHC-65', 'VCVG-14'];
 
 // Mismo criterio que montosPosiblesPortico/toleranciaMonto en
 // sync-tlchile.js, documentado en tracklink-porticos-portal/docs/ESTADO.md

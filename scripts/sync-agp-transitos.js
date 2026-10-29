@@ -60,9 +60,14 @@ const VENTANA_EMPAREJAR_MS = 10 * 60 * 1000; // ±10 min, igual que sync-smartre
 // lo espera la API de AGP (sin guión, confirmado con el PDF real que mandó
 // Sergio Hidalgo: "VHRX66"/"TTXR82"); "patente" es como está en
 // porticos_vehiculos (con guión).
+// Agregado 2026-10-29: TTXR-31, VTHC-65 y VCVG-14 (flota de AGP, confirmado
+// por Rafael Nieto que sí tienen TAG propio -- no es un supuesto).
 const PATENTES_AGP = [
   { patente: 'VHRX-66', ppu: 'VHRX66' },
   { patente: 'TTXR-82', ppu: 'TTXR82' },
+  { patente: 'TTXR-31', ppu: 'TTXR31' },
+  { patente: 'VTHC-65', ppu: 'VTHC65' },
+  { patente: 'VCVG-14', ppu: 'VCVG14' },
 ];
 
 // --- Mapeo de códigos de AGP a nuestro portico_codigo -----------------------
