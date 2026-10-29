@@ -126,8 +126,10 @@ async function obtenerUnidades() {
 }
 
 // Mismo mapeo que sincronizarHealthCheck() en sync-tlchile.js (mantener
-// sincronizado si cambia). Se duplica a propósito en vez de tocar ese archivo,
-// que es compartido con el cliente Santa Marta.
+// sincronizado si cambia), salvo "Horómetro": la tabla MZDConnect no tiene esa
+// columna (la tabla Tracklink sí) y PostgREST rechaza el upsert completo.
+// Se duplica a propósito en vez de tocar ese archivo, que es compartido con el
+// cliente Santa Marta.
 async function actualizarTablaMZDConnect(unidades) {
   const registros = unidades.map((u) => ({
     'IMEI': u.imei, 'Unit ID': u.unitId, 'Serie': u.serie,
@@ -135,7 +137,7 @@ async function actualizarTablaMZDConnect(unidades) {
     'Antigüedad (minutos)': u.antiguedadMinutos, 'Mensaje': u.mensaje,
     'EstadoGPS': u.estadoGPS, 'EstadoIgnición': u.estadoIgnicion, 'EstadoMotor': u.estadoMotor,
     'Velocidad': String(u.velocidad ?? ''), 'Odómetro': String(u.odometro ?? ''),
-    'Horómetro': u.horometro ?? null, 'VBatExterna': String(u.vBatExterna ?? ''),
+    'VBatExterna': String(u.vBatExterna ?? ''),
     '%BatExterna': u.porcentBatInterna, 'Fabricante AVL': u.fabricanteAVL,
     'Modelo AVL': u.modeloAVL, 'Modelo AVL Ref': u.modeloAVLRef, 'Protocolo': u.protocolo,
     'Teléfono SIM': u.telefonoSim, 'Serie SIM': u.serieSim, 'GPRS': u.gprs,
